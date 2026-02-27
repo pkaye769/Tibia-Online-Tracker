@@ -1,0 +1,14 @@
+.git
+.gitignore
+.build-cache
+target
+**/target
+logs
+.env
+*.log
+*.zip
+*.jar
+out
+.idea
+.vscode
+
