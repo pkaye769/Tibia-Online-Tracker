@@ -1,0 +1,16 @@
+target/
+.build-cache/
+logs/
+
+*.log
+*.class
+*.jar
+*.zip
+
+.env
+.env.local
+
+.bsp/
+.idea/
+.vscode/
+out/
