@@ -292,114 +292,370 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
       |<head>
       |  <meta charset="utf-8" />
       |  <meta name="viewport" content="width=device-width, initial-scale=1" />
-      |  <title>Tibia Alt Finder</title>
+      |  <title>Alt Finder Console</title>
       |  <style>
       |    :root {
-      |      --bg1: #0f172a;
-      |      --bg2: #111827;
-      |      --panel: #0b1220cc;
-      |      --line: #334155;
-      |      --text: #e2e8f0;
-      |      --muted: #94a3b8;
-      |      --accent: #22c55e;
-      |      --accent2: #06b6d4;
-      |      --danger: #ef4444;
+      |      --bg: #f4efe4;
+      |      --ink: #101417;
+      |      --muted: #55646f;
+      |      --card: #fff9eecc;
+      |      --line: #dbcaa6;
+      |      --accent: #d95d39;
+      |      --accent-2: #2f6e69;
+      |      --ok: #1f7a42;
+      |      --warn: #8c2f39;
+      |      --shadow: 0 20px 45px #7f735840;
       |    }
       |    * { box-sizing: border-box; }
       |    body {
       |      margin: 0;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      color: var(--text);
-      |      background: radial-gradient(circle at 10% 10%, #1d4ed8 0%, transparent 40%),
-      |                  radial-gradient(circle at 90% 20%, #0ea5e9 0%, transparent 35%),
-      |                  linear-gradient(140deg, var(--bg1), var(--bg2));
+      |      font-family: "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
+      |      color: var(--ink);
+      |      background:
+      |        radial-gradient(circle at 14% 8%, #f7d58a 0%, transparent 35%),
+      |        radial-gradient(circle at 92% 22%, #9dd6d0 0%, transparent 33%),
+      |        linear-gradient(165deg, #efe5d0 0%, #f6f1e8 45%, #ecdfc5 100%);
       |      min-height: 100vh;
       |    }
-      |    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+      |    .noise {
+      |      position: fixed;
+      |      inset: 0;
+      |      pointer-events: none;
+      |      opacity: 0.15;
+      |      background-image: radial-gradient(#6f5f44 0.4px, transparent 0.4px);
+      |      background-size: 4px 4px;
+      |    }
+      |    .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 18px 34px; }
+      |    .hero {
+      |      margin-bottom: 18px;
+      |      display: flex;
+      |      align-items: end;
+      |      justify-content: space-between;
+      |      gap: 12px;
+      |      opacity: 0;
+      |      transform: translateY(12px);
+      |      animation: rise 0.55s ease forwards;
+      |    }
+      |    h1 {
+      |      margin: 0;
+      |      font-size: clamp(1.6rem, 1.9vw + 1rem, 2.4rem);
+      |      letter-spacing: 0.03em;
+      |      text-transform: uppercase;
+      |    }
+      |    .sub {
+      |      margin-top: 6px;
+      |      color: var(--muted);
+      |      max-width: 760px;
+      |      font-size: 0.98rem;
+      |    }
+      |    .badge {
+      |      border: 1px solid var(--line);
+      |      background: #ffffffa0;
+      |      border-radius: 999px;
+      |      padding: 7px 12px;
+      |      font-size: 0.82rem;
+      |      font-weight: 700;
+      |      white-space: nowrap;
+      |    }
+      |    .grid {
+      |      display: grid;
+      |      gap: 14px;
+      |      grid-template-columns: 1.1fr 1fr;
+      |      align-items: start;
+      |    }
       |    .card {
       |      border: 1px solid var(--line);
-      |      background: var(--panel);
-      |      backdrop-filter: blur(6px);
-      |      border-radius: 14px;
+      |      background: var(--card);
+      |      border-radius: 16px;
       |      padding: 16px;
-      |      box-shadow: 0 12px 40px #00000055;
+      |      box-shadow: var(--shadow);
+      |      backdrop-filter: blur(5px);
+      |      opacity: 0;
+      |      transform: translateY(14px);
+      |      animation: rise 0.6s ease forwards;
       |    }
-      |    h1 { margin: 0 0 12px; font-size: 1.6rem; letter-spacing: 0.4px; }
-      |    .sub { color: var(--muted); margin-bottom: 16px; }
-      |    .grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      |    .card:nth-child(2) { animation-delay: 0.08s; }
+      |    .card:nth-child(3) { animation-delay: 0.14s; }
+      |    .stack { display: grid; gap: 12px; }
+      |    h2 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: 0.04em; text-transform: uppercase; }
+      |    .form-grid { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
       |    .full { grid-column: 1 / -1; }
-      |    label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 6px; }
+      |    label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 4px; letter-spacing: 0.03em; }
       |    input, select {
-      |      width: 100%; padding: 10px 11px; border-radius: 10px;
-      |      border: 1px solid var(--line); background: #0f172a; color: var(--text);
+      |      width: 100%;
+      |      padding: 10px 11px;
+      |      border-radius: 10px;
+      |      border: 1px solid #c8b890;
+      |      background: #fffef9;
+      |      color: var(--ink);
+      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      |      font-size: 0.95rem;
       |    }
-      |    .actions { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+      |    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
       |    button {
-      |      border: none; border-radius: 10px; padding: 10px 14px; cursor: pointer;
-      |      color: #052e16; font-weight: 700; background: linear-gradient(90deg, var(--accent), var(--accent2));
+      |      border: 1px solid transparent;
+      |      border-radius: 11px;
+      |      padding: 10px 14px;
+      |      cursor: pointer;
+      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      |      font-weight: 700;
+      |      transition: transform 0.15s ease, filter 0.15s ease;
       |    }
-      |    .error { color: var(--danger); font-weight: 600; min-height: 20px; }
-      |    .status { color: var(--muted); min-height: 20px; }
+      |    button:hover { transform: translateY(-1px); filter: brightness(0.98); }
+      |    .btn-primary {
+      |      color: #fff;
+      |      background: linear-gradient(105deg, var(--accent), #c6512f);
+      |    }
+      |    .btn-ghost {
+      |      color: var(--accent-2);
+      |      border-color: #9ec5bd;
+      |      background: #edf7f5;
+      |    }
+      |    .meta {
+      |      color: var(--muted);
+      |      font-size: 0.84rem;
+      |      min-height: 20px;
+      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      |    }
+      |    .error {
+      |      color: var(--warn);
+      |      min-height: 20px;
+      |      font-weight: 700;
+      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      |      font-size: 0.9rem;
+      |    }
+      |    .kpis {
+      |      display: grid;
+      |      gap: 8px;
+      |      grid-template-columns: repeat(2, minmax(0, 1fr));
+      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      |    }
+      |    .kpi {
+      |      border: 1px dashed #ccb788;
+      |      border-radius: 10px;
+      |      padding: 9px 10px;
+      |      background: #fffefbcc;
+      |    }
+      |    .kpi b { display: block; font-size: 0.76rem; color: var(--muted); font-weight: 600; letter-spacing: 0.03em; }
+      |    .kpi span { font-size: 1.08rem; font-weight: 700; }
+      |    .status-ok { color: var(--ok); }
+      |    .table-wrap {
+      |      margin-top: 8px;
+      |      overflow: auto;
+      |      border: 1px solid #d9c8a2;
+      |      border-radius: 12px;
+      |      background: #fffdf7;
+      |      max-height: 460px;
+      |    }
+      |    table {
+      |      width: 100%;
+      |      border-collapse: collapse;
+      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      |      font-size: 0.9rem;
+      |    }
+      |    th, td { padding: 9px 10px; border-bottom: 1px solid #ebdec4; text-align: left; white-space: nowrap; }
+      |    th { position: sticky; top: 0; background: #f7ecd4; font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; }
+      |    tr:nth-child(even) td { background: #fff9eb; }
+      |    .muted { color: var(--muted); }
+      |    .score-pill {
+      |      display: inline-block;
+      |      border-radius: 999px;
+      |      padding: 3px 8px;
+      |      background: #efe5cc;
+      |      border: 1px solid #d3bf90;
+      |      font-weight: 700;
+      |    }
       |    pre {
-      |      margin: 0; white-space: pre-wrap; border: 1px solid var(--line);
-      |      border-radius: 10px; background: #020617; padding: 12px; max-height: 480px; overflow: auto;
+      |      margin: 0;
+      |      white-space: pre-wrap;
+      |      border: 1px solid #d3c39d;
+      |      border-radius: 12px;
+      |      background: #fffdf8;
+      |      padding: 12px;
+      |      font-family: "Consolas", "Courier New", monospace;
+      |      font-size: 0.82rem;
+      |      max-height: 280px;
+      |      overflow: auto;
       |    }
-      |    @media (max-width: 820px) {
-      |      .grid { grid-template-columns: 1fr 1fr; }
+      |    @keyframes rise {
+      |      to { opacity: 1; transform: translateY(0); }
       |    }
-      |    @media (max-width: 560px) {
+      |    @media (max-width: 950px) {
       |      .grid { grid-template-columns: 1fr; }
+      |      .hero { align-items: start; flex-direction: column; }
+      |    }
+      |    @media (max-width: 760px) {
+      |      .form-grid { grid-template-columns: 1fr 1fr; }
+      |    }
+      |    @media (max-width: 520px) {
+      |      .form-grid { grid-template-columns: 1fr; }
+      |      .kpis { grid-template-columns: 1fr; }
       |    }
       |  </style>
       |</head>
       |<body>
+      |  <div class="noise"></div>
       |  <div class="wrap">
-      |    <div class="card">
-      |      <h1>Tibia Alt Finder</h1>
-      |      <div class="sub">Search from your tracked login/logout history.</div>
-      |      <div class="grid">
-      |        <div class="full">
-      |          <label for="characters">Characters (comma separated)</label>
-      |          <input id="characters" placeholder="deli tokes, another name" />
-      |        </div>
-      |        <div>
-      |          <label for="from">From (YYYY-MM-DD)</label>
-      |          <input id="from" placeholder="2026-02-01" />
-      |        </div>
-      |        <div>
-      |          <label for="to">To (YYYY-MM-DD)</label>
-      |          <input id="to" placeholder="2026-02-27" />
-      |        </div>
-      |        <div>
-      |          <label for="distance">Adjacency distance (minutes)</label>
-      |          <input id="distance" type="number" min="0" value="0" />
-      |        </div>
-      |        <div>
-      |          <label for="clashes">Include clashes</label>
-      |          <select id="clashes">
-      |            <option value="false" selected>false</option>
-      |            <option value="true">true</option>
-      |          </select>
-      |        </div>
+      |    <div class="hero">
+      |      <div>
+      |        <h1>Tibia Alt Finder Console</h1>
+      |        <div class="sub">Search suspected alt networks from tracked login and logout adjacency data.</div>
       |      </div>
-      |      <div class="actions">
-      |        <button id="runBtn">Run Search</button>
-      |        <span class="status" id="status"></span>
-      |      </div>
-      |      <div class="error" id="error"></div>
-      |      <pre id="output">No search yet.</pre>
+      |      <div class="badge" id="healthBadge">API health: ...</div>
+      |    </div>
+      |    <div class="grid">
+      |      <section class="card">
+      |        <h2>Search</h2>
+      |        <div class="form-grid">
+      |          <div class="full">
+      |            <label for="characters">Characters (comma separated)</label>
+      |            <input id="characters" placeholder="Deli Tokes, Another Name" />
+      |          </div>
+      |          <div>
+      |            <label for="from">From</label>
+      |            <input id="from" placeholder="2026-02-01" />
+      |          </div>
+      |          <div>
+      |            <label for="to">To</label>
+      |            <input id="to" placeholder="2026-02-28" />
+      |          </div>
+      |          <div>
+      |            <label for="distance">Distance minutes</label>
+      |            <input id="distance" type="number" min="0" value="0" />
+      |          </div>
+      |          <div>
+      |            <label for="clashes">Include clashes</label>
+      |            <select id="clashes">
+      |              <option value="false" selected>false</option>
+      |              <option value="true">true</option>
+      |            </select>
+      |          </div>
+      |        </div>
+      |        <div class="actions">
+      |          <button class="btn-primary" id="runBtn">Run Search</button>
+      |          <button class="btn-ghost" id="clearBtn">Clear</button>
+      |          <span class="meta" id="status"></span>
+      |        </div>
+      |        <div class="error" id="error"></div>
+      |        <div class="kpis">
+      |          <div class="kpi"><b>Total Logins</b><span id="kpiLogins">-</span></div>
+      |          <div class="kpi"><b>Matches</b><span id="kpiMatches">-</span></div>
+      |          <div class="kpi"><b>Date Range</b><span id="kpiRange">-</span></div>
+      |          <div class="kpi"><b>Last World Save</b><span id="kpiSave">-</span></div>
+      |        </div>
+      |      </section>
+      |      <section class="stack">
+      |        <div class="card">
+      |          <h2>Possible Matches</h2>
+      |          <div class="table-wrap">
+      |            <table>
+      |              <thead>
+      |                <tr>
+      |                  <th>Name</th>
+      |                  <th>Confidence</th>
+      |                  <th>Adj</th>
+      |                  <th>Clashes</th>
+      |                  <th>Logins</th>
+      |                  <th>Hidden</th>
+      |                  <th>Trades</th>
+      |                </tr>
+      |              </thead>
+      |              <tbody id="resultsBody">
+      |                <tr><td colspan="7" class="muted">No search yet.</td></tr>
+      |              </tbody>
+      |            </table>
+      |          </div>
+      |        </div>
+      |        <div class="card">
+      |          <h2>Raw Summary</h2>
+      |          <pre id="output">No search yet.</pre>
+      |        </div>
+      |      </section>
       |    </div>
       |  </div>
       |  <script>
       |    const $ = (id) => document.getElementById(id);
-      |    const statusEl = $("status");
-      |    const errorEl = $("error");
-      |    const outputEl = $("output");
+      |    const ui = {
+      |      status: $("status"),
+      |      error: $("error"),
+      |      output: $("output"),
+      |      healthBadge: $("healthBadge"),
+      |      resultsBody: $("resultsBody"),
+      |      kpiLogins: $("kpiLogins"),
+      |      kpiMatches: $("kpiMatches"),
+      |      kpiRange: $("kpiRange"),
+      |      kpiSave: $("kpiSave")
+      |    };
+      |
+      |    function setStatus(message) {
+      |      ui.status.textContent = message || "";
+      |    }
+      |
+      |    function setError(message) {
+      |      ui.error.textContent = message || "";
+      |    }
+      |
+      |    function fillKpis(data, trackerStatus) {
+      |      ui.kpiLogins.textContent = String(data.totalLogins ?? "-");
+      |      ui.kpiMatches.textContent = String((data.possibleMatches || []).length);
+      |      ui.kpiRange.textContent = data.dateRange || "-";
+      |      ui.kpiSave.textContent = trackerStatus && trackerStatus.latestWorldSave ? trackerStatus.latestWorldSave : "-";
+      |    }
+      |
+      |    function renderRows(matches) {
+      |      if (!matches || matches.length === 0) {
+      |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No matches found.</td></tr>';
+      |        return;
+      |      }
+      |      const rows = matches.map((m) => {
+      |        const tradeDates = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
+      |        const hidden = m.hiddenLikely ? ("yes (" + m.hiddenScore + ")") : ("no (" + m.hiddenScore + ")");
+      |        return (
+      |          "<tr>" +
+      |            "<td>" + escapeHtml(m.name || "Unknown") + "</td>" +
+      |            "<td><span class=\"score-pill\">" + escapeHtml(String(m.confidence ?? "-")) + "</span></td>" +
+      |            "<td>" + escapeHtml(String(m.adjacencies ?? "-")) + "</td>" +
+      |            "<td>" + escapeHtml(String(m.clashes ?? "-")) + "</td>" +
+      |            "<td>" + escapeHtml(String(m.logins ?? "-")) + "</td>" +
+      |            "<td>" + escapeHtml(hidden) + "</td>" +
+      |            "<td>" + escapeHtml(tradeDates) + "</td>" +
+      |          "</tr>"
+      |        );
+      |      }).join("");
+      |      ui.resultsBody.innerHTML = rows;
+      |    }
+      |
+      |    function escapeHtml(value) {
+      |      return String(value)
+      |        .replaceAll("&", "&amp;")
+      |        .replaceAll("<", "&lt;")
+      |        .replaceAll(">", "&gt;")
+      |        .replaceAll("\"", "&quot;")
+      |        .replaceAll("'", "&#39;");
+      |    }
+      |
+      |    async function loadStatus() {
+      |      try {
+      |        const [healthRes, statusRes] = await Promise.all([
+      |          fetch("/api/altfinder/health"),
+      |          fetch("/api/altfinder/status")
+      |        ]);
+      |        const health = await healthRes.json();
+      |        const trackerStatus = await statusRes.json();
+      |        ui.healthBadge.textContent = "API health: " + (health.status || "unknown");
+      |        if (health.status === "ok") ui.healthBadge.classList.add("status-ok");
+      |        if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
+      |          ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
+      |        }
+      |      } catch (_) {
+      |        ui.healthBadge.textContent = "API health: unavailable";
+      |      }
+      |    }
       |
       |    async function runSearch() {
-      |      errorEl.textContent = "";
-      |      statusEl.textContent = "Searching...";
-      |      outputEl.textContent = "Loading...";
+      |      setError("");
+      |      setStatus("Searching...");
+      |      ui.output.textContent = "Loading...";
       |
       |      const q = new URLSearchParams();
       |      const chars = $("characters").value.trim();
@@ -409,9 +665,9 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
       |      const includeClashes = $("clashes").value;
       |
       |      if (!chars) {
-      |        errorEl.textContent = "Characters is required.";
-      |        statusEl.textContent = "";
-      |        outputEl.textContent = "No search yet.";
+      |        setError("Characters is required.");
+      |        setStatus("");
+      |        ui.output.textContent = "No search yet.";
       |        return;
       |      }
       |
@@ -423,24 +679,46 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
       |      q.set("format", "detailed");
       |
       |      try {
-      |        const res = await fetch("/api/altfinder/alts?" + q.toString());
+      |        const [res, trackerRes] = await Promise.all([
+      |          fetch("/api/altfinder/alts?" + q.toString()),
+      |          fetch("/api/altfinder/status")
+      |        ]);
       |        const data = await res.json();
+      |        const trackerStatus = await trackerRes.json();
       |        if (!res.ok) {
       |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
       |        }
-      |        outputEl.textContent = data.formattedText || JSON.stringify(data, null, 2);
-      |        statusEl.textContent = "Done.";
+      |        fillKpis(data, trackerStatus);
+      |        renderRows(data.possibleMatches || []);
+      |        ui.output.textContent = data.formattedText || JSON.stringify(data, null, 2);
+      |        setStatus("Done.");
       |      } catch (e) {
-      |        errorEl.textContent = e.message || String(e);
-      |        outputEl.textContent = "Search failed.";
-      |        statusEl.textContent = "";
+      |        setError(e.message || String(e));
+      |        ui.output.textContent = "Search failed.";
+      |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">Search failed.</td></tr>';
+      |        setStatus("");
       |      }
       |    }
       |
       |    $("runBtn").addEventListener("click", runSearch);
+      |    $("clearBtn").addEventListener("click", () => {
+      |      $("characters").value = "";
+      |      $("from").value = "";
+      |      $("to").value = "";
+      |      $("distance").value = "0";
+      |      $("clashes").value = "false";
+      |      setStatus("");
+      |      setError("");
+      |      ui.output.textContent = "No search yet.";
+      |      ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No search yet.</td></tr>';
+      |      ui.kpiLogins.textContent = "-";
+      |      ui.kpiMatches.textContent = "-";
+      |      ui.kpiRange.textContent = "-";
+      |    });
       |    $("characters").addEventListener("keydown", (e) => {
       |      if (e.key === "Enter") runSearch();
       |    });
+      |    loadStatus();
       |  </script>
       |</body>
       |</html>
