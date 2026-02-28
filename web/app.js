@@ -76,10 +76,23 @@ function renderRows(matches) {
 }
 
 async function fetchJson(path) {
-  const res = await fetch(baseUrl() + path);
+  const url = baseUrl() + path;
+  const res = await fetch(url);
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await res.text();
+    throw new Error(
+      "Backend URL is not the Alt Finder API (" +
+      res.status +
+      "). Response from " +
+      url +
+      ": " +
+      text.slice(0, 140)
+    );
+  }
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
+    throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : ("Request failed (" + res.status + ")"));
   }
   return data;
 }
@@ -165,4 +178,3 @@ $("characters").addEventListener("keydown", (e) => {
 });
 
 loadStatus();
-
