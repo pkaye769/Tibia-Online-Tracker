@@ -76,6 +76,27 @@ UI page is served at:
 - `/`
 - `/altfinder`
 
+## Standalone Web Version (Render Static Site)
+
+You can deploy a separate frontend from the `web` folder.
+
+### Render Static Site settings
+
+1. New `Static Site` in Render from this repo
+2. Root Directory: `web`
+3. Build Command: *(leave empty)*
+4. Publish Directory: `.`
+
+After deploy, open the static site URL and set **API Base URL** to your backend service URL, for example:
+
+`https://your-altfinder-service.onrender.com`
+
+The page will call:
+
+- `/api/altfinder/health`
+- `/api/altfinder/status`
+- `/api/altfinder/alts`
+
 ## Discord Commands
 
 - `/alts`
