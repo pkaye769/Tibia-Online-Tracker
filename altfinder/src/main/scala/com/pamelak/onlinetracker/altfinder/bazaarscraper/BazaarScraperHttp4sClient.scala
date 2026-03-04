@@ -46,13 +46,14 @@ class BazaarScraperHttp4sClient[F[_]: Async](client: Client[F]) extends BazaarSc
     rateLimitedUntilEpochSec = math.max(rateLimitedUntilEpochSec, nowEpochSec + cooldown)
   }
 
+  private val emptyResultJson = """{"page":[]}"""
+
   override def cooldownRemainingSeconds: F[Long] =
     Async[F].pure(math.max(0L, rateLimitedUntilEpochSec - nowEpochSec))
 
   def searchCharacter(name: String): F[String] = {
     if (nowEpochSec < rateLimitedUntilEpochSec) {
-      val remaining = rateLimitedUntilEpochSec - nowEpochSec
-      Async[F].raiseError(new RuntimeException(s"Bazaar lookup cooling down for ${remaining}s after rate limit"))
+      Async[F].pure(emptyResultJson)
     } else {
     // nicknameFilter for exevopan is a "contains" rather than exact match, so here we grab a lot of results to be safe
     // and handling pagination is too much effort
@@ -76,11 +77,9 @@ class BazaarScraperHttp4sClient[F[_]: Async](client: Client[F]) extends BazaarSc
 
           if (res.status.code == 429 || (lower.contains("cloudflare") && lower.contains("rate limit"))) {
             Async[F].delay(activateCooldown(retryAfterSeconds)) *>
-              Async[F].raiseError(
-                new RuntimeException(s"Encountered cloudflare rate limit! Retry-After: $retryAfterSeconds s")
-              )
+              Async[F].pure(emptyResultJson)
           } else if (!res.status.isSuccess) {
-            Async[F].raiseError(new RuntimeException(s"Bazaar lookup failed: HTTP ${res.status.code}"))
+            Async[F].pure(emptyResultJson)
           } else {
             Async[F].pure(body)
           }
