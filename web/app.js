@@ -55,6 +55,10 @@ function parseNames(raw) {
   return raw.split(",").map((x) => x.trim()).filter(Boolean);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function loadSavedCharacters() {
   try {
     return JSON.parse(localStorage.getItem(SAVED_CHARS_KEY) || "[]");
@@ -100,7 +104,20 @@ function refreshGuildSelectAndPanel() {
 
 async function fetchJson(path) {
   const url = baseUrl() + path;
-  const res = await fetch(url);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    // Retry once for transient Render cold-start/network blips.
+    await sleep(1500);
+    try {
+      res = await fetch(url);
+    } catch (_) {
+      throw new Error(
+        `Could not reach API at ${url}. Check Backend URL, API deploy health, and CORS/network access.`
+      );
+    }
+  }
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     const text = await res.text();
