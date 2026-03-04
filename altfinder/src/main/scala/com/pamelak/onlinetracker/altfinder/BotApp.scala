@@ -148,31 +148,8 @@ object BotApp extends IOApp {
             includeLowEvidenceMatches
           )
           val findAltsCommand = new FindAltsCommand[IO](service)
-          val altCommand = new FindAltsCommand[IO](service, "alt", "Alias for /alts")
-          val lastAltsCommand = new LastAltsCommand[IO](service)
-          val historyCommand = new HistoryCommand[IO](service)
-          val compareCommand = new CompareCommand[IO](service)
-          val clashesCommand = new ClashesCommand[IO](service)
           val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
-          val worldCommand = new WorldCommand[IO](tibiaDataClient)
-          val guildCommand = new GuildCommand[IO](tibiaDataClient)
-          val guildTrackCommand = new GuildTrackCommand[IO](tibiaDataClient, repo)
-          val tradesCommand = new TradesCommand[IO](service)
-          val watchCommand = new WatchCommand[IO](service, repo)
-          val commands =
-            List(
-              findAltsCommand,
-              altCommand,
-              lastAltsCommand,
-              historyCommand,
-              compareCommand,
-              clashesCommand,
-              worldCommand,
-              guildCommand,
-              guildTrackCommand,
-              tradesCommand,
-              watchCommand
-            )
+          val commands = List(findAltsCommand)
           val botListener = new BotListener[IO](commands, dispatcher)
           val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
             .map(_.trim)
