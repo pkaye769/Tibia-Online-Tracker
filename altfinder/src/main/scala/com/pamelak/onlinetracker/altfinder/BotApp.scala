@@ -130,6 +130,10 @@ object BotApp extends IOApp {
             sys.env.get("HIDDEN_LIKELY_MIN_ADJACENCIES").flatMap(_.toIntOption).getOrElse(3)
           val hiddenLikelyMaxClashRatio =
             sys.env.get("HIDDEN_LIKELY_MAX_CLASH_RATIO").flatMap(_.toDoubleOption).getOrElse(0.25)
+          val minEvidenceLogins = sys.env.get("MIN_EVIDENCE_LOGINS").flatMap(_.toIntOption).getOrElse(8)
+          val minEvidenceAdjacencies = sys.env.get("MIN_EVIDENCE_ADJACENCIES").flatMap(_.toIntOption).getOrElse(2)
+          val includeLowEvidenceMatches =
+            sys.env.get("INCLUDE_LOW_EVIDENCE_MATCHES").exists(_.trim.equalsIgnoreCase("true"))
           val service = new AltFinderService(
             repo,
             bazaarScraper,
@@ -137,7 +141,10 @@ object BotApp extends IOApp {
             candidateTradeLimit,
             hiddenLikelyMinScore,
             hiddenLikelyMinAdjacencies,
-            hiddenLikelyMaxClashRatio
+            hiddenLikelyMaxClashRatio,
+            minEvidenceLogins,
+            minEvidenceAdjacencies,
+            includeLowEvidenceMatches
           )
           val findAltsCommand = new FindAltsCommand[IO](service)
           val altCommand = new FindAltsCommand[IO](service, "alt", "Alias for /alts")

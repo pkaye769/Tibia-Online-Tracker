@@ -24,9 +24,11 @@ object AltFinderService {
       adjacencies: Int,
       clashes: Int,
       logins: Int,
+      sessionSimilarity: Int,
       confidence: Int,
       hiddenScore: Int,
       hiddenLikely: Boolean,
+      evidencePassed: Boolean,
       recentTradeDates: List[LocalDate]
   ) {
     override def toString: String = {
@@ -35,7 +37,8 @@ object AltFinderService {
       val tradeText =
         if (recentTradeDates.nonEmpty) s" | traded ${recentTradeDates.map(_.toString).mkString(", ")}" else ""
       val hiddenText = if (hiddenLikely) s"yes ($hiddenScore)" else s"no ($hiddenScore)"
-      s"$name: adj $adjacencies / $clashText / logins $logins | conf $confidence | hidden $hiddenText$tradeText"
+      val evidenceText = if (evidencePassed) "pass" else "low"
+      s"$name: adj $adjacencies / $clashText / logins $logins | session $sessionSimilarity | conf $confidence | evidence $evidenceText | hidden $hiddenText$tradeText"
     }
   }
 
@@ -70,7 +73,10 @@ class AltFinderService[F[_]: Async](
     candidateTradeCheckLimit: Int = 20,
     hiddenLikelyMinScore: Int = 70,
     hiddenLikelyMinAdjacencies: Int = 3,
-    hiddenLikelyMaxClashRatio: Double = 0.25
+    hiddenLikelyMaxClashRatio: Double = 0.25,
+    minEvidenceLogins: Int = 8,
+    minEvidenceAdjacencies: Int = 2,
+    includeLowEvidenceMatches: Boolean = false
 ) {
 
   given Logger[F] = Slf4jLogger.getLogger[F]
@@ -122,7 +128,8 @@ class AltFinderService[F[_]: Async](
       results <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       tradeInfo <- enrichWithCandidateTrades(results)
-      finalAdj = results.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap))
+      finalAdjRaw = results.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap))
+      finalAdj = if (includeLowEvidenceMatches) finalAdjRaw else finalAdjRaw.filter(_.evidencePassed)
       altsResults = AltsResults(
         characterNames,
         tradedFrom,
@@ -167,9 +174,9 @@ class AltFinderService[F[_]: Async](
       aSegments <- repo.getOnlineTimes(List(characterA), from, to)
       bSegments <- repo.getOnlineTimes(List(characterB), from, to)
       aToBAdj = getAdjacencies(aSegments, bSegments, includeClashes = true, distance)
-        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterB), 0, 0, bSegments.length, 0, 0, false, Nil))
+        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterB), 0, 0, bSegments.length, 0, 0, 0, false, false, Nil))
       bToAAdj = getAdjacencies(bSegments, aSegments, includeClashes = true, distance)
-        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, false, Nil))
+        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, 0, false, false, Nil))
     yield CompareResults(aToBAdj, bToAAdj)
   }
 
@@ -228,9 +235,11 @@ class AltFinderService[F[_]: Async](
           countAdjacencies(mhArray, h.segments, distance),
           clashes,
           h.segments.length,
+          computeSessionSimilarity(mhArray, h.segments),
           0,
           0,
           false,
+          true,
           Nil
         ))
       else None
@@ -320,28 +329,44 @@ class AltFinderService[F[_]: Async](
       tradeMap: Map[String, List[LocalDate]]
   ): CharacterAdjacencies = {
     val trades = adj.characterName.flatMap(name => tradeMap.get(name)).getOrElse(Nil)
-    val confidence = computeConfidence(adj.adjacencies, adj.clashes, adj.logins, trades.nonEmpty)
+    val evidencePassed = adj.logins >= minEvidenceLogins && adj.adjacencies >= minEvidenceAdjacencies
+    val confidence = computeConfidence(adj.adjacencies, adj.clashes, adj.logins, adj.sessionSimilarity, trades.nonEmpty)
     val hiddenScore = computeHiddenScore(adj.adjacencies, adj.clashes, adj.logins)
     val clashRatio =
       if (adj.adjacencies <= 0) Double.PositiveInfinity
       else math.max(0, adj.clashes).toDouble / adj.adjacencies.toDouble
     val hiddenLikely =
+      evidencePassed &&
       hiddenScore >= hiddenLikelyMinScore &&
         adj.adjacencies >= hiddenLikelyMinAdjacencies &&
         clashRatio <= hiddenLikelyMaxClashRatio
-    adj.copy(confidence = confidence, hiddenScore = hiddenScore, hiddenLikely = hiddenLikely, recentTradeDates = trades)
+    val cappedConfidence = if (evidencePassed) confidence else math.min(confidence, 45)
+    adj.copy(
+      confidence = cappedConfidence,
+      hiddenScore = hiddenScore,
+      hiddenLikely = hiddenLikely,
+      evidencePassed = evidencePassed,
+      recentTradeDates = trades
+    )
   }
 
-  private def computeConfidence(adjacencies: Int, clashes: Int, logins: Int, recentTrade: Boolean): Int = {
+  private def computeConfidence(
+      adjacencies: Int,
+      clashes: Int,
+      logins: Int,
+      sessionSimilarity: Int,
+      recentTrade: Boolean
+  ): Int = {
     val loginCount = math.max(1, logins)
     val adjacencyRatio = math.min(1.0, adjacencies.toDouble / loginCount.toDouble)
     val clashRatio =
       if (clashes < 0) 1.0 else math.min(1.0, clashes.toDouble / loginCount.toDouble)
     val base = adjacencyRatio * 70.0
     val volume = math.min(20.0, loginCount.toDouble * 0.5)
+    val sessionBonus = math.min(15.0, sessionSimilarity.toDouble * 0.15)
     val penalty = clashRatio * 40.0
     val bonus = if (recentTrade) 10.0 else 0.0
-    val raw = base + volume - penalty + bonus
+    val raw = base + volume + sessionBonus - penalty + bonus
     math.max(0, math.min(100, raw)).round.toInt
   }
 
@@ -355,6 +380,20 @@ class AltFinderService[F[_]: Async](
 
     val raw = (adjacencyRatio * 80.0) + volume - clashPenalty
     math.max(0, math.min(100, raw)).round.toInt
+  }
+
+  private def computeSessionSimilarity(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment]): Int = {
+    val mainDurations = mainHistory.map(s => math.max(1L, s.end - s.start))
+    val otherDurations = other.map(s => math.max(1L, s.end - s.start))
+    if (mainDurations.isEmpty || otherDurations.isEmpty) 0
+    else {
+      val mainAvg = mainDurations.sum.toDouble / mainDurations.length.toDouble
+      val otherAvg = otherDurations.sum.toDouble / otherDurations.length.toDouble
+      val maxAvg = math.max(1.0, math.max(mainAvg, otherAvg))
+      val diffRatio = math.abs(mainAvg - otherAvg) / maxAvg
+      val similarity = (100.0 * (1.0 - diffRatio)).round.toInt
+      math.max(0, math.min(100, similarity))
+    }
   }
 
 }

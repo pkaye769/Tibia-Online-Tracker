@@ -63,12 +63,18 @@ function fillKpis(data, trackerStatus) {
 
 function renderRows(matches) {
   if (!matches || matches.length === 0) {
-    ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No matches found.</td></tr>';
+    ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted">No matches found.</td></tr>';
     return;
   }
   const rows = matches.map((m) => {
     const tradeDates = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
     const hidden = m.hiddenLikely ? ("yes (" + m.hiddenScore + ")") : ("no (" + m.hiddenScore + ")");
+    const why = m.explanation || (
+      "adj=" + String(m.adjacencies ?? "-") +
+      ", logins=" + String(m.logins ?? "-") +
+      ", sessionSimilarity=" + String(m.sessionSimilarity ?? "-") +
+      ", evidence=" + (m.evidencePassed ? "pass" : "low")
+    );
     return (
       "<tr>" +
         "<td>" + escapeHtml(m.name || "Unknown") + "</td>" +
@@ -78,6 +84,7 @@ function renderRows(matches) {
         "<td>" + escapeHtml(String(m.logins ?? "-")) + "</td>" +
         "<td>" + escapeHtml(hidden) + "</td>" +
         "<td>" + escapeHtml(tradeDates) + "</td>" +
+        "<td>" + escapeHtml(why) + "</td>" +
       "</tr>"
     );
   }).join("");
@@ -169,7 +176,7 @@ async function runSearch() {
   } catch (err) {
     setError(err.message || String(err));
     ui.output.textContent = "Search failed.";
-    ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">Search failed.</td></tr>';
+    ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted">Search failed.</td></tr>';
     setStatus("");
   }
 }
@@ -282,7 +289,7 @@ $("clearBtn").addEventListener("click", () => {
   setStatus("");
   setError("");
   ui.output.textContent = "No search yet.";
-  ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No search yet.</td></tr>';
+  ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted">No search yet.</td></tr>';
   ui.kpiLogins.textContent = "-";
   ui.kpiMatches.textContent = "-";
   ui.kpiRange.textContent = "-";

@@ -44,9 +44,12 @@ final class AltFinderApi[F[_]: Async](
       adjacencies: Int,
       clashes: Int,
       logins: Int,
+      sessionSimilarity: Int,
       confidence: Int,
       hiddenScore: Int,
       hiddenLikely: Boolean,
+      evidencePassed: Boolean,
+      explanation: String,
       recentTradeDates: List[String],
       formatted: String
   )
@@ -148,9 +151,12 @@ final class AltFinderApi[F[_]: Async](
               adjacencies = adj.adjacencies,
               clashes = adj.clashes,
               logins = adj.logins,
+              sessionSimilarity = adj.sessionSimilarity,
               confidence = adj.confidence,
               hiddenScore = adj.hiddenScore,
               hiddenLikely = adj.hiddenLikely,
+              evidencePassed = adj.evidencePassed,
+              explanation = explainAdj(adj),
               recentTradeDates = adj.recentTradeDates.map(_.toString),
               formatted = formatted
             )
@@ -401,7 +407,14 @@ final class AltFinderApi[F[_]: Async](
     val tradeText =
       if (adj.recentTradeDates.nonEmpty) adj.recentTradeDates.map(_.toString).mkString(", ") else "none"
     val hiddenText = if (adj.hiddenLikely) s"yes (${adj.hiddenScore})" else s"no (${adj.hiddenScore})"
-    s"$name | conf ${adj.confidence} | hidden $hiddenText | adj ${adj.adjacencies} | clashes $clashText | logins ${adj.logins} | traded $tradeText"
+    val evidenceText = if (adj.evidencePassed) "pass" else "low"
+    s"$name | conf ${adj.confidence} | hidden $hiddenText | evidence $evidenceText | adj ${adj.adjacencies} | clashes $clashText | logins ${adj.logins} | session ${adj.sessionSimilarity} | traded $tradeText"
+  }
+
+  private def explainAdj(adj: CharacterAdjacencies): String = {
+    val clashText = if (adj.clashes < 0) "clashes unknown (filtered)" else s"clashes=${adj.clashes}"
+    val evidenceText = if (adj.evidencePassed) "evidence=pass" else "evidence=low"
+    s"adj=${adj.adjacencies}, $clashText, logins=${adj.logins}, sessionSimilarity=${adj.sessionSimilarity}, $evidenceText"
   }
 
   private def appendMinutes(i: Int) = if (i == 1) s"$i minute" else s"$i minutes"

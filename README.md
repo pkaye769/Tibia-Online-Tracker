@@ -7,6 +7,8 @@ Tracks Tibia online login/logout history and finds likely alts from adjacency pa
 - Tracker service stores online sessions into PostgreSQL
 - Altfinder API + Discord slash commands
 - Hidden-character scoring from login/logout adjacency data
+- Session-duration similarity scoring from online-time behavior
+- Evidence gating to reduce low-signal matches
 - Optional watch alerts for suspicious matches
 - Persistent tracked Tibia guild list per Discord server
 - Direct traded-character checks for one or more names
@@ -45,6 +47,9 @@ ALTFINDER_API_PORT=8081
 HIDDEN_LIKELY_MIN_SCORE=70
 HIDDEN_LIKELY_MIN_ADJACENCIES=3
 HIDDEN_LIKELY_MAX_CLASH_RATIO=0.25
+MIN_EVIDENCE_LOGINS=8
+MIN_EVIDENCE_ADJACENCIES=2
+INCLUDE_LOW_EVIDENCE_MATCHES=false
 ```
 
 ## Run
