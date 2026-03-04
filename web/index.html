@@ -3,114 +3,46 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tibia Scout Board</title>
+  <title>Tibia Alt Finder</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="noise"></div>
-  <div class="bg-tags" aria-hidden="true">
-    <span>Watchlist</span>
-    <span>Tracked Characters</span>
-    <span>Guilds</span>
-  </div>
   <main class="wrap">
-    <header class="hero">
-      <div>
-        <h1>Tibia Scout Board</h1>
-        <p>Hunt hidden links between characters using your Tibia tracker data.</p>
-      </div>
-      <div class="badge" id="healthBadge">Scout API: ...</div>
+    <header>
+      <h1>Tibia Alt Finder</h1>
+      <p>Fast scan for likely alts using adjacent logins, clashes, and login counts.</p>
+      <div id="health" class="health">API: checking...</div>
     </header>
 
     <section class="card">
-      <h2>Scout Endpoint</h2>
-      <div class="form-grid">
-        <div class="full">
-          <label for="apiBase">Backend URL</label>
-          <input id="apiBase" placeholder="https://your-altfinder-service.onrender.com" />
+      <label for="apiBase">Backend URL</label>
+      <input id="apiBase" placeholder="https://tibia-alt-finder-api.onrender.com" />
+
+      <div class="grid">
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="alts">alts</option>
+            <option value="clashes">clashes</option>
+          </select>
+        </div>
+        <div>
+          <label for="distance">Adjacency (minutes)</label>
+          <input id="distance" type="number" min="0" value="0" />
+        </div>
+        <div>
+          <label for="includeClashes">Include clashes</label>
+          <select id="includeClashes">
+            <option value="false" selected>false</option>
+            <option value="true">true</option>
+          </select>
         </div>
       </div>
-    </section>
 
-    <section class="card">
-      <h2>Health Dashboard</h2>
-      <pre id="healthOutput">No health data yet.</pre>
-    </section>
+      <label for="characters">Characters (comma separated)</label>
+      <input id="characters" placeholder="Neferack" />
 
-    <section class="card">
-      <h2>Recent Research</h2>
-      <div class="actions">
-        <button class="btn-primary" id="runSaveBtn">Scan + Save Research</button>
-        <button class="btn-ghost" id="watchBatchBtn">Run Watchlist Batch</button>
-        <button class="btn-ghost" id="latestRunBtn">Open Latest Saved Run</button>
-      </div>
-      <pre id="researchOutput">No research history yet.</pre>
-    </section>
-
-    <section class="card">
-      <h2>Presets</h2>
-      <div class="actions">
-        <input id="presetName" placeholder="Preset name" />
-        <button class="btn-primary" id="presetSaveBtn">Save Preset</button>
-        <button class="btn-ghost" id="presetLoadBtn">Load Preset</button>
-        <button class="btn-ghost" id="presetDeleteBtn">Delete Preset</button>
-      </div>
-      <div class="form-grid">
-        <div class="full">
-          <label for="presetSelect">Saved presets</label>
-          <select id="presetSelect"></select>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Guild Search</h2>
-      <div class="form-grid">
-        <div class="full">
-          <label for="guildName">Tibia guild name</label>
-          <input id="guildName" placeholder="Guild name" />
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn-primary" id="guildSearchBtn">Search Guild</button>
-        <button class="btn-ghost" id="guildSaveBtn">Save Guild</button>
-        <span class="meta" id="guildStatus"></span>
-      </div>
-      <pre id="guildOutput">No guild search yet.</pre>
-    </section>
-
-    <section class="card">
-      <h2>Saved Guilds</h2>
-      <div class="actions">
-        <button class="btn-primary" id="guildRefreshAllBtn">Refresh Saved Guilds</button>
-      </div>
-      <pre id="guildSavedOutput">No saved guilds yet.</pre>
-    </section>
-
-    <section class="card">
-      <h2>Watchlist Manager</h2>
-      <div class="form-grid">
-        <div class="full">
-          <label for="watchCharacter">Character name</label>
-          <input id="watchCharacter" placeholder="Deli Tokes" />
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn-primary" id="watchAddBtn">Add/Update</button>
-        <button class="btn-ghost" id="watchRemoveBtn">Remove</button>
-        <button class="btn-ghost" id="watchListBtn">List</button>
-        <span class="meta" id="watchStatus"></span>
-      </div>
-      <pre id="watchOutput">No watchlist action yet.</pre>
-    </section>
-
-    <section class="card">
-      <h2>Character Sweep</h2>
-      <div class="form-grid">
-        <div class="full">
-          <label for="characters">Character names (comma separated)</label>
-          <input id="characters" placeholder="Knight Name, Druid Name" />
-        </div>
+      <div class="grid">
         <div>
           <label for="from">From (YYYY-MM-DD)</label>
           <input id="from" placeholder="2026-02-01" />
@@ -119,102 +51,27 @@
           <label for="to">To (YYYY-MM-DD)</label>
           <input id="to" placeholder="2026-02-28" />
         </div>
-        <div>
-          <label for="distance">Adjacency window (minutes)</label>
-          <input id="distance" type="number" min="0" value="0" />
-        </div>
-        <div>
-          <label for="clashes">Include clash records</label>
-          <select id="clashes">
-            <option value="false" selected>false</option>
-            <option value="true">true</option>
-          </select>
-        </div>
       </div>
+
       <div class="actions">
-        <button class="btn-primary" id="runBtn">Run Sweep</button>
-        <button class="btn-ghost" id="quickListBtn">Quick Alt List</button>
-        <button class="btn-ghost" id="clearBtn">Clear</button>
-        <button class="btn-ghost" id="csvBtn">Export CSV</button>
-        <span class="meta" id="status"></span>
+        <button id="runBtn">Run</button>
+        <button id="clearBtn" class="ghost">Clear</button>
+        <span id="status"></span>
       </div>
-      <div class="error" id="error"></div>
-      <div class="kpis">
-        <div class="kpi"><b>Total Logins</b><span id="kpiLogins">-</span></div>
-        <div class="kpi"><b>Suspects</b><span id="kpiMatches">-</span></div>
-        <div class="kpi"><b>Time Range</b><span id="kpiRange">-</span></div>
-        <div class="kpi"><b>World Save</b><span id="kpiSave">-</span></div>
-      </div>
+      <div id="error" class="error"></div>
     </section>
 
     <section class="card">
-      <h2>Clash Scanner</h2>
-      <div class="form-grid">
-        <div class="full">
-          <label for="clashCharacters">Source characters (comma separated)</label>
-          <input id="clashCharacters" placeholder="Name A, Name B" />
-        </div>
-        <div class="full">
-          <label for="clashTargets">Target characters (comma separated)</label>
-          <input id="clashTargets" placeholder="Name X, Name Y" />
-        </div>
-        <div>
-          <label for="clashFrom">From (YYYY-MM-DD)</label>
-          <input id="clashFrom" placeholder="2026-02-01" />
-        </div>
-        <div>
-          <label for="clashTo">To (YYYY-MM-DD)</label>
-          <input id="clashTo" placeholder="2026-02-28" />
-        </div>
-        <div>
-          <label for="clashDistance">Adjacency distance (minutes)</label>
-          <input id="clashDistance" type="number" min="0" value="0" />
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn-primary" id="clashRunBtn">Run Clashes</button>
-        <span class="meta" id="clashStatus"></span>
-      </div>
-      <pre id="clashOutput">No clash scan yet.</pre>
+      <h2>Summary</h2>
+      <pre id="summary">No search yet.</pre>
     </section>
 
     <section class="card">
-      <h2>Suspect Board</h2>
-      <div class="actions">
-        <input id="allowNames" placeholder="Allow list (comma separated, optional)" />
-        <input id="ignoreNames" placeholder="Ignore list (comma separated)" />
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Character</th>
-              <th>Confidence</th>
-              <th>Adj</th>
-              <th>Clashes</th>
-              <th>Logins</th>
-              <th>Hidden</th>
-              <th>Trades</th>
-              <th>Why</th>
-            </tr>
-          </thead>
-          <tbody id="resultsBody">
-            <tr><td colspan="8" class="muted">No search yet.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Confidence History</h2>
-      <pre id="historyOutput">No history yet.</pre>
-    </section>
-
-    <section class="card">
-      <h2>Investigation Log</h2>
-      <pre id="output">No search yet.</pre>
+      <h2>Possible Matches</h2>
+      <pre id="results">No search yet.</pre>
     </section>
   </main>
+
   <script src="./app.js"></script>
 </body>
 </html>
