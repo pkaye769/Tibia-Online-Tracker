@@ -5,6 +5,14 @@ const ui = {
   status: $("status"),
   error: $("error"),
   output: $("output"),
+  guildName: $("guildName"),
+  guildStatus: $("guildStatus"),
+  guildOutput: $("guildOutput"),
+  watchGuildId: $("watchGuildId"),
+  watchChannelId: $("watchChannelId"),
+  watchCharacter: $("watchCharacter"),
+  watchStatus: $("watchStatus"),
+  watchOutput: $("watchOutput"),
   healthBadge: $("healthBadge"),
   resultsBody: $("resultsBody"),
   kpiLogins: $("kpiLogins"),
@@ -35,6 +43,11 @@ function setError(message) {
 function saveApiBase() {
   const base = baseUrl();
   localStorage.setItem("altfinder_api_base", base);
+}
+
+function saveWatchDefaults() {
+  localStorage.setItem("altfinder_watch_guild_id", ui.watchGuildId.value.trim());
+  localStorage.setItem("altfinder_watch_channel_id", ui.watchChannelId.value.trim());
 }
 
 function escapeHtml(value) {
@@ -77,8 +90,12 @@ function renderRows(matches) {
 }
 
 async function fetchJson(path) {
+  return fetchJsonWithInit(path, {});
+}
+
+async function fetchJsonWithInit(path, init) {
   const url = baseUrl() + path;
-  const res = await fetch(url);
+  const res = await fetch(url, init);
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     const text = await res.text();
@@ -101,6 +118,13 @@ async function fetchJson(path) {
     throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : ("Request failed (" + res.status + ")"));
   }
   return data;
+}
+
+function loadWatchDefaults() {
+  const guild = localStorage.getItem("altfinder_watch_guild_id");
+  const channel = localStorage.getItem("altfinder_watch_channel_id");
+  if (guild) ui.watchGuildId.value = guild;
+  if (channel) ui.watchChannelId.value = channel;
 }
 
 async function loadStatus() {
@@ -162,7 +186,122 @@ async function runSearch() {
   }
 }
 
+async function runGuildSearch() {
+  ui.guildStatus.textContent = "Searching...";
+  ui.guildOutput.textContent = "Loading...";
+  const name = ui.guildName.value.trim();
+  if (!name) {
+    ui.guildStatus.textContent = "";
+    ui.guildOutput.textContent = "Guild name is required.";
+    return;
+  }
+  try {
+    const q = new URLSearchParams();
+    q.set("name", name);
+    const data = await fetchJson("/api/altfinder/guild?" + q.toString());
+    ui.guildOutput.textContent =
+      "Guild: " + data.name + "\n" +
+      "World: " + data.world + "\n" +
+      "Members: " + data.members + "\n" +
+      "Online: " + data.online;
+    ui.guildStatus.textContent = "Done.";
+  } catch (err) {
+    ui.guildStatus.textContent = "";
+    ui.guildOutput.textContent = err.message || String(err);
+  }
+}
+
+async function listWatchlist() {
+  saveWatchDefaults();
+  const guildId = ui.watchGuildId.value.trim();
+  if (!guildId) {
+    ui.watchOutput.textContent = "Discord Guild ID is required.";
+    return;
+  }
+  ui.watchStatus.textContent = "Loading...";
+  ui.watchOutput.textContent = "Loading...";
+  try {
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    const data = await fetchJson("/api/altfinder/watchlist?" + q.toString());
+    const rows = data.watches || [];
+    if (rows.length === 0) {
+      ui.watchOutput.textContent = "No watchlist entries.";
+    } else {
+      ui.watchOutput.textContent = rows.map((w) =>
+        w.characterName +
+        " | threshold " + w.confidenceThreshold +
+        " | distance " + w.distance +
+        " | window " + w.windowDays + "d" +
+        " | include clashes " + w.includeClashes
+      ).join("\n");
+    }
+    ui.watchStatus.textContent = "Done.";
+  } catch (err) {
+    ui.watchStatus.textContent = "";
+    ui.watchOutput.textContent = err.message || String(err);
+  }
+}
+
+async function addWatch() {
+  saveWatchDefaults();
+  const guildId = ui.watchGuildId.value.trim();
+  const channelId = ui.watchChannelId.value.trim();
+  const characterName = ui.watchCharacter.value.trim();
+  if (!guildId || !channelId || !characterName) {
+    ui.watchOutput.textContent = "Guild ID, Channel ID, and Character name are required.";
+    return;
+  }
+  ui.watchStatus.textContent = "Saving...";
+  ui.watchOutput.textContent = "Saving...";
+  try {
+    await fetchJsonWithInit("/api/altfinder/watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        guildId: guildId,
+        channelId: channelId,
+        characterName: characterName
+      })
+    });
+    ui.watchStatus.textContent = "Saved.";
+    await listWatchlist();
+  } catch (err) {
+    ui.watchStatus.textContent = "";
+    ui.watchOutput.textContent = err.message || String(err);
+  }
+}
+
+async function removeWatch() {
+  saveWatchDefaults();
+  const guildId = ui.watchGuildId.value.trim();
+  const characterName = ui.watchCharacter.value.trim();
+  if (!guildId || !characterName) {
+    ui.watchOutput.textContent = "Guild ID and Character name are required.";
+    return;
+  }
+  ui.watchStatus.textContent = "Removing...";
+  ui.watchOutput.textContent = "Removing...";
+  try {
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    q.set("character", characterName);
+    const data = await fetchJsonWithInit("/api/altfinder/watchlist?" + q.toString(), {
+      method: "DELETE"
+    });
+    ui.watchStatus.textContent = data.removed ? "Removed." : "Not found.";
+    await listWatchlist();
+  } catch (err) {
+    ui.watchStatus.textContent = "";
+    ui.watchOutput.textContent = err.message || String(err);
+  }
+}
+
 $("runBtn").addEventListener("click", runSearch);
+$("guildSearchBtn").addEventListener("click", runGuildSearch);
+$("watchAddBtn").addEventListener("click", addWatch);
+$("watchRemoveBtn").addEventListener("click", removeWatch);
+$("watchListBtn").addEventListener("click", listWatchlist);
 $("clearBtn").addEventListener("click", () => {
   $("characters").value = "";
   $("from").value = "";
@@ -179,8 +318,11 @@ $("clearBtn").addEventListener("click", () => {
 });
 
 ui.apiBase.addEventListener("change", loadStatus);
+ui.watchGuildId.addEventListener("change", saveWatchDefaults);
+ui.watchChannelId.addEventListener("change", saveWatchDefaults);
 $("characters").addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
 
+loadWatchDefaults();
 loadStatus();

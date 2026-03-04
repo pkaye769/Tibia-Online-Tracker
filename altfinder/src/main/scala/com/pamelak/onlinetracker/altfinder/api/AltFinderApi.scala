@@ -3,8 +3,11 @@ package com.pamelak.onlinetracker.altfinder.api
 import cats.effect.Async
 import cats.syntax.all.*
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper
+import com.pamelak.onlinetracker.altfinder.repo.AltFinderRepoAlg
+import com.pamelak.onlinetracker.altfinder.repo.Model.WatchConfig
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService.CharacterAdjacencies
+import com.pamelak.onlinetracker.altfinder.tibiadata.TibiaDataClientAlg
 import org.http4s.*
 import org.http4s.circe.*
 import org.http4s.dsl.Http4sDsl
@@ -19,9 +22,14 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import io.circe.Json
 import scala.util.Try
 
-final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
+final class AltFinderApi[F[_]: Async](
+    service: AltFinderService[F],
+    repo: AltFinderRepoAlg[F],
+    tibiaDataClient: TibiaDataClientAlg[F]
+) {
   private val dsl = new Http4sDsl[F] {}
   import dsl.*
 
@@ -52,6 +60,27 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
       lookbackDays: Int,
       results: List[TradeCharacterResult]
   )
+  final case class GuildSummary(name: String, world: String, members: Int, online: Int)
+  final case class WatchRow(
+      characterName: String,
+      distance: Int,
+      includeClashes: Boolean,
+      confidenceThreshold: Int,
+      windowDays: Int,
+      lastCheckedAt: Option[String],
+      lastAlertAt: Option[String]
+  )
+  final case class WatchListResponse(guildId: String, watches: List[WatchRow])
+  final case class WatchUpsertRequest(
+      guildId: String,
+      channelId: String,
+      characterName: String,
+      distance: Option[Int],
+      includeClashes: Option[Boolean],
+      threshold: Option[Int],
+      windowDays: Option[Int]
+  )
+  final case class WatchDeleteResponse(removed: Boolean)
 
   final case class AltsResponse(
       searchedCharacters: List[String],
@@ -75,6 +104,11 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
   given Encoder[AltsResponse] = deriveEncoder
   given Encoder[TradeCharacterResult] = deriveEncoder
   given Encoder[TradesResponse] = deriveEncoder
+  given Encoder[GuildSummary] = deriveEncoder
+  given Encoder[WatchRow] = deriveEncoder
+  given Encoder[WatchListResponse] = deriveEncoder
+  given Encoder[WatchDeleteResponse] = deriveEncoder
+  given Decoder[WatchUpsertRequest] = deriveDecoder
 
   def routes: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root =>
@@ -191,6 +225,74 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
           Ok(response.asJson)
         }
       }
+
+    case req @ GET -> Root / "api" / "altfinder" / "guild" =>
+      val params = req.uri.query.params
+      params.get("name").map(_.trim).filter(_.nonEmpty) match
+        case None =>
+          BadRequest(ErrorResponse("Invalid request", List("Missing required query param: name")).asJson)
+        case Some(name) =>
+          tibiaDataClient.getGuild(name).flatMap { json =>
+            val (gName, world, members, online) = parseGuild(json, name)
+            Ok(GuildSummary(gName, world, members, online).asJson)
+          }.handleErrorWith { e =>
+            BadRequest(ErrorResponse("Guild lookup failed", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
+          }
+
+    case req @ GET -> Root / "api" / "altfinder" / "watchlist" =>
+      val params = req.uri.query.params
+      params.get("guildId").map(_.trim).filter(_.nonEmpty) match
+        case None =>
+          BadRequest(ErrorResponse("Invalid request", List("Missing required query param: guildId")).asJson)
+        case Some(guildId) =>
+          repo.listWatches(guildId).flatMap { rows =>
+            val response = WatchListResponse(
+              guildId,
+              rows.map(w =>
+                WatchRow(
+                  w.characterName,
+                  w.distance,
+                  w.includeClashes,
+                  w.confidenceThreshold,
+                  w.windowDays,
+                  w.lastCheckedAt.map(_.toString),
+                  w.lastAlertAt.map(_.toString)
+                )
+              )
+            )
+            Ok(response.asJson)
+          }
+
+    case req @ POST -> Root / "api" / "altfinder" / "watchlist" =>
+      req.as[WatchUpsertRequest].flatMap { body =>
+        val guildId = body.guildId.trim
+        val channelId = body.channelId.trim
+        val name = body.characterName.trim
+        val distance = body.distance.getOrElse(0).max(0)
+        val includeClashes = body.includeClashes.getOrElse(false)
+        val threshold = body.threshold.getOrElse(80).max(0).min(100)
+        val windowDays = body.windowDays.getOrElse(30).max(1).min(365)
+        val errors = List(
+          Option.when(guildId.isEmpty)("guildId is required"),
+          Option.when(channelId.isEmpty)("channelId is required"),
+          Option.when(name.isEmpty)("characterName is required")
+        ).flatten
+        if (errors.nonEmpty) BadRequest(ErrorResponse("Invalid request", errors).asJson)
+        else {
+          val cfg = WatchConfig(guildId, channelId, name, distance, includeClashes, threshold, windowDays)
+          repo.upsertWatch(cfg) *> Ok(Map("status" -> "ok").asJson)
+        }
+      }.handleErrorWith { e =>
+        BadRequest(ErrorResponse("Invalid request body", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
+      }
+
+    case req @ DELETE -> Root / "api" / "altfinder" / "watchlist" =>
+      val params = req.uri.query.params
+      (params.get("guildId").map(_.trim).filter(_.nonEmpty), params.get("character").map(_.trim).filter(_.nonEmpty)) match
+        case (Some(guildId), Some(character)) =>
+          repo.removeWatch(guildId, character).flatMap(removed => Ok(WatchDeleteResponse(removed).asJson))
+        case _ =>
+          BadRequest(ErrorResponse("Invalid request", List("guildId and character are required")).asJson)
   }
 
   private def parseDateParam(
@@ -273,6 +375,30 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
           case Some(_) => "Using from date provided. Results may be inaccurate."
         val message = s"The following characters have been traded:\n${salesList.mkString("\n")}\n$dateMessage"
         Some(TradeSummary("Traded character detected", message))
+  }
+
+  private def parseGuild(json: Json, fallbackName: String): (String, String, Int, Int) = {
+    val guildCursor = json.hcursor.downField("guild")
+    val name = guildCursor.get[String]("name").getOrElse(fallbackName)
+    val world = guildCursor.get[String]("world").getOrElse("Unknown")
+
+    val membersDirect = guildCursor.downField("members").as[List[Json]].toOption
+    val membersNested = guildCursor.downField("members").downField("members").as[List[Json]].toOption
+    val membersList = membersDirect.orElse(membersNested).getOrElse(Nil)
+
+    val total = guildCursor.get[Int]("members_total").toOption
+      .orElse(guildCursor.downField("members").get[Int]("members_total").toOption)
+      .getOrElse(membersList.length)
+
+    val online = guildCursor.get[Int]("members_online").toOption
+      .orElse(guildCursor.downField("members").get[Int]("members_online").toOption)
+      .getOrElse {
+        membersList.count { m =>
+          m.hcursor.get[String]("status").toOption.exists(_.equalsIgnoreCase("online"))
+        }
+      }
+
+    (name, world, total, online)
   }
 
   private def formatClassic(adj: CharacterAdjacencies): String = {

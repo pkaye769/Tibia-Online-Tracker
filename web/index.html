@@ -33,6 +33,46 @@
     </section>
 
     <section class="card">
+      <h2>Guild Search</h2>
+      <div class="form-grid">
+        <div class="full">
+          <label for="guildName">Tibia guild name</label>
+          <input id="guildName" placeholder="Guild name" />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="guildSearchBtn">Search Guild</button>
+        <span class="meta" id="guildStatus"></span>
+      </div>
+      <pre id="guildOutput">No guild search yet.</pre>
+    </section>
+
+    <section class="card">
+      <h2>Watchlist Manager</h2>
+      <div class="form-grid">
+        <div>
+          <label for="watchGuildId">Discord Guild ID</label>
+          <input id="watchGuildId" placeholder="123456789012345678" />
+        </div>
+        <div>
+          <label for="watchChannelId">Discord Channel ID</label>
+          <input id="watchChannelId" placeholder="123456789012345678" />
+        </div>
+        <div class="full">
+          <label for="watchCharacter">Character name</label>
+          <input id="watchCharacter" placeholder="Deli Tokes" />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="watchAddBtn">Add/Update</button>
+        <button class="btn-ghost" id="watchRemoveBtn">Remove</button>
+        <button class="btn-ghost" id="watchListBtn">List</button>
+        <span class="meta" id="watchStatus"></span>
+      </div>
+      <pre id="watchOutput">No watchlist action yet.</pre>
+    </section>
+
+    <section class="card">
       <h2>Character Sweep</h2>
       <div class="form-grid">
         <div class="full">
