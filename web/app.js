@@ -35,9 +35,14 @@ const ui = {
 
 const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
 const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
+const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
 const storedApi = localStorage.getItem("altfinder_api_base");
 const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
 ui.apiBase.value = storedApi || defaultApiBase;
+const storedDistance = localStorage.getItem(DEFAULT_DISTANCE_KEY);
+if (storedDistance !== null && storedDistance !== "") {
+  ui.distance.value = storedDistance;
+}
 
 function baseUrl() {
   return (ui.apiBase.value || "").trim().replace(/\/+$/, "");
@@ -201,6 +206,7 @@ async function run() {
   }
 
   localStorage.setItem("altfinder_api_base", baseUrl());
+  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
 
   const params = new URLSearchParams();
   params.set("characters", names.join(","));
@@ -343,6 +349,10 @@ ui.clearBtn.addEventListener("click", () => {
   ui.results.textContent = "No search yet.";
 });
 ui.apiBase.addEventListener("change", checkHealth);
+ui.distance.addEventListener("change", () => {
+  const distance = Number(ui.distance.value || 0);
+  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
+});
 
 ui.guildSearchBtn.addEventListener("click", runGuildSearch);
 ui.guildSaveBtn.addEventListener("click", saveCurrentGuild);
