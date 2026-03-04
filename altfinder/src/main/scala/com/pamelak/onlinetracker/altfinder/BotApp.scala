@@ -180,7 +180,7 @@ object BotApp extends IOApp {
             .filter(_.nonEmpty)
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
           val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
-          val api = new AltFinderApi[IO](service, repo, tibiaDataClient)
+          val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
           val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound
           val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
           val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)

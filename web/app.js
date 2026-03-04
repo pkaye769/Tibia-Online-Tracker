@@ -5,6 +5,12 @@ const ui = {
   status: $("status"),
   error: $("error"),
   output: $("output"),
+  healthOutput: $("healthOutput"),
+  presetName: $("presetName"),
+  presetSelect: $("presetSelect"),
+  allowNames: $("allowNames"),
+  ignoreNames: $("ignoreNames"),
+  historyOutput: $("historyOutput"),
   guildName: $("guildName"),
   guildStatus: $("guildStatus"),
   guildOutput: $("guildOutput"),
@@ -33,6 +39,10 @@ const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
 const initialApiBase = queryApi || storedApi || defaultApiBase;
 const WEB_WATCH_GUILD_ID = "web";
 const WEB_WATCH_CHANNEL_ID = "web-ui";
+const PRESETS_KEY = "altfinder_presets_v1";
+const CONF_HISTORY_KEY = "altfinder_conf_history_v1";
+let latestMatches = [];
+let latestRawMatches = [];
 ui.apiBase.value = initialApiBase;
 
 function baseUrl() {
@@ -50,6 +60,90 @@ function setError(message) {
 function saveApiBase() {
   const base = baseUrl();
   localStorage.setItem("altfinder_api_base", base);
+}
+
+function parseNameList(raw) {
+  return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+function applyAllowIgnore(matches) {
+  const allow = parseNameList(ui.allowNames.value || "");
+  const ignore = parseNameList(ui.ignoreNames.value || "");
+  return matches.filter((m) => {
+    const n = String(m.name || "").trim().toLowerCase();
+    if (ignore.includes(n)) return false;
+    if (allow.length > 0 && !allow.includes(n)) return false;
+    return true;
+  });
+}
+
+function loadPresets() {
+  try {
+    return JSON.parse(localStorage.getItem(PRESETS_KEY) || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+
+function savePresets(obj) {
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(obj));
+}
+
+function refreshPresetSelect() {
+  const presets = loadPresets();
+  const names = Object.keys(presets).sort();
+  ui.presetSelect.innerHTML = names.map((n) => "<option>" + escapeHtml(n) + "</option>").join("");
+}
+
+function loadConfidenceHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(CONF_HISTORY_KEY) || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveConfidenceHistory(obj) {
+  localStorage.setItem(CONF_HISTORY_KEY, JSON.stringify(obj));
+}
+
+function appendConfidenceHistory(matches) {
+  const history = loadConfidenceHistory();
+  const today = new Date().toISOString();
+  matches.forEach((m) => {
+    const key = String(m.name || "Unknown");
+    if (!history[key]) history[key] = [];
+    history[key].push({ t: today, c: Number(m.confidence || 0) });
+    if (history[key].length > 30) history[key] = history[key].slice(-30);
+  });
+  saveConfidenceHistory(history);
+  renderConfidenceHistory();
+}
+
+function renderConfidenceHistory() {
+  const history = loadConfidenceHistory();
+  const lines = Object.keys(history).sort().slice(0, 20).map((name) => {
+    const points = history[name].slice(-10).map((p) => p.c).join(" -> ");
+    return name + ": " + points;
+  });
+  ui.historyOutput.textContent = lines.length ? lines.join("\n") : "No history yet.";
+}
+
+function downloadCsv(matches) {
+  const cols = ["name","confidence","adjacencies","clashes","logins","hiddenLikely","hiddenScore","sessionSimilarity","evidencePassed","recentTradeDates"];
+  const rows = [cols.join(",")].concat(matches.map((m) =>
+    cols.map((c) => {
+      const v = c === "recentTradeDates" ? (m[c] || []).join("|") : m[c];
+      return "\"" + String(v ?? "").replaceAll("\"", "\"\"") + "\"";
+    }).join(",")
+  ));
+  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "altfinder_matches.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value) {
@@ -138,8 +232,18 @@ async function loadStatus() {
     ]);
     ui.healthBadge.textContent = "API: " + (health.status || "unknown");
     ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
+    ui.healthOutput.textContent =
+      "API status: " + (health.status || "unknown") + "\n" +
+      "Online history rows: " + String(trackerStatus.onlineHistoryRows ?? "-") + "\n" +
+      "Latest world save: " + String(trackerStatus.latestWorldSave ?? "-") + "\n" +
+      "Latest world save age (s): " + String(trackerStatus.latestWorldSaveAgeSeconds ?? "-") + "\n" +
+      "Bazaar cooldown (s): " + String(trackerStatus.bazaarCooldownSeconds ?? 0) + "\n" +
+      "Cache size: " + String(trackerStatus.queryCacheSize ?? "-") + "\n" +
+      "Cache TTL (s): " + String(trackerStatus.queryCacheTtlSeconds ?? "-") + "\n" +
+      "Status latency (ms): " + String(trackerStatus.statusLatencyMs ?? "-");
   } catch (err) {
     ui.healthBadge.textContent = "API: unavailable";
+    ui.healthOutput.textContent = "Health fetch failed: " + (err.message || String(err));
     setError(err.message || String(err));
   }
 }
@@ -176,8 +280,13 @@ async function runSearch() {
       fetchJson("/api/altfinder/alts?" + q.toString()),
       fetchJson("/api/altfinder/status")
     ]);
+    latestRawMatches = data.possibleMatches || [];
+    const filteredMatches = applyAllowIgnore(latestRawMatches);
+    latestMatches = filteredMatches;
     fillKpis(data, trackerStatus);
-    renderRows(data.possibleMatches || []);
+    ui.kpiMatches.textContent = String(filteredMatches.length);
+    renderRows(filteredMatches);
+    appendConfidenceHistory(filteredMatches);
     ui.output.textContent = data.formattedText || JSON.stringify(data, null, 2);
     setStatus("Done.");
   } catch (err) {
@@ -317,6 +426,43 @@ $("watchAddBtn").addEventListener("click", addWatch);
 $("watchRemoveBtn").addEventListener("click", removeWatch);
 $("watchListBtn").addEventListener("click", listWatchlist);
 $("clashRunBtn").addEventListener("click", runClashes);
+$("csvBtn").addEventListener("click", () => downloadCsv(latestMatches));
+$("presetSaveBtn").addEventListener("click", () => {
+  const name = ui.presetName.value.trim();
+  if (!name) return;
+  const presets = loadPresets();
+  presets[name] = {
+    characters: $("characters").value.trim(),
+    from: $("from").value.trim(),
+    to: $("to").value.trim(),
+    distance: $("distance").value.trim(),
+    clashes: $("clashes").value,
+    allow: ui.allowNames.value.trim(),
+    ignore: ui.ignoreNames.value.trim()
+  };
+  savePresets(presets);
+  refreshPresetSelect();
+});
+$("presetLoadBtn").addEventListener("click", () => {
+  const name = ui.presetSelect.value;
+  const preset = loadPresets()[name];
+  if (!preset) return;
+  $("characters").value = preset.characters || "";
+  $("from").value = preset.from || "";
+  $("to").value = preset.to || "";
+  $("distance").value = preset.distance || "0";
+  $("clashes").value = preset.clashes || "false";
+  ui.allowNames.value = preset.allow || "";
+  ui.ignoreNames.value = preset.ignore || "";
+});
+$("presetDeleteBtn").addEventListener("click", () => {
+  const name = ui.presetSelect.value;
+  if (!name) return;
+  const presets = loadPresets();
+  delete presets[name];
+  savePresets(presets);
+  refreshPresetSelect();
+});
 $("clearBtn").addEventListener("click", () => {
   $("characters").value = "";
   $("from").value = "";
@@ -327,9 +473,19 @@ $("clearBtn").addEventListener("click", () => {
   setError("");
   ui.output.textContent = "No search yet.";
   ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted">No search yet.</td></tr>';
+  latestRawMatches = [];
+  latestMatches = [];
   ui.kpiLogins.textContent = "-";
   ui.kpiMatches.textContent = "-";
   ui.kpiRange.textContent = "-";
+});
+ui.allowNames.addEventListener("change", () => {
+  latestMatches = applyAllowIgnore(latestRawMatches);
+  renderRows(latestMatches);
+});
+ui.ignoreNames.addEventListener("change", () => {
+  latestMatches = applyAllowIgnore(latestRawMatches);
+  renderRows(latestMatches);
 });
 
 ui.apiBase.addEventListener("change", loadStatus);
@@ -337,4 +493,6 @@ $("characters").addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
 
+refreshPresetSelect();
+renderConfidenceHistory();
 loadStatus();

@@ -46,6 +46,9 @@ class BazaarScraperHttp4sClient[F[_]: Async](client: Client[F]) extends BazaarSc
     rateLimitedUntilEpochSec = math.max(rateLimitedUntilEpochSec, nowEpochSec + cooldown)
   }
 
+  override def cooldownRemainingSeconds: F[Long] =
+    Async[F].pure(math.max(0L, rateLimitedUntilEpochSec - nowEpochSec))
+
   def searchCharacter(name: String): F[String] = {
     if (nowEpochSec < rateLimitedUntilEpochSec) {
       val remaining = rateLimitedUntilEpochSec - nowEpochSec

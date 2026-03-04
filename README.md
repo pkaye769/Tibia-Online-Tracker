@@ -10,8 +10,12 @@ Tracks Tibia online login/logout history and finds likely alts from adjacency pa
 - Session-duration similarity scoring from online-time behavior
 - Evidence gating to reduce low-signal matches
 - Optional watch alerts for suspicious matches
+- Auto clash-spike watch alerts
 - Persistent tracked Tibia guild list per Discord server
 - Direct traded-character checks for one or more names
+- Query result caching with short TTL
+- Health dashboard metrics (world save age, bazaar cooldown, cache)
+- CSV export, presets, and ignore/allow filtering in web board
 
 ## Requirements
 
@@ -50,6 +54,8 @@ HIDDEN_LIKELY_MAX_CLASH_RATIO=0.25
 MIN_EVIDENCE_LOGINS=8
 MIN_EVIDENCE_ADJACENCIES=2
 INCLUDE_LOW_EVIDENCE_MATCHES=false
+QUERY_CACHE_TTL_SECONDS=60
+BAZAAR_RATE_LIMIT_COOLDOWN_SECONDS=1800
 ```
 
 ## Run

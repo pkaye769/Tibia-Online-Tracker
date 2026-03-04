@@ -33,6 +33,27 @@
     </section>
 
     <section class="card">
+      <h2>Health Dashboard</h2>
+      <pre id="healthOutput">No health data yet.</pre>
+    </section>
+
+    <section class="card">
+      <h2>Presets</h2>
+      <div class="actions">
+        <input id="presetName" placeholder="Preset name" />
+        <button class="btn-primary" id="presetSaveBtn">Save Preset</button>
+        <button class="btn-ghost" id="presetLoadBtn">Load Preset</button>
+        <button class="btn-ghost" id="presetDeleteBtn">Delete Preset</button>
+      </div>
+      <div class="form-grid">
+        <div class="full">
+          <label for="presetSelect">Saved presets</label>
+          <select id="presetSelect"></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Guild Search</h2>
       <div class="form-grid">
         <div class="full">
@@ -94,6 +115,7 @@
       <div class="actions">
         <button class="btn-primary" id="runBtn">Run Sweep</button>
         <button class="btn-ghost" id="clearBtn">Clear</button>
+        <button class="btn-ghost" id="csvBtn">Export CSV</button>
         <span class="meta" id="status"></span>
       </div>
       <div class="error" id="error"></div>
@@ -138,6 +160,10 @@
 
     <section class="card">
       <h2>Suspect Board</h2>
+      <div class="actions">
+        <input id="allowNames" placeholder="Allow list (comma separated, optional)" />
+        <input id="ignoreNames" placeholder="Ignore list (comma separated)" />
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -157,6 +183,11 @@
           </tbody>
         </table>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Confidence History</h2>
+      <pre id="historyOutput">No history yet.</pre>
     </section>
 
     <section class="card">

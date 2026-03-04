@@ -23,12 +23,14 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import io.circe.Json
+import scala.collection.mutable
 import scala.util.Try
 
 final class AltFinderApi[F[_]: Async](
     service: AltFinderService[F],
     repo: AltFinderRepoAlg[F],
-    tibiaDataClient: TibiaDataClientAlg[F]
+    tibiaDataClient: TibiaDataClientAlg[F],
+    bazaarClient: com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraperClientAlg[F]
 ) {
   private val dsl = new Http4sDsl[F] {}
   import dsl.*
@@ -36,7 +38,15 @@ final class AltFinderApi[F[_]: Async](
   private val berlinZone = ZoneId.of("Europe/Berlin")
 
   final case class Health(status: String)
-  final case class TrackerStatusResponse(onlineHistoryRows: Long, latestWorldSave: Option[String])
+  final case class TrackerStatusResponse(
+      onlineHistoryRows: Long,
+      latestWorldSave: Option[String],
+      latestWorldSaveAgeSeconds: Option[Long],
+      bazaarCooldownSeconds: Long,
+      queryCacheSize: Int,
+      queryCacheTtlSeconds: Int,
+      statusLatencyMs: Long
+  )
   final case class ErrorResponse(error: String, details: List[String])
   final case class TradeSummary(title: String, message: String)
   final case class AltMatch(
@@ -122,6 +132,31 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchListResponse] = deriveEncoder
   given Encoder[WatchDeleteResponse] = deriveEncoder
 
+  private val queryCacheTtlSeconds = sys.env.get("QUERY_CACHE_TTL_SECONDS").flatMap(_.toIntOption).getOrElse(60).max(5)
+  private val queryCache = mutable.Map.empty[String, (Long, Json)]
+
+  private def nowMs: Long = System.currentTimeMillis()
+  private def purgeExpiredCache(): Unit = {
+    val now = nowMs
+    queryCache.filterInPlace { case (_, (expiresAt, _)) => expiresAt > now }
+  }
+
+  private def cachedJson(key: String)(compute: => F[Json]): F[Json] = {
+    Async[F].delay {
+      purgeExpiredCache()
+      queryCache.get(key).filter(_._1 > nowMs).map(_._2)
+    }.flatMap {
+      case Some(value) => Async[F].pure(value)
+      case None =>
+        compute.flatTap { json =>
+          Async[F].delay {
+            purgeExpiredCache()
+            queryCache.update(key, (nowMs + queryCacheTtlSeconds.toLong * 1000L, json))
+          }
+        }
+    }
+  }
+
   def routes: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root =>
       Ok(uiHtml).map(_.withContentType(`Content-Type`(MediaType.text.html)))
@@ -133,10 +168,18 @@ final class AltFinderApi[F[_]: Async](
       Ok(Health("ok").asJson)
 
     case GET -> Root / "api" / "altfinder" / "status" =>
-      service.getTrackerStatus.map { status =>
+      val startMs = nowMs
+      (service.getTrackerStatus, bazaarClient.cooldownRemainingSeconds).mapN { case (status, cooldownSeconds) =>
+        val latestSave = status.latestWorldSave
+        val latestAge = latestSave.map(ts => math.max(0L, java.time.Duration.between(ts, OffsetDateTime.now()).getSeconds))
         TrackerStatusResponse(
           onlineHistoryRows = status.onlineHistoryRows,
-          latestWorldSave = status.latestWorldSave.map(_.toString)
+          latestWorldSave = latestSave.map(_.toString),
+          latestWorldSaveAgeSeconds = latestAge,
+          bazaarCooldownSeconds = cooldownSeconds,
+          queryCacheSize = queryCache.size,
+          queryCacheTtlSeconds = queryCacheTtlSeconds,
+          statusLatencyMs = math.max(0L, nowMs - startMs)
         )
       }.flatMap(s => Ok(s.asJson))
 
@@ -160,7 +203,9 @@ final class AltFinderApi[F[_]: Async](
       if (errors.nonEmpty) {
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
-        service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).map { results =>
+        val cacheKey = s"alts|${characters.mkString(",")}|$from|$to|$distanceOpt|$includeClashes|$format"
+        cachedJson(cacheKey) {
+          service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).map { results =>
           val dateMessage = buildDateRange(results.searchedFrom, results.searchedTo)
           val tradeSummary = buildTradeSummary(results.sales, from)
           val formattedMatches = results.adjacencies.take(20).map { adj =>
@@ -200,9 +245,9 @@ final class AltFinderApi[F[_]: Async](
               format = format
             )
           )
-
-          Ok(response.asJson)
-        }.flatten
+          response.asJson
+        }
+        }.flatMap(json => Ok(json))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "trades" =>
@@ -225,7 +270,9 @@ final class AltFinderApi[F[_]: Async](
       if (errors.nonEmpty) {
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
-        service.checkTradedCharacters(characters, lookbackDays).flatMap { rows =>
+        val cacheKey = s"trades|${characters.mkString(",")}|$lookbackDays"
+        cachedJson(cacheKey) {
+          service.checkTradedCharacters(characters, lookbackDays).map { rows =>
           val response = TradesResponse(
             lookbackDays = lookbackDays,
             results = rows.map { row =>
@@ -237,8 +284,9 @@ final class AltFinderApi[F[_]: Async](
               )
             }
           )
-          Ok(response.asJson)
+          response.asJson
         }
+        }.flatMap(json => Ok(json))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "clashes" =>
@@ -258,7 +306,9 @@ final class AltFinderApi[F[_]: Async](
       if (errors.nonEmpty) {
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
-        service.findClashes(characters, targets, from, to, distance).flatMap { results =>
+        val cacheKey = s"clashes|${characters.mkString(",")}|${targets.mkString(",")}|$from|$to|$distance"
+        cachedJson(cacheKey) {
+          service.findClashes(characters, targets, from, to, distance).map { results =>
           val matches = results.clashes.map { c =>
             val name = c.characterName.getOrElse("Unknown")
             val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
@@ -281,8 +331,7 @@ final class AltFinderApi[F[_]: Async](
               "Clash matches",
               body
             ).mkString("\n")
-          Ok(
-            ClashesResponse(
+          ClashesResponse(
               searchedCharacters = results.searchedCharacters,
               checkedCharacters = results.checkedCharacters,
               searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
@@ -292,8 +341,8 @@ final class AltFinderApi[F[_]: Async](
               clashes = matches,
               formattedText = formattedText
             ).asJson
-          )
-        }
+          }
+        }.flatMap(json => Ok(json))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "guild" =>
