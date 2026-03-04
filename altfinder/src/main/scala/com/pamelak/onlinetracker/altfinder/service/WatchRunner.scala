@@ -51,6 +51,7 @@ class WatchRunner[F[_]: Async](
 
       val sendAlert =
         if (!shouldAlert) Async[F].unit
+        else if (!entry.channelId.forall(_.isDigit)) Async[F].unit
         else {
           val channel = Option(jda.getTextChannelById(entry.channelId))
           channel match

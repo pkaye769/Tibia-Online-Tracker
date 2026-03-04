@@ -8,8 +8,6 @@ const ui = {
   guildName: $("guildName"),
   guildStatus: $("guildStatus"),
   guildOutput: $("guildOutput"),
-  watchGuildId: $("watchGuildId"),
-  watchChannelId: $("watchChannelId"),
   watchCharacter: $("watchCharacter"),
   watchStatus: $("watchStatus"),
   watchOutput: $("watchOutput"),
@@ -26,6 +24,8 @@ const queryApi = query.get("api");
 const storedApi = localStorage.getItem("altfinder_api_base");
 const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
 const initialApiBase = queryApi || storedApi || defaultApiBase;
+const WEB_WATCH_GUILD_ID = "web";
+const WEB_WATCH_CHANNEL_ID = "web-ui";
 ui.apiBase.value = initialApiBase;
 
 function baseUrl() {
@@ -43,11 +43,6 @@ function setError(message) {
 function saveApiBase() {
   const base = baseUrl();
   localStorage.setItem("altfinder_api_base", base);
-}
-
-function saveWatchDefaults() {
-  localStorage.setItem("altfinder_watch_guild_id", ui.watchGuildId.value.trim());
-  localStorage.setItem("altfinder_watch_channel_id", ui.watchChannelId.value.trim());
 }
 
 function escapeHtml(value) {
@@ -118,13 +113,6 @@ async function fetchJsonWithInit(path, init) {
     throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : ("Request failed (" + res.status + ")"));
   }
   return data;
-}
-
-function loadWatchDefaults() {
-  const guild = localStorage.getItem("altfinder_watch_guild_id");
-  const channel = localStorage.getItem("altfinder_watch_channel_id");
-  if (guild) ui.watchGuildId.value = guild;
-  if (channel) ui.watchChannelId.value = channel;
 }
 
 async function loadStatus() {
@@ -212,17 +200,11 @@ async function runGuildSearch() {
 }
 
 async function listWatchlist() {
-  saveWatchDefaults();
-  const guildId = ui.watchGuildId.value.trim();
-  if (!guildId) {
-    ui.watchOutput.textContent = "Discord Guild ID is required.";
-    return;
-  }
   ui.watchStatus.textContent = "Loading...";
   ui.watchOutput.textContent = "Loading...";
   try {
     const q = new URLSearchParams();
-    q.set("guildId", guildId);
+    q.set("guildId", WEB_WATCH_GUILD_ID);
     const data = await fetchJson("/api/altfinder/watchlist?" + q.toString());
     const rows = data.watches || [];
     if (rows.length === 0) {
@@ -244,20 +226,17 @@ async function listWatchlist() {
 }
 
 async function addWatch() {
-  saveWatchDefaults();
-  const guildId = ui.watchGuildId.value.trim();
-  const channelId = ui.watchChannelId.value.trim();
   const characterName = ui.watchCharacter.value.trim();
-  if (!guildId || !channelId || !characterName) {
-    ui.watchOutput.textContent = "Guild ID, Channel ID, and Character name are required.";
+  if (!characterName) {
+    ui.watchOutput.textContent = "Character name is required.";
     return;
   }
   ui.watchStatus.textContent = "Saving...";
   ui.watchOutput.textContent = "Saving...";
   try {
     const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("channelId", channelId);
+    q.set("guildId", WEB_WATCH_GUILD_ID);
+    q.set("channelId", WEB_WATCH_CHANNEL_ID);
     q.set("character", characterName);
     await fetchJson("/api/altfinder/watchlist/add?" + q.toString());
     ui.watchStatus.textContent = "Saved.";
@@ -269,18 +248,16 @@ async function addWatch() {
 }
 
 async function removeWatch() {
-  saveWatchDefaults();
-  const guildId = ui.watchGuildId.value.trim();
   const characterName = ui.watchCharacter.value.trim();
-  if (!guildId || !characterName) {
-    ui.watchOutput.textContent = "Guild ID and Character name are required.";
+  if (!characterName) {
+    ui.watchOutput.textContent = "Character name is required.";
     return;
   }
   ui.watchStatus.textContent = "Removing...";
   ui.watchOutput.textContent = "Removing...";
   try {
     const q = new URLSearchParams();
-    q.set("guildId", guildId);
+    q.set("guildId", WEB_WATCH_GUILD_ID);
     q.set("character", characterName);
     const data = await fetchJson("/api/altfinder/watchlist/remove?" + q.toString());
     ui.watchStatus.textContent = data.removed ? "Removed." : "Not found.";
@@ -312,11 +289,8 @@ $("clearBtn").addEventListener("click", () => {
 });
 
 ui.apiBase.addEventListener("change", loadStatus);
-ui.watchGuildId.addEventListener("change", saveWatchDefaults);
-ui.watchChannelId.addEventListener("change", saveWatchDefaults);
 $("characters").addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
 
-loadWatchDefaults();
 loadStatus();
