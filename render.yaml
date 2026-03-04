@@ -79,6 +79,6 @@ services:
 
 databases:
   - name: tibia-tracker-db
-    plan: basic
+    plan: free
     databaseName: tibia_tracker
     user: tibia_tracker
