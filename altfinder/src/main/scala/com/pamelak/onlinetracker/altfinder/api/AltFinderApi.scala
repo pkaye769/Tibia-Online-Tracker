@@ -203,7 +203,7 @@ final class AltFinderApi[F[_]: Async](
         )
       }.flatMap(s => Ok(s.asJson))
 
-    case req @ GET -> Root / "api" / "altfinder" / "alts" =>
+    case req @ GET -> Root / "api" / "altfinder" / route if route == "alts" || route == "alt" =>
       val params = req.uri.query.params
       val errors = collection.mutable.ListBuffer.empty[String]
 
