@@ -21,7 +21,18 @@ class BotListener[F[_]: Async](commands: List[Command[F]], dispatcher: Dispatche
               .flatMap { embed =>
                 Async[F].delay(event.getHook.sendMessageEmbeds(embed).queue())
               }
-              .handleErrorWith(e => Logger[F].error(e)(s"Slash command failed: ${event.getName}"))
+              .handleErrorWith { e =>
+                Logger[F].error(e)(s"Slash command failed: ${event.getName}") *>
+                  Async[F].delay {
+                    event.getHook
+                      .sendMessage("Command failed. Try again in a moment.")
+                      .setEphemeral(true)
+                      .queue(
+                        _ => (),
+                        hookErr => dispatcher.unsafeRunAndForget(Logger[F].warn(hookErr)(s"Failed to send error reply for: ${event.getName}"))
+                      )
+                  }
+              }
           },
           e => dispatcher.unsafeRunAndForget(Logger[F].warn(e)(s"Failed to defer slash command: ${event.getName}"))
         )
