@@ -16,7 +16,8 @@ const ui = {
 const query = new URLSearchParams(window.location.search);
 const queryApi = query.get("api");
 const storedApi = localStorage.getItem("altfinder_api_base");
-const initialApiBase = queryApi || storedApi || window.location.origin;
+const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
+const initialApiBase = queryApi || storedApi || defaultApiBase;
 ui.apiBase.value = initialApiBase;
 
 function baseUrl() {
