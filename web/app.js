@@ -15,6 +15,7 @@ const ui = {
   guildName: $("guildName"),
   guildStatus: $("guildStatus"),
   guildOutput: $("guildOutput"),
+  guildSavedOutput: $("guildSavedOutput"),
   watchCharacter: $("watchCharacter"),
   watchStatus: $("watchStatus"),
   watchOutput: $("watchOutput"),
@@ -42,6 +43,7 @@ const WEB_WATCH_GUILD_ID = "web";
 const WEB_WATCH_CHANNEL_ID = "web-ui";
 const PRESETS_KEY = "altfinder_presets_v1";
 const CONF_HISTORY_KEY = "altfinder_conf_history_v1";
+const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v1";
 let latestMatches = [];
 let latestRawMatches = [];
 ui.apiBase.value = initialApiBase;
@@ -106,6 +108,53 @@ function loadConfidenceHistory() {
 
 function saveConfidenceHistory(obj) {
   localStorage.setItem(CONF_HISTORY_KEY, JSON.stringify(obj));
+}
+
+function loadSavedGuilds() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_GUILDS_KEY) || "[]");
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveSavedGuilds(list) {
+  localStorage.setItem(SAVED_GUILDS_KEY, JSON.stringify(list));
+}
+
+function addSavedGuild(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return;
+  const current = loadSavedGuilds();
+  const lower = trimmed.toLowerCase();
+  if (!current.some((g) => String(g.name || "").toLowerCase() === lower)) {
+    current.push({ name: trimmed, updatedAt: null, online: 0, world: "-", members: 0, onlineCharacters: [] });
+    saveSavedGuilds(current);
+  }
+}
+
+function removeSavedGuild(name) {
+  const lower = String(name || "").trim().toLowerCase();
+  const current = loadSavedGuilds().filter((g) => String(g.name || "").toLowerCase() !== lower);
+  saveSavedGuilds(current);
+}
+
+function renderSavedGuilds() {
+  const current = loadSavedGuilds();
+  if (current.length === 0) {
+    ui.guildSavedOutput.textContent = "No saved guilds yet.";
+    return;
+  }
+  ui.guildSavedOutput.textContent = current.map((g) => {
+    const onlineChars = (g.onlineCharacters || []).slice(0, 12).join(", ");
+    return (
+      g.name +
+      " | world " + String(g.world || "-") +
+      " | online " + String(g.online || 0) + "/" + String(g.members || 0) +
+      " | updated " + String(g.updatedAt || "never") +
+      "\n  " + (onlineChars || "no online characters listed")
+    );
+  }).join("\n\n");
 }
 
 function appendConfidenceHistory(matches) {
@@ -346,6 +395,43 @@ async function runGuildSearch() {
   }
 }
 
+async function refreshSavedGuilds() {
+  const current = loadSavedGuilds();
+  if (current.length === 0) {
+    renderSavedGuilds();
+    return;
+  }
+  ui.guildStatus.textContent = "Refreshing saved guilds...";
+  for (let i = 0; i < current.length; i += 1) {
+    const g = current[i];
+    try {
+      const q = new URLSearchParams();
+      q.set("name", g.name);
+      const data = await fetchJson("/api/altfinder/guild?" + q.toString());
+      current[i] = {
+        name: g.name,
+        world: data.world || "-",
+        members: Number(data.members || 0),
+        online: Number(data.online || 0),
+        onlineCharacters: data.onlineCharacters || [],
+        updatedAt: new Date().toISOString()
+      };
+    } catch (_) {
+      current[i] = {
+        name: g.name,
+        world: g.world || "-",
+        members: Number(g.members || 0),
+        online: Number(g.online || 0),
+        onlineCharacters: g.onlineCharacters || [],
+        updatedAt: g.updatedAt || null
+      };
+    }
+  }
+  saveSavedGuilds(current);
+  renderSavedGuilds();
+  ui.guildStatus.textContent = "Saved guilds refreshed.";
+}
+
 async function listWatchlist() {
   ui.watchStatus.textContent = "Loading...";
   ui.watchOutput.textContent = "Loading...";
@@ -446,6 +532,14 @@ async function runClashes() {
 
 $("runBtn").addEventListener("click", runSearch);
 $("guildSearchBtn").addEventListener("click", runGuildSearch);
+$("guildSaveBtn").addEventListener("click", () => {
+  const name = ui.guildName.value.trim();
+  if (!name) return;
+  addSavedGuild(name);
+  renderSavedGuilds();
+  ui.guildStatus.textContent = "Guild saved.";
+});
+$("guildRefreshAllBtn").addEventListener("click", refreshSavedGuilds);
 $("watchAddBtn").addEventListener("click", addWatch);
 $("watchRemoveBtn").addEventListener("click", removeWatch);
 $("watchListBtn").addEventListener("click", listWatchlist);
@@ -516,7 +610,11 @@ ui.apiBase.addEventListener("change", loadStatus);
 $("characters").addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
+$("guildName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runGuildSearch();
+});
 
 refreshPresetSelect();
 renderConfidenceHistory();
+renderSavedGuilds();
 loadStatus();
