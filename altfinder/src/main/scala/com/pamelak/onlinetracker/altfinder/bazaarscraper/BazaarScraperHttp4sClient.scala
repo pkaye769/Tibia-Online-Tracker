@@ -29,7 +29,7 @@ object BazaarScraperHttp4sClient {
     .map(GZip()(_)).map(Retry[IO](retryPolicy)(_))
 }
 
-class BazaarScraperHttp4sClient[F[_]: Sync](client: Client[F])(using Concurrent[F]) extends BazaarScraperClientAlg[F] {
+class BazaarScraperHttp4sClient[F[_]: Concurrent](client: Client[F]) extends BazaarScraperClientAlg[F] {
   private val apiRoot = uri"https://www.exevopan.com"
   private val bazaarWorld = sys.env.get("BAZAAR_WORLD").orElse(sys.env.get("WORLD")).getOrElse("Nefera")
   private val retryAfterRegex = "(?i)retry-after\\D*(\\d+)".r
