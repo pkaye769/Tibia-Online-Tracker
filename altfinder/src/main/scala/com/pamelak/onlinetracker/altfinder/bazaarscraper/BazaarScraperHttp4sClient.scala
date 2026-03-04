@@ -8,6 +8,8 @@ import cats.implicits.*
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraperClientAlg
 import io.circe.generic.auto.*
 import org.http4s.Status
+import org.http4s.Method
+import org.http4s.Request
 import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.circe.jsonOf
 import org.http4s.client.Client
@@ -30,8 +32,25 @@ object BazaarScraperHttp4sClient {
 class BazaarScraperHttp4sClient[F[_]: Sync](client: Client[F])(using Concurrent[F]) extends BazaarScraperClientAlg[F] {
   private val apiRoot = uri"https://www.exevopan.com"
   private val bazaarWorld = sys.env.get("BAZAAR_WORLD").orElse(sys.env.get("WORLD")).getOrElse("Nefera")
+  private val retryAfterRegex = "(?i)retry-after\\D*(\\d+)".r
+  @volatile private var rateLimitedUntilEpochSec: Long = 0L
+  private val defaultCooldownSeconds = sys.env.get("BAZAAR_RATE_LIMIT_COOLDOWN_SECONDS").flatMap(_.toLongOption).getOrElse(1800L)
+
+  private def nowEpochSec: Long = System.currentTimeMillis() / 1000L
+
+  private def parseRetryAfterSeconds(text: String): Option[Long] =
+    retryAfterRegex.findFirstMatchIn(text).flatMap(m => m.group(1).toLongOption)
+
+  private def activateCooldown(seconds: Long): Unit = {
+    val cooldown = math.max(60L, seconds)
+    rateLimitedUntilEpochSec = math.max(rateLimitedUntilEpochSec, nowEpochSec + cooldown)
+  }
 
   def searchCharacter(name: String): F[String] = {
+    if (nowEpochSec < rateLimitedUntilEpochSec) {
+      val remaining = rateLimitedUntilEpochSec - nowEpochSec
+      Sync[F].raiseError(new RuntimeException(s"Bazaar lookup cooling down for ${remaining}s after rate limit"))
+    } else {
     // nicknameFilter for exevopan is a "contains" rather than exact match, so here we grab a lot of results to be safe
     // and handling pagination is too much effort
     val target = (apiRoot / "api/auctions").withQueryParams(Map(
@@ -41,7 +60,30 @@ class BazaarScraperHttp4sClient[F[_]: Sync](client: Client[F])(using Concurrent[
       ("history", "true"),
       ("pageSize", "100")
     ))
-    client.expect(target)
+      val req = Request[F](Method.GET, target)
+      client.run(req).use { res =>
+        res.as[String].flatMap { body =>
+          val lower = body.toLowerCase
+          val retryAfterHeaderSeconds =
+            res.headers.headers
+              .find(h => h.name.toString.equalsIgnoreCase("Retry-After"))
+              .flatMap(h => h.value.toLongOption)
+          val retryAfterBodySeconds = parseRetryAfterSeconds(body)
+          val retryAfterSeconds = retryAfterHeaderSeconds.orElse(retryAfterBodySeconds).getOrElse(defaultCooldownSeconds)
+
+          if (res.status.code == 429 || (lower.contains("cloudflare") && lower.contains("rate limit"))) {
+            Sync[F].delay(activateCooldown(retryAfterSeconds)) *>
+              Sync[F].raiseError(
+                new RuntimeException(s"Encountered cloudflare rate limit! Retry-After: $retryAfterSeconds s")
+              )
+          } else if (!res.status.isSuccess) {
+            Sync[F].raiseError(new RuntimeException(s"Bazaar lookup failed: HTTP ${res.status.code}"))
+          } else {
+            Sync[F].pure(body)
+          }
+        }
+      }
+    }
   }
 
 }
