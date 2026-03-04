@@ -71,15 +71,6 @@ final class AltFinderApi[F[_]: Async](
       lastAlertAt: Option[String]
   )
   final case class WatchListResponse(guildId: String, watches: List[WatchRow])
-  final case class WatchUpsertRequest(
-      guildId: String,
-      channelId: String,
-      characterName: String,
-      distance: Option[Int],
-      includeClashes: Option[Boolean],
-      threshold: Option[Int],
-      windowDays: Option[Int]
-  )
   final case class WatchDeleteResponse(removed: Boolean)
 
   final case class AltsResponse(
@@ -108,7 +99,6 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchRow] = deriveEncoder
   given Encoder[WatchListResponse] = deriveEncoder
   given Encoder[WatchDeleteResponse] = deriveEncoder
-  given Decoder[WatchUpsertRequest] = deriveDecoder
 
   def routes: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root =>
@@ -291,36 +281,6 @@ final class AltFinderApi[F[_]: Async](
         case _ =>
           BadRequest(ErrorResponse("Invalid request", List("guildId and character are required")).asJson)
 
-    case req @ POST -> Root / "api" / "altfinder" / "watchlist" =>
-      req.as[WatchUpsertRequest].flatMap { body =>
-        val guildId = body.guildId.trim
-        val channelId = body.channelId.trim
-        val name = body.characterName.trim
-        val distance = body.distance.getOrElse(0).max(0)
-        val includeClashes = body.includeClashes.getOrElse(false)
-        val threshold = body.threshold.getOrElse(80).max(0).min(100)
-        val windowDays = body.windowDays.getOrElse(30).max(1).min(365)
-        val errors = List(
-          Option.when(guildId.isEmpty)("guildId is required"),
-          Option.when(channelId.isEmpty)("channelId is required"),
-          Option.when(name.isEmpty)("characterName is required")
-        ).flatten
-        if (errors.nonEmpty) BadRequest(ErrorResponse("Invalid request", errors).asJson)
-        else {
-          val cfg = WatchConfig(guildId, channelId, name, distance, includeClashes, threshold, windowDays)
-          repo.upsertWatch(cfg) *> Ok(Map("status" -> "ok").asJson)
-        }
-      }.handleErrorWith { e =>
-        BadRequest(ErrorResponse("Invalid request body", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
-      }
-
-    case req @ DELETE -> Root / "api" / "altfinder" / "watchlist" =>
-      val params = req.uri.query.params
-      (params.get("guildId").map(_.trim).filter(_.nonEmpty), params.get("character").map(_.trim).filter(_.nonEmpty)) match
-        case (Some(guildId), Some(character)) =>
-          repo.removeWatch(guildId, character).flatMap(removed => Ok(WatchDeleteResponse(removed).asJson))
-        case _ =>
-          BadRequest(ErrorResponse("Invalid request", List("guildId and character are required")).asJson)
   }
 
   private def parseDateParam(
