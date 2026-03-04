@@ -168,11 +168,6 @@ object BotApp extends IOApp {
             .map(_.trim)
             .map(_.replaceAll("[^0-9]", ""))
             .filter(_.nonEmpty)
-          val discordSetup =
-            IO.delay(jda.awaitReady()) *>
-              IO.delay(jda.addEventListener(botListener)) *>
-              registerCommands(jda, commands, guildIdOverride)
-
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
           val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
           val api = new AltFinderApi[IO](service, repo, tibiaDataClient)
@@ -186,7 +181,7 @@ object BotApp extends IOApp {
             watchIntervalSeconds.seconds,
             watchCooldownMinutes.minutes
           )
-          repo.ensureSchema *> discordSetup *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
+          repo.ensureSchema *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
             val serverResource = BlazeServerBuilder[IO]
               .bindHttp(apiPort, apiHost)
               .withHttpApp(httpApp)
@@ -199,7 +194,16 @@ object BotApp extends IOApp {
               )
 
             serverResource.use { _ =>
-              portLog *> watchRunner.run.start *> IO.never
+              val discordBootstrap =
+                (IO.delay(jda.awaitReady()) *>
+                  IO.delay(jda.addEventListener(botListener)) *>
+                  registerCommands(jda, commands, guildIdOverride))
+                  .handleErrorWith(e => Logger[IO].warn(e)("Discord setup failed; API will keep running"))
+
+              portLog *>
+                discordBootstrap.start *>
+                watchRunner.run.start *>
+                IO.never
             }
           }
         }
