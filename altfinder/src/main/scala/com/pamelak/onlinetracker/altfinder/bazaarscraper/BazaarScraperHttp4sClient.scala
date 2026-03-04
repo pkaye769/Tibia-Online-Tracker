@@ -1,7 +1,7 @@
 package com.pamelak.onlinetracker.altfinder.bazaarscraper
 
+import cats.effect.Async
 import cats.effect.IO
-import cats.effect.Sync
 import cats.effect.kernel.Concurrent
 import cats.effect.kernel.Resource
 import cats.implicits.*
@@ -29,7 +29,7 @@ object BazaarScraperHttp4sClient {
     .map(GZip()(_)).map(Retry[IO](retryPolicy)(_))
 }
 
-class BazaarScraperHttp4sClient[F[_]: Concurrent](client: Client[F]) extends BazaarScraperClientAlg[F] {
+class BazaarScraperHttp4sClient[F[_]: Async](client: Client[F]) extends BazaarScraperClientAlg[F] {
   private val apiRoot = uri"https://www.exevopan.com"
   private val bazaarWorld = sys.env.get("BAZAAR_WORLD").orElse(sys.env.get("WORLD")).getOrElse("Nefera")
   private val retryAfterRegex = "(?i)retry-after\\D*(\\d+)".r
@@ -49,7 +49,7 @@ class BazaarScraperHttp4sClient[F[_]: Concurrent](client: Client[F]) extends Baz
   def searchCharacter(name: String): F[String] = {
     if (nowEpochSec < rateLimitedUntilEpochSec) {
       val remaining = rateLimitedUntilEpochSec - nowEpochSec
-      Sync[F].raiseError(new RuntimeException(s"Bazaar lookup cooling down for ${remaining}s after rate limit"))
+      Async[F].raiseError(new RuntimeException(s"Bazaar lookup cooling down for ${remaining}s after rate limit"))
     } else {
     // nicknameFilter for exevopan is a "contains" rather than exact match, so here we grab a lot of results to be safe
     // and handling pagination is too much effort
@@ -72,14 +72,14 @@ class BazaarScraperHttp4sClient[F[_]: Concurrent](client: Client[F]) extends Baz
           val retryAfterSeconds = retryAfterHeaderSeconds.orElse(retryAfterBodySeconds).getOrElse(defaultCooldownSeconds)
 
           if (res.status.code == 429 || (lower.contains("cloudflare") && lower.contains("rate limit"))) {
-            Sync[F].delay(activateCooldown(retryAfterSeconds)) *>
-              Sync[F].raiseError(
+            Async[F].delay(activateCooldown(retryAfterSeconds)) *>
+              Async[F].raiseError(
                 new RuntimeException(s"Encountered cloudflare rate limit! Retry-After: $retryAfterSeconds s")
               )
           } else if (!res.status.isSuccess) {
-            Sync[F].raiseError(new RuntimeException(s"Bazaar lookup failed: HTTP ${res.status.code}"))
+            Async[F].raiseError(new RuntimeException(s"Bazaar lookup failed: HTTP ${res.status.code}"))
           } else {
-            Sync[F].pure(body)
+            Async[F].pure(body)
           }
         }
       }
