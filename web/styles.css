@@ -3,7 +3,6 @@
   --card: #111827;
   --text: #e5e7eb;
   --muted: #94a3b8;
-  --accent: #22c55e;
   --danger: #ef4444;
   --border: #1f2937;
 }
@@ -20,11 +19,13 @@ body {
 }
 
 .wrap {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  display: grid;
-  gap: 14px;
+}
+
+header {
+  margin-bottom: 14px;
 }
 
 header h1 {
@@ -56,6 +57,19 @@ header p {
 .health.bad {
   color: #fca5a5;
   border-color: #7f1d1d;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 14px;
+}
+
+.main-col,
+.side-col {
+  display: grid;
+  gap: 14px;
+  align-content: start;
 }
 
 .card {
@@ -101,11 +115,16 @@ select {
   gap: 10px;
 }
 
+.grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 button {
@@ -123,7 +142,8 @@ button.ghost {
   color: var(--text);
 }
 
-#status {
+#status,
+#guildStatus {
   color: var(--muted);
   font-size: 13px;
 }
@@ -142,16 +162,19 @@ pre {
   border: 1px solid #1e293b;
   border-radius: 8px;
   padding: 10px;
-  min-height: 120px;
+  min-height: 100px;
   color: #cbd5e1;
 }
 
-@media (max-width: 760px) {
-  .grid {
+@media (max-width: 980px) {
+  .layout {
     grid-template-columns: 1fr;
   }
+}
 
-  .actions {
-    flex-wrap: wrap;
+@media (max-width: 760px) {
+  .grid,
+  .grid.two {
+    grid-template-columns: 1fr;
   }
 }

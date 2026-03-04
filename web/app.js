@@ -14,9 +14,27 @@ const ui = {
   error: $("error"),
   health: $("health"),
   summary: $("summary"),
-  results: $("results")
+  results: $("results"),
+  guildName: $("guildName"),
+  guildSearchBtn: $("guildSearchBtn"),
+  guildSaveBtn: $("guildSaveBtn"),
+  guildStatus: $("guildStatus"),
+  guildOutput: $("guildOutput"),
+  savedCharacter: $("savedCharacter"),
+  savedCharacterSelect: $("savedCharacterSelect"),
+  savedCharactersOutput: $("savedCharactersOutput"),
+  charAddBtn: $("charAddBtn"),
+  charUseBtn: $("charUseBtn"),
+  charRemoveBtn: $("charRemoveBtn"),
+  savedGuildSelect: $("savedGuildSelect"),
+  savedGuildsOutput: $("savedGuildsOutput"),
+  guildRefreshBtn: $("guildRefreshBtn"),
+  guildUseBtn: $("guildUseBtn"),
+  guildRemoveBtn: $("guildRemoveBtn")
 };
 
+const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
+const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
 const storedApi = localStorage.getItem("altfinder_api_base");
 const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
 ui.apiBase.value = storedApi || defaultApiBase;
@@ -34,10 +52,50 @@ function setError(text) {
 }
 
 function parseNames(raw) {
-  return raw
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+  return raw.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+function loadSavedCharacters() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_CHARS_KEY) || "[]");
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveSavedCharacters(list) {
+  localStorage.setItem(SAVED_CHARS_KEY, JSON.stringify(list));
+}
+
+function loadSavedGuilds() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_GUILDS_KEY) || "[]");
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveSavedGuilds(list) {
+  localStorage.setItem(SAVED_GUILDS_KEY, JSON.stringify(list));
+}
+
+function refreshCharacterSelect() {
+  const chars = loadSavedCharacters();
+  ui.savedCharacterSelect.innerHTML = chars.map((c) => `<option>${c}</option>`).join("");
+  ui.savedCharactersOutput.textContent = chars.length > 0 ? chars.join("\n") : "No saved characters yet.";
+}
+
+function refreshGuildSelectAndPanel() {
+  const guilds = loadSavedGuilds();
+  ui.savedGuildSelect.innerHTML = guilds.map((g) => `<option>${g.name}</option>`).join("");
+  if (guilds.length === 0) {
+    ui.savedGuildsOutput.textContent = "No saved guilds yet.";
+    return;
+  }
+  ui.savedGuildsOutput.textContent = guilds.map((g) => {
+    const online = (g.onlineCharacters || []).join(", ") || "none";
+    return `${g.name} | ${g.world || "-"} | online ${g.online || 0}/${g.members || 0}\n  ${online}`;
+  }).join("\n\n");
 }
 
 async function fetchJson(path) {
@@ -150,6 +208,116 @@ async function run() {
   }
 }
 
+async function runGuildSearch() {
+  ui.guildStatus.textContent = "Searching...";
+  const name = ui.guildName.value.trim();
+  if (!name) {
+    ui.guildStatus.textContent = "";
+    ui.guildOutput.textContent = "Enter a guild name.";
+    return;
+  }
+  try {
+    const q = new URLSearchParams();
+    q.set("name", name);
+    const data = await fetchJson(`/api/altfinder/guild?${q.toString()}`);
+    ui.guildOutput.textContent = [
+      `Guild: ${data.name || name}`,
+      `World: ${data.world || "-"}`,
+      `Members: ${data.members || 0}`,
+      `Online: ${data.online || 0}`,
+      `Online characters: ${(data.onlineCharacters || []).join(", ") || "none"}`
+    ].join("\n");
+    ui.guildStatus.textContent = "Done.";
+  } catch (err) {
+    ui.guildStatus.textContent = "";
+    ui.guildOutput.textContent = err instanceof Error ? err.message : String(err);
+  }
+}
+
+async function saveCurrentGuild() {
+  const name = ui.guildName.value.trim();
+  if (!name) return;
+  const current = loadSavedGuilds();
+  const exists = current.some((g) => String(g.name || "").toLowerCase() === name.toLowerCase());
+  if (!exists) {
+    current.push({ name, world: "-", members: 0, online: 0, onlineCharacters: [] });
+    saveSavedGuilds(current);
+  }
+  await refreshSavedGuilds();
+}
+
+async function refreshSavedGuilds() {
+  const current = loadSavedGuilds();
+  if (current.length === 0) {
+    refreshGuildSelectAndPanel();
+    return;
+  }
+
+  for (let i = 0; i < current.length; i += 1) {
+    const g = current[i];
+    try {
+      const q = new URLSearchParams();
+      q.set("name", g.name);
+      const data = await fetchJson(`/api/altfinder/guild?${q.toString()}`);
+      current[i] = {
+        name: g.name,
+        world: data.world || "-",
+        members: Number(data.members || 0),
+        online: Number(data.online || 0),
+        onlineCharacters: Array.isArray(data.onlineCharacters) ? data.onlineCharacters : []
+      };
+    } catch (_) {
+      current[i] = g;
+    }
+  }
+  saveSavedGuilds(current);
+  refreshGuildSelectAndPanel();
+}
+
+function addSavedCharacter() {
+  const name = ui.savedCharacter.value.trim();
+  if (!name) return;
+  const chars = loadSavedCharacters();
+  if (!chars.some((c) => c.toLowerCase() === name.toLowerCase())) {
+    chars.push(name);
+    saveSavedCharacters(chars);
+  }
+  ui.savedCharacter.value = "";
+  refreshCharacterSelect();
+}
+
+function removeSavedCharacter() {
+  const selected = ui.savedCharacterSelect.value;
+  if (!selected) return;
+  const chars = loadSavedCharacters().filter((c) => c !== selected);
+  saveSavedCharacters(chars);
+  refreshCharacterSelect();
+}
+
+function useSavedCharacter() {
+  const selected = ui.savedCharacterSelect.value;
+  if (!selected) return;
+  const current = parseNames(ui.characters.value || "");
+  if (!current.some((n) => n.toLowerCase() === selected.toLowerCase())) {
+    current.push(selected);
+  }
+  ui.characters.value = current.join(", ");
+}
+
+function removeSavedGuild() {
+  const selected = ui.savedGuildSelect.value;
+  if (!selected) return;
+  const guilds = loadSavedGuilds().filter((g) => g.name !== selected);
+  saveSavedGuilds(guilds);
+  refreshGuildSelectAndPanel();
+}
+
+function useSavedGuild() {
+  const selected = ui.savedGuildSelect.value;
+  if (!selected) return;
+  ui.guildName.value = selected;
+}
+
 ui.runBtn.addEventListener("click", run);
 ui.clearBtn.addEventListener("click", () => {
   setStatus("");
@@ -159,5 +327,16 @@ ui.clearBtn.addEventListener("click", () => {
 });
 ui.apiBase.addEventListener("change", checkHealth);
 
-checkHealth();
+ui.guildSearchBtn.addEventListener("click", runGuildSearch);
+ui.guildSaveBtn.addEventListener("click", saveCurrentGuild);
+ui.guildRefreshBtn.addEventListener("click", refreshSavedGuilds);
+ui.guildUseBtn.addEventListener("click", useSavedGuild);
+ui.guildRemoveBtn.addEventListener("click", removeSavedGuild);
 
+ui.charAddBtn.addEventListener("click", addSavedCharacter);
+ui.charUseBtn.addEventListener("click", useSavedCharacter);
+ui.charRemoveBtn.addEventListener("click", removeSavedCharacter);
+
+checkHealth();
+refreshCharacterSelect();
+refreshGuildSelectAndPanel();

@@ -14,62 +14,106 @@
       <div id="health" class="health">API: checking...</div>
     </header>
 
-    <section class="card">
-      <label for="apiBase">Backend URL</label>
-      <input id="apiBase" placeholder="https://tibia-alt-finder-api.onrender.com" />
+    <div class="layout">
+      <div class="main-col">
+        <section class="card">
+          <label for="apiBase">Backend URL</label>
+          <input id="apiBase" placeholder="https://tibia-alt-finder-api.onrender.com" />
 
-      <div class="grid">
-        <div>
-          <label for="mode">Mode</label>
-          <select id="mode">
-            <option value="alts">alts</option>
-            <option value="clashes">clashes</option>
-          </select>
-        </div>
-        <div>
-          <label for="distance">Adjacency (minutes)</label>
-          <input id="distance" type="number" min="0" value="0" />
-        </div>
-        <div>
-          <label for="includeClashes">Include clashes</label>
-          <select id="includeClashes">
-            <option value="false" selected>false</option>
-            <option value="true">true</option>
-          </select>
-        </div>
+          <div class="grid">
+            <div>
+              <label for="mode">Mode</label>
+              <select id="mode">
+                <option value="alts">alts</option>
+                <option value="clashes">clashes</option>
+              </select>
+            </div>
+            <div>
+              <label for="distance">Adjacency (minutes)</label>
+              <input id="distance" type="number" min="0" value="0" />
+            </div>
+            <div>
+              <label for="includeClashes">Include clashes</label>
+              <select id="includeClashes">
+                <option value="false" selected>false</option>
+                <option value="true">true</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="characters">Characters (comma separated)</label>
+          <input id="characters" placeholder="Neferack" />
+
+          <div class="grid two">
+            <div>
+              <label for="from">From (YYYY-MM-DD)</label>
+              <input id="from" placeholder="2026-02-01" />
+            </div>
+            <div>
+              <label for="to">To (YYYY-MM-DD)</label>
+              <input id="to" placeholder="2026-02-28" />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="runBtn">Run</button>
+            <button id="clearBtn" class="ghost">Clear</button>
+            <span id="status"></span>
+          </div>
+          <div id="error" class="error"></div>
+        </section>
+
+        <section class="card">
+          <h2>Summary</h2>
+          <pre id="summary">No search yet.</pre>
+        </section>
+
+        <section class="card">
+          <h2>Possible Matches</h2>
+          <pre id="results">No search yet.</pre>
+        </section>
+
+        <section class="card">
+          <h2>Guild Search</h2>
+          <label for="guildName">Guild name</label>
+          <input id="guildName" placeholder="Guild name" />
+          <div class="actions">
+            <button id="guildSearchBtn">Search</button>
+            <button id="guildSaveBtn" class="ghost">Save Guild</button>
+            <span id="guildStatus"></span>
+          </div>
+          <pre id="guildOutput">No guild search yet.</pre>
+        </section>
       </div>
 
-      <label for="characters">Characters (comma separated)</label>
-      <input id="characters" placeholder="Neferack" />
+      <aside class="side-col">
+        <section class="card">
+          <h2>Saved Characters</h2>
+          <label for="savedCharacter">Character</label>
+          <input id="savedCharacter" placeholder="Deli Tokes" />
+          <label for="savedCharacterSelect">Saved list</label>
+          <select id="savedCharacterSelect"></select>
+          <div class="actions">
+            <button id="charAddBtn">Add</button>
+            <button id="charUseBtn" class="ghost">Use in Search</button>
+            <button id="charRemoveBtn" class="ghost">Remove</button>
+          </div>
+          <pre id="savedCharactersOutput">No saved characters yet.</pre>
+        </section>
 
-      <div class="grid">
-        <div>
-          <label for="from">From (YYYY-MM-DD)</label>
-          <input id="from" placeholder="2026-02-01" />
-        </div>
-        <div>
-          <label for="to">To (YYYY-MM-DD)</label>
-          <input id="to" placeholder="2026-02-28" />
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="runBtn">Run</button>
-        <button id="clearBtn" class="ghost">Clear</button>
-        <span id="status"></span>
-      </div>
-      <div id="error" class="error"></div>
-    </section>
-
-    <section class="card">
-      <h2>Summary</h2>
-      <pre id="summary">No search yet.</pre>
-    </section>
-
-    <section class="card">
-      <h2>Possible Matches</h2>
-      <pre id="results">No search yet.</pre>
-    </section>
+        <section class="card">
+          <h2>Saved Guilds</h2>
+          <label for="savedGuildSelect">Saved list</label>
+          <select id="savedGuildSelect"></select>
+          <div class="actions">
+            <button id="guildRefreshBtn">Refresh</button>
+            <button id="guildUseBtn" class="ghost">Load</button>
+            <button id="guildRemoveBtn" class="ghost">Remove</button>
+          </div>
+          <pre id="savedGuildsOutput">No saved guilds yet.</pre>
+        </section>
+      </aside>
+    </div>
   </main>
 
   <script src="./app.js"></script>
