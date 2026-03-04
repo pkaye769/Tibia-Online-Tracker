@@ -5,6 +5,8 @@ import com.pamelak.onlinetracker.altfinder.repo.Model.*
 import java.time.OffsetDateTime
 
 trait AltFinderRepoAlg[F[_]] {
+  def ensureSchema: F[Unit]
+
   def getOnlineTimes(
       characterNames: List[String],
       from: Option[OffsetDateTime],

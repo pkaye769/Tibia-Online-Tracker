@@ -22,6 +22,49 @@ import java.time.OffsetDateTime
 class AltFinderSkunkRepo(val session: Session[IO])
     extends AltFinderRepoAlg[IO] with AltFinderCodecs with SkunkExtensions {
 
+  override def ensureSchema: IO[Unit] = {
+    val createLastSearch = sql"""
+      CREATE TABLE IF NOT EXISTS altfinder_last_search (
+        id BIGINT PRIMARY KEY CHECK (id = 1),
+        characters TEXT NOT NULL,
+        from_date TIMESTAMPTZ NULL,
+        to_date TIMESTAMPTZ NULL,
+        distance_minutes INTEGER NULL,
+        include_clashes BOOLEAN NOT NULL DEFAULT false,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    """.command
+
+    val createWatchTable = sql"""
+      CREATE TABLE IF NOT EXISTS altfinder_watch (
+        id BIGSERIAL PRIMARY KEY,
+        guild_id TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        character_name TEXT NOT NULL,
+        distance_minutes INTEGER NOT NULL DEFAULT 0,
+        include_clashes BOOLEAN NOT NULL DEFAULT false,
+        confidence_threshold INTEGER NOT NULL DEFAULT 80,
+        window_days INTEGER NOT NULL DEFAULT 30,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_checked_at TIMESTAMPTZ NULL,
+        last_alert_at TIMESTAMPTZ NULL,
+        UNIQUE (guild_id, character_name)
+      )
+    """.command
+
+    val createWatchGuildIdx = sql"""
+      CREATE INDEX IF NOT EXISTS altfinder_watch_guild_idx
+      ON altfinder_watch(guild_id)
+    """.command
+
+    for {
+      _ <- session.execute(createLastSearch, Void)
+      _ <- session.execute(createWatchTable, Void)
+      _ <- session.execute(createWatchGuildIdx, Void)
+    } yield ()
+  }
+
   override def getOnlineTimes(
       characterNames: List[String],
       from: Option[OffsetDateTime],
@@ -296,4 +339,5 @@ class AltFinderSkunkRepo(val session: Session[IO])
       SELECT MAX(time) FROM world_save_time
     """.query(timestamptz)
     session.option(q, Void)
-  }}
+  }
+}

@@ -81,13 +81,18 @@ async function fetchJson(path) {
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     const text = await res.text();
+    const renderHint =
+      res.status === 404
+        ? " Hint: This usually means the Backend URL is not your Alt Finder API web service. In Render, use the public URL of the service running altfinder (not a worker/static site URL)."
+        : "";
     throw new Error(
       "Backend URL is not the Alt Finder API (" +
       res.status +
       "). Response from " +
       url +
       ": " +
-      text.slice(0, 140)
+      text.slice(0, 140) +
+      renderHint
     );
   }
   const data = await res.json();

@@ -80,6 +80,8 @@ UI page is served at:
 
 You can deploy a separate frontend from the `web` folder.
 
+If you use Render, deploy the root `render.yaml` blueprint so the backend API exists as a public web service.
+
 ### Render Static Site settings
 
 1. New `Static Site` in Render from this repo
@@ -96,6 +98,24 @@ The page will call:
 - `/api/altfinder/health`
 - `/api/altfinder/status`
 - `/api/altfinder/alts`
+
+## Render Blueprint (recommended)
+
+This repo includes `render.yaml` that provisions:
+
+- `tibia-alt-finder-api` (`web`) - public API + Discord bot process
+- `tibia-online-tracker-worker` (`worker`) - tracker poller
+- `tibia-scout-board` (`static`) - standalone Scout Board frontend
+- `tibia-tracker-db` (PostgreSQL)
+
+After first deploy:
+
+1. Run `db/schema.sql` in the Render Postgres database.
+2. Set `TOKEN` on `tibia-alt-finder-api` (this is the Discord bot token env var used in Render).
+3. Optional: set `DISCORD_GUILD_ID` to your server ID for fast command sync.
+4. Open the `tibia-scout-board` URL and set Backend URL to the `tibia-alt-finder-api` URL.
+
+If you see `404` at `/api/altfinder/health`, the URL is not pointing to the altfinder web service.
 
 ## Discord Commands
 

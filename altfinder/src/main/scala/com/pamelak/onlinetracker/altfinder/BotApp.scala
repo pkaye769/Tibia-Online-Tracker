@@ -171,7 +171,7 @@ object BotApp extends IOApp {
             watchIntervalSeconds.seconds,
             watchCooldownMinutes.minutes
           )
-          discordSetup *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
+          repo.ensureSchema *> discordSetup *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
             val serverResource = BlazeServerBuilder[IO]
               .bindHttp(apiPort, apiHost)
               .withHttpApp(httpApp)

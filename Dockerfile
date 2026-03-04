@@ -19,8 +19,9 @@ RUN sbt "altfinder/compile" && sbt "tracker/compile"
 ENV APP=altfinder
 ENV ALTFINDER_API_HOST=0.0.0.0
 ENV ALTFINDER_API_PORT=10000
+ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -XX:+UseSerialGC"
+ENV SBT_OPTS="-Xms64m -Xmx256m -XX:+UseSerialGC -Dsbt.ci=true -Dsbt.supershell=false -Dsbt.server.autostart=false -Dsbt.server.forcestop=true"
 
 EXPOSE 10000
 
-CMD ["/bin/bash", "-lc", "export ALTFINDER_API_HOST=0.0.0.0; export ALTFINDER_API_PORT=${PORT:-10000}; if [ \"$APP\" = \"tracker\" ]; then sbt \"tracker/run\"; else sbt \"altfinder/run\"; fi"]
-
+CMD ["/bin/bash", "-lc", "export ALTFINDER_API_HOST=0.0.0.0; export ALTFINDER_API_PORT=${PORT:-10000}; if [ \"$APP\" = \"tracker\" ]; then sbt -batch -J-Xms64m -J-Xmx256m -J-XX:+UseSerialGC \"tracker/run\"; else sbt -batch -J-Xms64m -J-Xmx256m -J-XX:+UseSerialGC \"altfinder/run\"; fi"]
