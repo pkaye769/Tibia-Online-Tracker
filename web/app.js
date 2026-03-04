@@ -11,6 +11,13 @@ const ui = {
   watchCharacter: $("watchCharacter"),
   watchStatus: $("watchStatus"),
   watchOutput: $("watchOutput"),
+  clashCharacters: $("clashCharacters"),
+  clashTargets: $("clashTargets"),
+  clashFrom: $("clashFrom"),
+  clashTo: $("clashTo"),
+  clashDistance: $("clashDistance"),
+  clashStatus: $("clashStatus"),
+  clashOutput: $("clashOutput"),
   healthBadge: $("healthBadge"),
   resultsBody: $("resultsBody"),
   kpiLogins: $("kpiLogins"),
@@ -275,11 +282,41 @@ async function removeWatch() {
   }
 }
 
+async function runClashes() {
+  ui.clashStatus.textContent = "Scanning...";
+  ui.clashOutput.textContent = "Loading...";
+  const characters = ui.clashCharacters.value.trim();
+  const targets = ui.clashTargets.value.trim();
+  const from = ui.clashFrom.value.trim();
+  const to = ui.clashTo.value.trim();
+  const distance = ui.clashDistance.value.trim();
+  if (!characters || !targets) {
+    ui.clashStatus.textContent = "";
+    ui.clashOutput.textContent = "Source and target characters are required.";
+    return;
+  }
+  try {
+    const q = new URLSearchParams();
+    q.set("characters", characters);
+    q.set("targets", targets);
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    if (distance) q.set("distance", distance);
+    const data = await fetchJson("/api/altfinder/clashes?" + q.toString());
+    ui.clashOutput.textContent = data.formattedText || "No clashes found.";
+    ui.clashStatus.textContent = "Done.";
+  } catch (err) {
+    ui.clashStatus.textContent = "";
+    ui.clashOutput.textContent = err.message || String(err);
+  }
+}
+
 $("runBtn").addEventListener("click", runSearch);
 $("guildSearchBtn").addEventListener("click", runGuildSearch);
 $("watchAddBtn").addEventListener("click", addWatch);
 $("watchRemoveBtn").addEventListener("click", removeWatch);
 $("watchListBtn").addEventListener("click", listWatchlist);
+$("clashRunBtn").addEventListener("click", runClashes);
 $("clearBtn").addEventListener("click", () => {
   $("characters").value = "";
   $("from").value = "";

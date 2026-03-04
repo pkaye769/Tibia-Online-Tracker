@@ -9,6 +9,7 @@ import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraperHttp4sClie
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.TibiaComAuctionHttp4sClient
 import com.pamelak.onlinetracker.altfinder.bot.BotListener
 import com.pamelak.onlinetracker.altfinder.bot.command.CompareCommand
+import com.pamelak.onlinetracker.altfinder.bot.command.ClashesCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.FindAltsCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.GuildCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.HistoryCommand
@@ -151,6 +152,7 @@ object BotApp extends IOApp {
           val lastAltsCommand = new LastAltsCommand[IO](service)
           val historyCommand = new HistoryCommand[IO](service)
           val compareCommand = new CompareCommand[IO](service)
+          val clashesCommand = new ClashesCommand[IO](service)
           val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
           val worldCommand = new WorldCommand[IO](tibiaDataClient)
           val guildCommand = new GuildCommand[IO](tibiaDataClient)
@@ -164,6 +166,7 @@ object BotApp extends IOApp {
               lastAltsCommand,
               historyCommand,
               compareCommand,
+              clashesCommand,
               worldCommand,
               guildCommand,
               guildTrackCommand,

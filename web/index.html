@@ -106,6 +106,37 @@
     </section>
 
     <section class="card">
+      <h2>Clash Scanner</h2>
+      <div class="form-grid">
+        <div class="full">
+          <label for="clashCharacters">Source characters (comma separated)</label>
+          <input id="clashCharacters" placeholder="Name A, Name B" />
+        </div>
+        <div class="full">
+          <label for="clashTargets">Target characters (comma separated)</label>
+          <input id="clashTargets" placeholder="Name X, Name Y" />
+        </div>
+        <div>
+          <label for="clashFrom">From (YYYY-MM-DD)</label>
+          <input id="clashFrom" placeholder="2026-02-01" />
+        </div>
+        <div>
+          <label for="clashTo">To (YYYY-MM-DD)</label>
+          <input id="clashTo" placeholder="2026-02-28" />
+        </div>
+        <div>
+          <label for="clashDistance">Adjacency distance (minutes)</label>
+          <input id="clashDistance" type="number" min="0" value="0" />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="clashRunBtn">Run Clashes</button>
+        <span class="meta" id="clashStatus"></span>
+      </div>
+      <pre id="clashOutput">No clash scan yet.</pre>
+    </section>
+
+    <section class="card">
       <h2>Suspect Board</h2>
       <div class="table-wrap">
         <table>

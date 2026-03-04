@@ -63,6 +63,13 @@ object AltFinderService {
       aToB: CharacterAdjacencies,
       bToA: CharacterAdjacencies
   )
+  case class ClashResults(
+      searchedCharacters: List[String],
+      checkedCharacters: List[String],
+      searchedFrom: Option[OffsetDateTime],
+      searchedTo: Option[OffsetDateTime],
+      clashes: List[CharacterAdjacencies]
+  )
 
 }
 
@@ -161,6 +168,24 @@ class AltFinderService[F[_]: Async](
         .sequence
       _ <- results.map(i => Logger[F].info(i.toString)).sequence
     yield ()
+  }
+
+  def findClashes(
+      characterNames: List[String],
+      toCheck: List[String],
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime],
+      distance: Int
+  ): F[ClashResults] = {
+    for
+      mainSegments <- repo.getOnlineTimes(characterNames, from, to)
+      toCheckSegments <- repo.getOnlineTimes(toCheck, from, to)
+      adj = getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance)
+        .filter(_.clashes > 0)
+        .sortBy(a => (-a.clashes, -a.adjacencies))
+        .take(30)
+      clashes <- adj.map(a => repo.getCharacterName(a.characterId).map(n => a.copy(characterName = Some(n)))).sequence
+    yield ClashResults(characterNames, toCheck, from, to, clashes)
   }
 
   def compareCharacters(

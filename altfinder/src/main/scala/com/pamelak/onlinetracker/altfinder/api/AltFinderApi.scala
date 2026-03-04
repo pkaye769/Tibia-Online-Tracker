@@ -63,6 +63,23 @@ final class AltFinderApi[F[_]: Async](
       lookbackDays: Int,
       results: List[TradeCharacterResult]
   )
+  final case class ClashMatch(
+      name: String,
+      adjacencies: Int,
+      clashes: Int,
+      logins: Int,
+      formatted: String
+  )
+  final case class ClashesResponse(
+      searchedCharacters: List[String],
+      checkedCharacters: List[String],
+      searchedFrom: Option[String],
+      searchedTo: Option[String],
+      adjacencyDistanceMinutes: Int,
+      totalClashes: Int,
+      clashes: List[ClashMatch],
+      formattedText: String
+  )
   final case class GuildSummary(name: String, world: String, members: Int, online: Int)
   final case class WatchRow(
       characterName: String,
@@ -98,6 +115,8 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[AltsResponse] = deriveEncoder
   given Encoder[TradeCharacterResult] = deriveEncoder
   given Encoder[TradesResponse] = deriveEncoder
+  given Encoder[ClashMatch] = deriveEncoder
+  given Encoder[ClashesResponse] = deriveEncoder
   given Encoder[GuildSummary] = deriveEncoder
   given Encoder[WatchRow] = deriveEncoder
   given Encoder[WatchListResponse] = deriveEncoder
@@ -219,6 +238,61 @@ final class AltFinderApi[F[_]: Async](
             }
           )
           Ok(response.asJson)
+        }
+      }
+
+    case req @ GET -> Root / "api" / "altfinder" / "clashes" =>
+      val params = req.uri.query.params
+      val errors = collection.mutable.ListBuffer.empty[String]
+
+      val charactersRaw = params.get("characters").map(_.trim).filter(_.nonEmpty)
+      val targetsRaw = params.get("targets").map(_.trim).filter(_.nonEmpty)
+      val characters = charactersRaw.map(_.split(",").map(_.trim).filter(_.nonEmpty).toList).getOrElse(Nil)
+      val targets = targetsRaw.map(_.split(",").map(_.trim).filter(_.nonEmpty).toList).getOrElse(Nil)
+      if (characters.isEmpty) errors += "Missing required query param: characters"
+      if (targets.isEmpty) errors += "Missing required query param: targets"
+      val from = parseDateParam(params, "from", errors)
+      val to = parseDateParam(params, "to", errors)
+      val distance = parseIntParam(params, "distance", errors).getOrElse(0)
+
+      if (errors.nonEmpty) {
+        BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
+      } else {
+        service.findClashes(characters, targets, from, to, distance).flatMap { results =>
+          val matches = results.clashes.map { c =>
+            val name = c.characterName.getOrElse("Unknown")
+            val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
+            ClashMatch(name, c.adjacencies, c.clashes, c.logins, formatted)
+          }
+          val body =
+            if (matches.isEmpty) "No clashes found."
+            else matches.map(_.formatted).mkString("\n")
+          val formattedText =
+            List(
+              "Searched characters",
+              results.searchedCharacters.mkString(", "),
+              "Checked against",
+              results.checkedCharacters.mkString(", "),
+              "Adjacency distance",
+              appendMinutes(distance),
+              "Total clashes",
+              matches.length.toString,
+              "",
+              "Clash matches",
+              body
+            ).mkString("\n")
+          Ok(
+            ClashesResponse(
+              searchedCharacters = results.searchedCharacters,
+              checkedCharacters = results.checkedCharacters,
+              searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
+              searchedTo = results.searchedTo.map(_.toLocalDate.toString),
+              adjacencyDistanceMinutes = distance,
+              totalClashes = matches.length,
+              clashes = matches,
+              formattedText = formattedText
+            ).asJson
+          )
         }
       }
 

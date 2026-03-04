@@ -78,6 +78,7 @@ start-all.bat
 - `GET /api/altfinder/status`
 - `GET /api/altfinder/alts?characters=name1,name2&distance=0&includeClashes=false`
 - `GET /api/altfinder/trades?characters=name1,name2&lookbackDays=30`
+- `GET /api/altfinder/clashes?characters=name1,name2&targets=name3,name4&distance=0`
 
 UI page is served at:
 
@@ -132,6 +133,7 @@ If you see `404` at `/api/altfinder/health`, the URL is not pointing to the altf
 - `/alts-last`
 - `/history`
 - `/compare`
+- `/clashes`
 - `/world`
 - `/guild`
 - `/watch`
