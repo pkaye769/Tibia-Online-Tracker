@@ -8,6 +8,8 @@ Tracks Tibia online login/logout history and finds likely alts from adjacency pa
 - Altfinder API + Discord slash commands
 - Hidden-character scoring from login/logout adjacency data
 - Optional watch alerts for suspicious matches
+- Persistent tracked Tibia guild list per Discord server
+- Direct traded-character checks for one or more names
 
 ## Requirements
 
@@ -70,6 +72,7 @@ start-all.bat
 - `GET /api/altfinder/health`
 - `GET /api/altfinder/status`
 - `GET /api/altfinder/alts?characters=name1,name2&distance=0&includeClashes=false`
+- `GET /api/altfinder/trades?characters=name1,name2&lookbackDays=30`
 
 UI page is served at:
 
@@ -127,6 +130,8 @@ If you see `404` at `/api/altfinder/health`, the URL is not pointing to the altf
 - `/world`
 - `/guild`
 - `/watch`
+- `/guildtrack`
+- `/trades`
 
 ## Troubleshooting
 

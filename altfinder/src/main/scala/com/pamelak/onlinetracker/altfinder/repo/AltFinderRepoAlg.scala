@@ -38,6 +38,9 @@ trait AltFinderRepoAlg[F[_]] {
   def listWatches(guildId: String): F[List[WatchEntry]]
   def listAllWatches: F[List[WatchEntry]]
   def updateWatchCheck(id: Long, checkedAt: OffsetDateTime, alertedAt: Option[OffsetDateTime]): F[Unit]
+  def upsertTrackedGuild(config: GuildTrackConfig): F[Unit]
+  def removeTrackedGuild(guildId: String, tibiaGuildName: String): F[Boolean]
+  def listTrackedGuilds(guildId: String): F[List[GuildTrackEntry]]
   def countOnlineHistoryRows: F[Long]
   def latestWorldSaveTime: F[Option[OffsetDateTime]]
 }

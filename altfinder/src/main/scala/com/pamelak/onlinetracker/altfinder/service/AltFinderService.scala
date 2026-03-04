@@ -50,6 +50,12 @@ object AltFinderService {
   )
 
   case class TrackerStatus(onlineHistoryRows: Long, latestWorldSave: Option[OffsetDateTime])
+  case class CharacterTradeStatus(
+      characterName: String,
+      checkedNames: List[String],
+      recentTradeDates: List[LocalDate],
+      hadError: Boolean
+  )
   case class CompareResults(
       aToB: CharacterAdjacencies,
       bToA: CharacterAdjacencies
@@ -165,6 +171,25 @@ class AltFinderService[F[_]: Async](
       bToAAdj = getAdjacencies(bSegments, aSegments, includeClashes = true, distance)
         .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, false, Nil))
     yield CompareResults(aToBAdj, bToAAdj)
+  }
+
+  def checkTradedCharacters(characterNames: List[String], lookbackDays: Int): F[List[CharacterTradeStatus]] = {
+    val cutoff = ZonedDateTime.now(ZoneId.of("Europe/Berlin")).minusDays(lookbackDays.toLong)
+    characterNames.distinct.map { name =>
+      for {
+        past <- repo.getPastCharacterNames(name)
+        allNames = (name :: past).distinct
+        sales <- bazaarScraper.multipleCharacterSales(allNames)
+      } yield {
+        sales.saleDates match {
+          case Left(_) =>
+            CharacterTradeStatus(name, allNames, Nil, hadError = true)
+          case Right(dates) =>
+            val filtered = dates.filter(_.isAfter(cutoff)).map(_.toLocalDate).distinct.sorted.reverse
+            CharacterTradeStatus(name, allNames, filtered, hadError = false)
+        }
+      }
+    }.sequence
   }
 
   def saveLastSearch(

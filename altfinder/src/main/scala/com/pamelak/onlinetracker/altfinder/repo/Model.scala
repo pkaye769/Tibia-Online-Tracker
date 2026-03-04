@@ -56,4 +56,17 @@ object Model {
       lastCheckedAt: Option[OffsetDateTime],
       lastAlertAt: Option[OffsetDateTime]
   )
+
+  case class GuildTrackConfig(
+      guildId: String,
+      tibiaGuildName: String
+  )
+
+  case class GuildTrackEntry(
+      id: Long,
+      guildId: String,
+      tibiaGuildName: String,
+      createdAt: OffsetDateTime,
+      updatedAt: OffsetDateTime
+  )
 }

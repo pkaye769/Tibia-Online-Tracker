@@ -42,6 +42,16 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
       recentTradeDates: List[String],
       formatted: String
   )
+  final case class TradeCharacterResult(
+      characterName: String,
+      checkedNames: List[String],
+      recentTradeDates: List[String],
+      hadError: Boolean
+  )
+  final case class TradesResponse(
+      lookbackDays: Int,
+      results: List[TradeCharacterResult]
+  )
 
   final case class AltsResponse(
       searchedCharacters: List[String],
@@ -63,6 +73,8 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
   given Encoder[TradeSummary] = deriveEncoder
   given Encoder[AltMatch] = deriveEncoder
   given Encoder[AltsResponse] = deriveEncoder
+  given Encoder[TradeCharacterResult] = deriveEncoder
+  given Encoder[TradesResponse] = deriveEncoder
 
   def routes: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root =>
@@ -142,6 +154,42 @@ final class AltFinderApi[F[_]: Async](service: AltFinderService[F]) {
 
           Ok(response.asJson)
         }.flatten
+      }
+
+    case req @ GET -> Root / "api" / "altfinder" / "trades" =>
+      val params = req.uri.query.params
+      val errors = collection.mutable.ListBuffer.empty[String]
+
+      val characterRaw = params.get("characters").map(_.trim).filter(_.nonEmpty)
+      val characters = characterRaw.map(_.split(",").map(_.trim).filter(_.nonEmpty).toList).getOrElse(Nil)
+      if (characters.isEmpty) errors += "Missing required query param: characters"
+
+      val lookbackDays = params.get("lookbackDays").map(_.trim).filter(_.nonEmpty) match
+        case None => 30
+        case Some(raw) =>
+          raw.toIntOption match
+            case Some(v) if v >= 1 && v <= 365 => v
+            case _ =>
+              errors += "lookbackDays must be an integer from 1 to 365."
+              30
+
+      if (errors.nonEmpty) {
+        BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
+      } else {
+        service.checkTradedCharacters(characters, lookbackDays).flatMap { rows =>
+          val response = TradesResponse(
+            lookbackDays = lookbackDays,
+            results = rows.map { row =>
+              TradeCharacterResult(
+                characterName = row.characterName,
+                checkedNames = row.checkedNames,
+                recentTradeDates = row.recentTradeDates.map(_.toString),
+                hadError = row.hadError
+              )
+            }
+          )
+          Ok(response.asJson)
+        }
       }
   }
 

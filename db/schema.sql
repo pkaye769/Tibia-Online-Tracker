@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS altfinder_watch (
 
 CREATE INDEX IF NOT EXISTS altfinder_watch_guild_idx ON altfinder_watch(guild_id);
 
+CREATE TABLE IF NOT EXISTS altfinder_guild_track (
+  id BIGSERIAL PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  tibia_guild_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (guild_id, tibia_guild_name)
+);
+
+CREATE INDEX IF NOT EXISTS altfinder_guild_track_guild_idx ON altfinder_guild_track(guild_id);
+
 -- Seed initial world (safe to re-run)
 INSERT INTO world (name)
 VALUES ('Nefera')

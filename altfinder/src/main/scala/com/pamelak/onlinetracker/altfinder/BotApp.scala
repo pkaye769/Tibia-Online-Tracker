@@ -13,8 +13,10 @@ import com.pamelak.onlinetracker.altfinder.bot.command.FindAltsCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.GuildCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.HistoryCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.LastAltsCommand
+import com.pamelak.onlinetracker.altfinder.bot.command.TradesCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.WatchCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.WorldCommand
+import com.pamelak.onlinetracker.altfinder.bot.command.GuildTrackCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.Command
 import com.pamelak.onlinetracker.altfinder.repo.AltFinderSkunkRepo
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService
@@ -145,9 +147,22 @@ object BotApp extends IOApp {
           val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
           val worldCommand = new WorldCommand[IO](tibiaDataClient)
           val guildCommand = new GuildCommand[IO](tibiaDataClient)
+          val guildTrackCommand = new GuildTrackCommand[IO](tibiaDataClient, repo)
+          val tradesCommand = new TradesCommand[IO](service)
           val watchCommand = new WatchCommand[IO](service, repo)
           val commands =
-            List(findAltsCommand, altCommand, lastAltsCommand, historyCommand, compareCommand, worldCommand, guildCommand, watchCommand)
+            List(
+              findAltsCommand,
+              altCommand,
+              lastAltsCommand,
+              historyCommand,
+              compareCommand,
+              worldCommand,
+              guildCommand,
+              guildTrackCommand,
+              tradesCommand,
+              watchCommand
+            )
           val botListener = new BotListener[IO](commands, dispatcher)
           val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
             .map(_.trim)

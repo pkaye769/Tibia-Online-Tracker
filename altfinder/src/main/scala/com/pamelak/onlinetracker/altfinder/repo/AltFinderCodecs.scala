@@ -30,4 +30,10 @@ trait AltFinderCodecs {
         case id ~ guildId ~ channelId ~ name ~ distance ~ includeClashes ~ threshold ~ windowDays ~ createdAt ~ updatedAt ~ lastChecked ~ lastAlert =>
           (id, guildId, channelId, name, distance, includeClashes, threshold, windowDays, createdAt, updatedAt, lastChecked, lastAlert)
       }
+
+  val guildTrackEntryDecoder: Decoder[(Long, String, String, OffsetDateTime, OffsetDateTime)] =
+    (int8 ~ text ~ text ~ timestamptz ~ timestamptz).map {
+      case id ~ guildId ~ tibiaGuildName ~ createdAt ~ updatedAt =>
+        (id, guildId, tibiaGuildName, createdAt, updatedAt)
+    }
 }

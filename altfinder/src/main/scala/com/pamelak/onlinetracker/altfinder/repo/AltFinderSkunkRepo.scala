@@ -58,10 +58,28 @@ class AltFinderSkunkRepo(val session: Session[IO])
       ON altfinder_watch(guild_id)
     """.command
 
+    val createGuildTrackTable = sql"""
+      CREATE TABLE IF NOT EXISTS altfinder_guild_track (
+        id BIGSERIAL PRIMARY KEY,
+        guild_id TEXT NOT NULL,
+        tibia_guild_name TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (guild_id, tibia_guild_name)
+      )
+    """.command
+
+    val createGuildTrackGuildIdx = sql"""
+      CREATE INDEX IF NOT EXISTS altfinder_guild_track_guild_idx
+      ON altfinder_guild_track(guild_id)
+    """.command
+
     for {
       _ <- session.execute(createLastSearch, Void)
       _ <- session.execute(createWatchTable, Void)
       _ <- session.execute(createWatchGuildIdx, Void)
+      _ <- session.execute(createGuildTrackTable, Void)
+      _ <- session.execute(createGuildTrackGuildIdx, Void)
     } yield ()
   }
 
@@ -325,6 +343,42 @@ class AltFinderSkunkRepo(val session: Session[IO])
         """.command
         session.execute(q, (checkedAt, id)).void
     }
+  }
+
+  override def upsertTrackedGuild(config: GuildTrackConfig): IO[Unit] = {
+    val q = sql"""
+      INSERT INTO altfinder_guild_track
+        (guild_id, tibia_guild_name, created_at, updated_at)
+      VALUES
+        ($varchar, $varchar, NOW(), NOW())
+      ON CONFLICT (guild_id, tibia_guild_name) DO UPDATE
+      SET updated_at = NOW()
+    """.command
+    session.execute(q, (config.guildId, config.tibiaGuildName)).void
+  }
+
+  override def removeTrackedGuild(guildId: String, tibiaGuildName: String): IO[Boolean] = {
+    val q = sql"""
+      DELETE FROM altfinder_guild_track
+      WHERE guild_id = $varchar AND lower(tibia_guild_name) = $varchar
+    """.command
+    session.execute(q, (guildId, tibiaGuildName.toLowerCase)).map {
+      case Completion.Delete(count) => count > 0
+      case _ => false
+    }
+  }
+
+  override def listTrackedGuilds(guildId: String): IO[List[GuildTrackEntry]] = {
+    val q = sql"""
+      SELECT id, guild_id, tibia_guild_name, created_at, updated_at
+      FROM altfinder_guild_track
+      WHERE guild_id = $varchar
+      ORDER BY updated_at DESC
+    """.query(guildTrackEntryDecoder)
+    prepareToList(q, guildId).map(_.map {
+      case (id, gid, name, createdAt, updatedAt) =>
+        GuildTrackEntry(id, gid, name, createdAt, updatedAt)
+    })
   }
 
   override def countOnlineHistoryRows: IO[Long] = {
