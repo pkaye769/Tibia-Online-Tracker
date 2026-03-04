@@ -255,15 +255,11 @@ async function addWatch() {
   ui.watchStatus.textContent = "Saving...";
   ui.watchOutput.textContent = "Saving...";
   try {
-    await fetchJsonWithInit("/api/altfinder/watchlist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        guildId: guildId,
-        channelId: channelId,
-        characterName: characterName
-      })
-    });
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    q.set("channelId", channelId);
+    q.set("character", characterName);
+    await fetchJson("/api/altfinder/watchlist/add?" + q.toString());
     ui.watchStatus.textContent = "Saved.";
     await listWatchlist();
   } catch (err) {
@@ -286,9 +282,7 @@ async function removeWatch() {
     const q = new URLSearchParams();
     q.set("guildId", guildId);
     q.set("character", characterName);
-    const data = await fetchJsonWithInit("/api/altfinder/watchlist?" + q.toString(), {
-      method: "DELETE"
-    });
+    const data = await fetchJson("/api/altfinder/watchlist/remove?" + q.toString());
     ui.watchStatus.textContent = data.removed ? "Removed." : "Not found.";
     await listWatchlist();
   } catch (err) {

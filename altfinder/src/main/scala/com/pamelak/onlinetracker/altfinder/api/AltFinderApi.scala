@@ -263,6 +263,34 @@ final class AltFinderApi[F[_]: Async](
             Ok(response.asJson)
           }
 
+    case req @ GET -> Root / "api" / "altfinder" / "watchlist" / "add" =>
+      val params = req.uri.query.params
+      val guildId = params.get("guildId").map(_.trim).getOrElse("")
+      val channelId = params.get("channelId").map(_.trim).getOrElse("")
+      val characterName = params.get("character").map(_.trim).getOrElse("")
+      val distance = params.get("distance").flatMap(_.toIntOption).getOrElse(0).max(0)
+      val includeClashes = params.get("includeClashes").exists(_.equalsIgnoreCase("true"))
+      val threshold = params.get("threshold").flatMap(_.toIntOption).getOrElse(80).max(0).min(100)
+      val windowDays = params.get("windowDays").flatMap(_.toIntOption).getOrElse(30).max(1).min(365)
+      val errors = List(
+        Option.when(guildId.isEmpty)("guildId is required"),
+        Option.when(channelId.isEmpty)("channelId is required"),
+        Option.when(characterName.isEmpty)("character is required")
+      ).flatten
+      if (errors.nonEmpty) BadRequest(ErrorResponse("Invalid request", errors).asJson)
+      else {
+        val cfg = WatchConfig(guildId, channelId, characterName, distance, includeClashes, threshold, windowDays)
+        repo.upsertWatch(cfg) *> Ok(Map("status" -> "ok").asJson)
+      }
+
+    case req @ GET -> Root / "api" / "altfinder" / "watchlist" / "remove" =>
+      val params = req.uri.query.params
+      (params.get("guildId").map(_.trim).filter(_.nonEmpty), params.get("character").map(_.trim).filter(_.nonEmpty)) match
+        case (Some(guildId), Some(character)) =>
+          repo.removeWatch(guildId, character).flatMap(removed => Ok(WatchDeleteResponse(removed).asJson))
+        case _ =>
+          BadRequest(ErrorResponse("Invalid request", List("guildId and character are required")).asJson)
+
     case req @ POST -> Root / "api" / "altfinder" / "watchlist" =>
       req.as[WatchUpsertRequest].flatMap { body =>
         val guildId = body.guildId.trim
