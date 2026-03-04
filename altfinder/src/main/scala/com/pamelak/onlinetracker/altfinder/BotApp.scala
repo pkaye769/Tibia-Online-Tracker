@@ -117,9 +117,7 @@ object BotApp extends IOApp {
         )
         val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
 
-        val jdaResource: Resource[IO, JDA] = Resource.eval(IO.delay(JDABuilder.createDefault(cfg.bot.token).build()))
-
-        (dbSessionResource, httpClientResource, jdaResource).tupled.use { case (dbSession, httpClient, jda) =>
+        (dbSessionResource, httpClientResource).tupled.use { case (dbSession, httpClient) =>
           val bazaarScraperClient = new BazaarScraperHttp4sClient(httpClient)
           val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
           val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
@@ -150,24 +148,39 @@ object BotApp extends IOApp {
           val findAltsCommand = new FindAltsCommand[IO](service)
           val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
           val commands = List(findAltsCommand)
-          val botListener = new BotListener[IO](commands, dispatcher)
           val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
             .map(_.trim)
             .map(_.replaceAll("[^0-9]", ""))
             .filter(_.nonEmpty)
+          val maybeToken = Option(cfg.bot.token).map(_.trim).filter(_.nonEmpty)
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
           val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
           val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
           val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound
           val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
           val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)
-          val watchRunner = new WatchRunner[IO](
-            repo,
-            service,
-            jda,
-            watchIntervalSeconds.seconds,
-            watchCooldownMinutes.minutes
-          )
+
+          def startDiscordIfConfigured: IO[Unit] =
+            maybeToken match {
+              case None =>
+                Logger[IO].warn("TOKEN is empty. Discord bot and watch runner are disabled.")
+              case Some(token) =>
+                IO.delay(JDABuilder.createDefault(token).build()).flatMap { jda =>
+                  val botListener = new BotListener[IO](commands, dispatcher)
+                  val watchRunner = new WatchRunner[IO](
+                    repo,
+                    service,
+                    jda,
+                    watchIntervalSeconds.seconds,
+                    watchCooldownMinutes.minutes
+                  )
+                  (IO.delay(jda.awaitReady()) *>
+                    IO.delay(jda.addEventListener(botListener)) *>
+                    registerCommands(jda, commands, guildIdOverride) *>
+                    watchRunner.run.start.void)
+                }.handleErrorWith(e => Logger[IO].warn(e)("Discord setup failed; API will keep running"))
+            }
+
           repo.ensureSchema *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
             val serverResource = BlazeServerBuilder[IO]
               .bindHttp(apiPort, apiHost)
@@ -181,15 +194,8 @@ object BotApp extends IOApp {
               )
 
             serverResource.use { _ =>
-              val discordBootstrap =
-                (IO.delay(jda.awaitReady()) *>
-                  IO.delay(jda.addEventListener(botListener)) *>
-                  registerCommands(jda, commands, guildIdOverride))
-                  .handleErrorWith(e => Logger[IO].warn(e)("Discord setup failed; API will keep running"))
-
               portLog *>
-                discordBootstrap.start *>
-                watchRunner.run.start *>
+                startDiscordIfConfigured.start *>
                 IO.never
             }
           }

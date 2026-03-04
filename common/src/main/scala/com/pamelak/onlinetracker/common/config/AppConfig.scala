@@ -18,7 +18,7 @@ object AppConfig {
     env("DB_PASSWORD").as[String]
   ).parMapN(DatabaseConfig.apply)
 
-  val botConfig: ConfigValue[Effect, BotConfig] = (env("TOKEN").as[String].map(BotConfig.apply))
+  val botConfig: ConfigValue[Effect, BotConfig] = (env("TOKEN").as[String].default("").map(BotConfig.apply))
 
   val config: ConfigValue[Effect, Config] = (databaseConfig, botConfig).parMapN(Config.apply)
 }
