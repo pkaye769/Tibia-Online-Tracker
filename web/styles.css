@@ -32,11 +32,36 @@ body {
   background-size: 4px 4px;
 }
 
+.bg-tags {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-tags span {
+  position: absolute;
+  border: 1px dashed #a4874f;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #eadbb982;
+  color: #6a542b;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bg-tags span:nth-child(1) { top: 96px; left: 24px; }
+.bg-tags span:nth-child(2) { top: 148px; right: 30px; }
+.bg-tags span:nth-child(3) { bottom: 28px; left: 34px; }
+
 .wrap {
   max-width: 1120px;
   margin: 0 auto;
   padding: 28px 18px 34px;
   position: relative;
+  z-index: 1;
 }
 
 .hero {
@@ -247,6 +272,9 @@ pre {
     align-items: start;
     flex-direction: column;
   }
+  .bg-tags span:nth-child(1) { top: 84px; left: 12px; }
+  .bg-tags span:nth-child(2) { top: 126px; right: 12px; }
+  .bg-tags span:nth-child(3) { bottom: 14px; left: 12px; }
 }
 
 @media (max-width: 520px) {
