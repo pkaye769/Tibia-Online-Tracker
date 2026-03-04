@@ -117,6 +117,8 @@ final class AltFinderApi[F[_]: Async](
   )
   final case class WatchListResponse(guildId: String, watches: List[WatchRow])
   final case class WatchDeleteResponse(removed: Boolean)
+  final case class WatchBatchItem(characterName: String, matches: Int, lines: List[String])
+  final case class WatchBatchResponse(guildId: String, total: Int, items: List[WatchBatchItem])
 
   final case class AltsResponse(
       searchedCharacters: List[String],
@@ -147,6 +149,8 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchRow] = deriveEncoder
   given Encoder[WatchListResponse] = deriveEncoder
   given Encoder[WatchDeleteResponse] = deriveEncoder
+  given Encoder[WatchBatchItem] = deriveEncoder
+  given Encoder[WatchBatchResponse] = deriveEncoder
 
   private val queryCacheTtlSeconds = sys.env.get("QUERY_CACHE_TTL_SECONDS").flatMap(_.toIntOption).getOrElse(60).max(5)
   private val queryCache = mutable.Map.empty[String, (Long, Json)]
@@ -475,6 +479,30 @@ final class AltFinderApi[F[_]: Async](
           repo.removeWatch(guildId, character).flatMap(removed => Ok(WatchDeleteResponse(removed).asJson))
         case _ =>
           BadRequest(ErrorResponse("Invalid request", List("guildId and character are required")).asJson)
+
+    case req @ GET -> Root / "api" / "altfinder" / "watchlist" / "run" =>
+      val params = req.uri.query.params
+      val guildId = params.get("guildId").map(_.trim).filter(_.nonEmpty).getOrElse("")
+      val limit = params.get("limit").flatMap(_.toIntOption).getOrElse(10).max(1).min(50)
+      if (guildId.isEmpty) {
+        BadRequest(ErrorResponse("Invalid request", List("guildId is required")).asJson)
+      } else {
+        repo.listWatches(guildId).flatMap { watches =>
+          val selected = watches.take(limit)
+          selected.traverse { w =>
+            val from = Some(OffsetDateTime.now(ZoneId.of("Europe/Berlin")).minusDays(w.windowDays.toLong))
+            service.findAndPrintAlts(List(w.characterName), from, None, Some(w.distance), w.includeClashes).map { results =>
+              val lines = results.adjacencies
+                .filter(_.confidence >= w.confidenceThreshold)
+                .take(10)
+                .map(formatClassic)
+              WatchBatchItem(w.characterName, lines.length, lines)
+            }
+          }.flatMap { items =>
+            Ok(WatchBatchResponse(guildId = guildId, total = items.length, items = items).asJson)
+          }
+        }
+      }
 
   }
 
