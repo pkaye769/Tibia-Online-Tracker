@@ -72,11 +72,10 @@ services:
           name: tibia-tracker-db
           property: password
 
-  - type: static
+  - type: web
     name: tibia-scout-board
-    rootDir: web
-    buildCommand: ""
-    publishPath: .
+    runtime: static
+    staticPublishPath: ./web
 
 databases:
   - name: tibia-tracker-db
