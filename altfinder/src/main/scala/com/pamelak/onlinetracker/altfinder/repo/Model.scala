@@ -69,4 +69,32 @@ object Model {
       createdAt: OffsetDateTime,
       updatedAt: OffsetDateTime
   )
+
+  case class ResearchRunWrite(
+      runType: String,
+      searchedCharacters: List[String],
+      targetCharacters: List[String],
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime],
+      distance: Int,
+      includeClashes: Boolean,
+      totalLogins: Int,
+      matchCount: Int,
+      summary: String
+  )
+
+  case class ResearchRun(
+      id: Long,
+      runType: String,
+      searchedCharacters: List[String],
+      targetCharacters: List[String],
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime],
+      distance: Int,
+      includeClashes: Boolean,
+      totalLogins: Int,
+      matchCount: Int,
+      summary: String,
+      createdAt: OffsetDateTime
+  )
 }

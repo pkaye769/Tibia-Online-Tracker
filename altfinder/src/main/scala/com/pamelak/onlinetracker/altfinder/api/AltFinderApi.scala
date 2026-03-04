@@ -4,6 +4,7 @@ import cats.effect.Async
 import cats.syntax.all.*
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper
 import com.pamelak.onlinetracker.altfinder.repo.AltFinderRepoAlg
+import com.pamelak.onlinetracker.altfinder.repo.Model.ResearchRunWrite
 import com.pamelak.onlinetracker.altfinder.repo.Model.WatchConfig
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService.CharacterAdjacencies
@@ -90,7 +91,21 @@ final class AltFinderApi[F[_]: Async](
       clashes: List[ClashMatch],
       formattedText: String
   )
-  final case class GuildSummary(name: String, world: String, members: Int, online: Int)
+  final case class GuildSummary(name: String, world: String, members: Int, online: Int, onlineCharacters: List[String])
+  final case class ResearchRunResponse(
+      id: Long,
+      runType: String,
+      searchedCharacters: List[String],
+      targetCharacters: List[String],
+      searchedFrom: Option[String],
+      searchedTo: Option[String],
+      distanceMinutes: Int,
+      includeClashes: Boolean,
+      totalLogins: Int,
+      matchCount: Int,
+      summary: String,
+      createdAt: String
+  )
   final case class WatchRow(
       characterName: String,
       distance: Int,
@@ -128,6 +143,7 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[ClashMatch] = deriveEncoder
   given Encoder[ClashesResponse] = deriveEncoder
   given Encoder[GuildSummary] = deriveEncoder
+  given Encoder[ResearchRunResponse] = deriveEncoder
   given Encoder[WatchRow] = deriveEncoder
   given Encoder[WatchListResponse] = deriveEncoder
   given Encoder[WatchDeleteResponse] = deriveEncoder
@@ -205,7 +221,7 @@ final class AltFinderApi[F[_]: Async](
       } else {
         val cacheKey = s"alts|${characters.mkString(",")}|$from|$to|$distanceOpt|$includeClashes|$format"
         cachedJson(cacheKey) {
-          service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).map { results =>
+          service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).flatMap { results =>
           val dateMessage = buildDateRange(results.searchedFrom, results.searchedTo)
           val tradeSummary = buildTradeSummary(results.sales, from)
           val formattedMatches = results.adjacencies.take(20).map { adj =>
@@ -245,7 +261,21 @@ final class AltFinderApi[F[_]: Async](
               format = format
             )
           )
-          response.asJson
+          val summaryText = response.formattedText.take(4000)
+          repo.saveResearchRun(
+            ResearchRunWrite(
+              runType = "alts",
+              searchedCharacters = results.searchedCharacters,
+              targetCharacters = Nil,
+              from = results.searchedFrom,
+              to = results.searchedTo,
+              distance = distanceOpt.getOrElse(0),
+              includeClashes = includeClashes,
+              totalLogins = results.mainLogins,
+              matchCount = formattedMatches.length,
+              summary = summaryText
+            )
+          ).attempt *> Async[F].pure(response.asJson)
         }
         }.flatMap(json => Ok(json))
       }
@@ -308,7 +338,7 @@ final class AltFinderApi[F[_]: Async](
       } else {
         val cacheKey = s"clashes|${characters.mkString(",")}|${targets.mkString(",")}|$from|$to|$distance"
         cachedJson(cacheKey) {
-          service.findClashes(characters, targets, from, to, distance).map { results =>
+          service.findClashes(characters, targets, from, to, distance).flatMap { results =>
           val matches = results.clashes.map { c =>
             val name = c.characterName.getOrElse("Unknown")
             val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
@@ -331,7 +361,7 @@ final class AltFinderApi[F[_]: Async](
               "Clash matches",
               body
             ).mkString("\n")
-          ClashesResponse(
+          val response = ClashesResponse(
               searchedCharacters = results.searchedCharacters,
               checkedCharacters = results.checkedCharacters,
               searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
@@ -340,7 +370,21 @@ final class AltFinderApi[F[_]: Async](
               totalClashes = matches.length,
               clashes = matches,
               formattedText = formattedText
-            ).asJson
+            )
+          repo.saveResearchRun(
+            ResearchRunWrite(
+              runType = "clashes",
+              searchedCharacters = results.searchedCharacters,
+              targetCharacters = results.checkedCharacters,
+              from = results.searchedFrom,
+              to = results.searchedTo,
+              distance = distance,
+              includeClashes = true,
+              totalLogins = 0,
+              matchCount = matches.length,
+              summary = response.formattedText.take(4000)
+            )
+          ).attempt *> Async[F].pure(response.asJson)
           }
         }.flatMap(json => Ok(json))
       }
@@ -352,11 +396,33 @@ final class AltFinderApi[F[_]: Async](
           BadRequest(ErrorResponse("Invalid request", List("Missing required query param: name")).asJson)
         case Some(name) =>
           tibiaDataClient.getGuild(name).flatMap { json =>
-            val (gName, world, members, online) = parseGuild(json, name)
-            Ok(GuildSummary(gName, world, members, online).asJson)
+            val (gName, world, members, online, onlineCharacters) = parseGuild(json, name)
+            Ok(GuildSummary(gName, world, members, online, onlineCharacters).asJson)
           }.handleErrorWith { e =>
             BadRequest(ErrorResponse("Guild lookup failed", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
           }
+
+    case req @ GET -> Root / "api" / "altfinder" / "research" =>
+      val params = req.uri.query.params
+      val limit = params.get("limit").flatMap(_.toIntOption).getOrElse(50).max(1).min(200)
+      repo.listResearchRuns(limit).flatMap { rows =>
+        Ok(rows.map { r =>
+          ResearchRunResponse(
+            id = r.id,
+            runType = r.runType,
+            searchedCharacters = r.searchedCharacters,
+            targetCharacters = r.targetCharacters,
+            searchedFrom = r.from.map(_.toLocalDate.toString),
+            searchedTo = r.to.map(_.toLocalDate.toString),
+            distanceMinutes = r.distance,
+            includeClashes = r.includeClashes,
+            totalLogins = r.totalLogins,
+            matchCount = r.matchCount,
+            summary = r.summary,
+            createdAt = r.createdAt.toString
+          )
+        }.asJson)
+      }
 
     case req @ GET -> Root / "api" / "altfinder" / "watchlist" =>
       val params = req.uri.query.params
@@ -494,7 +560,7 @@ final class AltFinderApi[F[_]: Async](
         Some(TradeSummary("Traded character detected", message))
   }
 
-  private def parseGuild(json: Json, fallbackName: String): (String, String, Int, Int) = {
+  private def parseGuild(json: Json, fallbackName: String): (String, String, Int, Int, List[String]) = {
     val guildCursor = json.hcursor.downField("guild")
     val name = guildCursor.get[String]("name").getOrElse(fallbackName)
     val world = guildCursor.get[String]("world").getOrElse("Unknown")
@@ -515,7 +581,12 @@ final class AltFinderApi[F[_]: Async](
         }
       }
 
-    (name, world, total, online)
+    val onlineCharacters = membersList.flatMap { m =>
+      val status = m.hcursor.get[String]("status").toOption.getOrElse("")
+      if (status.equalsIgnoreCase("online")) m.hcursor.get[String]("name").toOption else None
+    }
+
+    (name, world, total, online, onlineCharacters)
   }
 
   private def formatClassic(adj: CharacterAdjacencies): String = {

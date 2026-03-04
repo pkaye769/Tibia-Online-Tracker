@@ -36,4 +36,11 @@ trait AltFinderCodecs {
       case id ~ guildId ~ tibiaGuildName ~ createdAt ~ updatedAt =>
         (id, guildId, tibiaGuildName, createdAt, updatedAt)
     }
+
+  val researchRunDecoder
+      : Decoder[(Long, String, String, String, Option[OffsetDateTime], Option[OffsetDateTime], Int, Boolean, Int, Int, String, OffsetDateTime)] =
+    (int8 ~ text ~ text ~ text ~ timestamptz.opt ~ timestamptz.opt ~ int4 ~ bool ~ int4 ~ int4 ~ text ~ timestamptz).map {
+      case id ~ runType ~ searchedCharacters ~ targetCharacters ~ from ~ to ~ distance ~ includeClashes ~ totalLogins ~ matchCount ~ summary ~ createdAt =>
+        (id, runType, searchedCharacters, targetCharacters, from, to, distance, includeClashes, totalLogins, matchCount, summary, createdAt)
+    }
 }

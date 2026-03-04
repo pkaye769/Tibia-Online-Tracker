@@ -6,6 +6,7 @@ const ui = {
   error: $("error"),
   output: $("output"),
   healthOutput: $("healthOutput"),
+  researchOutput: $("researchOutput"),
   presetName: $("presetName"),
   presetSelect: $("presetSelect"),
   allowNames: $("allowNames"),
@@ -241,10 +242,31 @@ async function loadStatus() {
       "Cache size: " + String(trackerStatus.queryCacheSize ?? "-") + "\n" +
       "Cache TTL (s): " + String(trackerStatus.queryCacheTtlSeconds ?? "-") + "\n" +
       "Status latency (ms): " + String(trackerStatus.statusLatencyMs ?? "-");
+    await loadResearch();
   } catch (err) {
     ui.healthBadge.textContent = "API: unavailable";
     ui.healthOutput.textContent = "Health fetch failed: " + (err.message || String(err));
     setError(err.message || String(err));
+  }
+}
+
+async function loadResearch() {
+  try {
+    const data = await fetchJson("/api/altfinder/research?limit=25");
+    if (!Array.isArray(data) || data.length === 0) {
+      ui.researchOutput.textContent = "No research history yet.";
+      return;
+    }
+    ui.researchOutput.textContent = data.map((r) => {
+      const who = (r.searchedCharacters || []).join(", ");
+      const against = (r.targetCharacters || []).join(", ");
+      const scope = against ? (" | targets: " + against) : "";
+      return "[" + (r.createdAt || "-") + "] " + r.runType + " | " + who + scope +
+        " | matches " + String(r.matchCount ?? 0) +
+        " | distance " + String(r.distanceMinutes ?? 0) + "m";
+    }).join("\n");
+  } catch (err) {
+    ui.researchOutput.textContent = "Research history unavailable: " + (err.message || String(err));
   }
 }
 
@@ -310,11 +332,13 @@ async function runGuildSearch() {
     const q = new URLSearchParams();
     q.set("name", name);
     const data = await fetchJson("/api/altfinder/guild?" + q.toString());
+    const onlineNames = (data.onlineCharacters || []).join(", ");
     ui.guildOutput.textContent =
       "Guild: " + data.name + "\n" +
       "World: " + data.world + "\n" +
       "Members: " + data.members + "\n" +
-      "Online: " + data.online;
+      "Online: " + data.online + "\n" +
+      "Online characters: " + (onlineNames || "none");
     ui.guildStatus.textContent = "Done.";
   } catch (err) {
     ui.guildStatus.textContent = "";

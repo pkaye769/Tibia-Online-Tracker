@@ -85,6 +85,23 @@ CREATE TABLE IF NOT EXISTS altfinder_guild_track (
 
 CREATE INDEX IF NOT EXISTS altfinder_guild_track_guild_idx ON altfinder_guild_track(guild_id);
 
+CREATE TABLE IF NOT EXISTS altfinder_research_run (
+  id BIGSERIAL PRIMARY KEY,
+  run_type TEXT NOT NULL,
+  searched_characters TEXT NOT NULL,
+  target_characters TEXT NOT NULL DEFAULT '',
+  from_date TIMESTAMPTZ NULL,
+  to_date TIMESTAMPTZ NULL,
+  distance_minutes INTEGER NOT NULL DEFAULT 0,
+  include_clashes BOOLEAN NOT NULL DEFAULT false,
+  total_logins INTEGER NOT NULL DEFAULT 0,
+  match_count INTEGER NOT NULL DEFAULT 0,
+  summary TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS altfinder_research_run_created_idx ON altfinder_research_run(created_at DESC);
+
 -- Seed initial world (safe to re-run)
 INSERT INTO world (name)
 VALUES ('Nefera')

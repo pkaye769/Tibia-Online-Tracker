@@ -74,12 +74,36 @@ class AltFinderSkunkRepo(val session: Session[IO])
       ON altfinder_guild_track(guild_id)
     """.command
 
+    val createResearchRunTable = sql"""
+      CREATE TABLE IF NOT EXISTS altfinder_research_run (
+        id BIGSERIAL PRIMARY KEY,
+        run_type TEXT NOT NULL,
+        searched_characters TEXT NOT NULL,
+        target_characters TEXT NOT NULL DEFAULT '',
+        from_date TIMESTAMPTZ NULL,
+        to_date TIMESTAMPTZ NULL,
+        distance_minutes INTEGER NOT NULL DEFAULT 0,
+        include_clashes BOOLEAN NOT NULL DEFAULT false,
+        total_logins INTEGER NOT NULL DEFAULT 0,
+        match_count INTEGER NOT NULL DEFAULT 0,
+        summary TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    """.command
+
+    val createResearchRunCreatedIdx = sql"""
+      CREATE INDEX IF NOT EXISTS altfinder_research_run_created_idx
+      ON altfinder_research_run(created_at DESC)
+    """.command
+
     for {
       _ <- session.execute(createLastSearch, Void)
       _ <- session.execute(createWatchTable, Void)
       _ <- session.execute(createWatchGuildIdx, Void)
       _ <- session.execute(createGuildTrackTable, Void)
       _ <- session.execute(createGuildTrackGuildIdx, Void)
+      _ <- session.execute(createResearchRunTable, Void)
+      _ <- session.execute(createResearchRunCreatedIdx, Void)
     } yield ()
   }
 
@@ -378,6 +402,57 @@ class AltFinderSkunkRepo(val session: Session[IO])
     prepareToList(q, guildId).map(_.map {
       case (id, gid, name, createdAt, updatedAt) =>
         GuildTrackEntry(id, gid, name, createdAt, updatedAt)
+    })
+  }
+
+  override def saveResearchRun(run: ResearchRunWrite): IO[Unit] = {
+    val q = sql"""
+      INSERT INTO altfinder_research_run
+        (run_type, searched_characters, target_characters, from_date, to_date, distance_minutes, include_clashes, total_logins, match_count, summary, created_at)
+      VALUES
+        ($varchar, $varchar, $varchar, ${timestamptz.opt}, ${timestamptz.opt}, $int4, $bool, $int4, $int4, $varchar, NOW())
+    """.command
+    session.execute(
+      q,
+      (
+        run.runType,
+        run.searchedCharacters.mkString(", "),
+        run.targetCharacters.mkString(", "),
+        run.from,
+        run.to,
+        run.distance,
+        run.includeClashes,
+        run.totalLogins,
+        run.matchCount,
+        run.summary
+      )
+    ).void
+  }
+
+  override def listResearchRuns(limit: Int): IO[List[ResearchRun]] = {
+    val q = sql"""
+      SELECT id, run_type, searched_characters, target_characters, from_date, to_date, distance_minutes,
+             include_clashes, total_logins, match_count, summary, created_at
+      FROM altfinder_research_run
+      ORDER BY created_at DESC
+      LIMIT $int4
+    """.query(researchRunDecoder)
+    prepareToList(q, limit.max(1).min(200)).map(_.map {
+      case (id, runType, searchedChars, targetChars, from, to, distance, includeClashes, totalLogins, matchCount, summary, createdAt) =>
+        ResearchRun(
+          id,
+          runType,
+          searchedChars.split(",").map(_.trim).filter(_.nonEmpty).toList,
+          targetChars.split(",").map(_.trim).filter(_.nonEmpty).toList,
+          from,
+          to,
+          distance,
+          includeClashes,
+          totalLogins,
+          matchCount,
+          summary,
+          createdAt
+        )
     })
   }
 

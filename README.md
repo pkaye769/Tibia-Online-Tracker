@@ -85,6 +85,8 @@ start-all.bat
 - `GET /api/altfinder/alts?characters=name1,name2&distance=0&includeClashes=false`
 - `GET /api/altfinder/trades?characters=name1,name2&lookbackDays=30`
 - `GET /api/altfinder/clashes?characters=name1,name2&targets=name3,name4&distance=0`
+- `GET /api/altfinder/research?limit=25`
+- `GET /api/altfinder/guild?name=<guild>` (includes online member names)
 
 UI page is served at:
 
