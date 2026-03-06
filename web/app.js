@@ -73,8 +73,22 @@ function setStatus(text) {
   ui.status.textContent = text || "";
 }
 
-function setError(text) {
-  ui.error.textContent = text || "";
+function setError(text, showDirectBoardLink = false) {
+  ui.error.textContent = "";
+  if (!text) return;
+
+  const message = document.createElement("div");
+  message.textContent = text;
+  ui.error.appendChild(message);
+
+  if (showDirectBoardLink) {
+    const link = document.createElement("a");
+    link.href = `${baseUrl()}/altfinder`;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open backend-hosted board";
+    ui.error.appendChild(link);
+  }
 }
 
 function parseNames(raw) {
@@ -282,7 +296,9 @@ async function run() {
     setStatus("Done.");
   } catch (err) {
     setStatus("");
-    setError(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    const showDirectBoardLink = message.includes("Could not reach API");
+    setError(message, showDirectBoardLink);
   }
 }
 
