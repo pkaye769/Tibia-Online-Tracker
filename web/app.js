@@ -189,6 +189,11 @@ async function fetchJson(path) {
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     const text = await res.text();
+    if (/response timed out/i.test(text)) {
+      throw new Error(
+        `Backend timed out at ${url}. Narrow date range, reduce characters, or retry from the backend-hosted board.`
+      );
+    }
     throw new Error(`Expected JSON from ${url} (HTTP ${res.status}): ${text.slice(0, 200)}`);
   }
   const body = await res.json();
