@@ -137,7 +137,7 @@ function refreshGuildSelectAndPanel() {
 async function fetchJson(path) {
   const url = baseUrl() + path;
   const maxAttempts = 5;
-  const timeoutMs = 15000;
+  const timeoutMs = path.startsWith("/api/altfinder/alts") ? 60000 : 15000;
   let lastError = null;
   let res = null;
 
