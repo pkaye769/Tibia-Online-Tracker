@@ -7,8 +7,6 @@ const ui = {
   includeClashes: $("includeClashes"),
   strictMode: $("strictMode"),
   characters: $("characters"),
-  from: $("from"),
-  to: $("to"),
   runBtn: $("runBtn"),
   clearBtn: $("clearBtn"),
   status: $("status"),
@@ -38,9 +36,15 @@ const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
 const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
 const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
 const STRICT_MODE_KEY = "altfinder_strict_mode_v1";
-const storedApi = localStorage.getItem("altfinder_api_base");
+const API_BASE_KEY = "altfinder_api_base";
+const storedApi = localStorage.getItem(API_BASE_KEY);
 const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
-ui.apiBase.value = storedApi || defaultApiBase;
+const apiFromQuery = new URLSearchParams(window.location.search).get("api");
+const initialApiBase = (apiFromQuery || storedApi || defaultApiBase).trim();
+ui.apiBase.value = initialApiBase;
+if (apiFromQuery && initialApiBase) {
+  localStorage.setItem(API_BASE_KEY, initialApiBase);
+}
 const storedDistance = localStorage.getItem(DEFAULT_DISTANCE_KEY);
 if (storedDistance !== null && storedDistance !== "") {
   ui.distance.value = storedDistance;
@@ -144,7 +148,7 @@ function refreshGuildSelectAndPanel() {
 
 async function fetchJson(path) {
   const url = baseUrl() + path;
-  const maxAttempts = 5;
+  const maxAttempts = path.startsWith("/api/altfinder/alts") ? 2 : 5;
   const timeoutMs = path.startsWith("/api/altfinder/alts") ? 60000 : 15000;
   let lastError = null;
   let res = null;
@@ -187,16 +191,25 @@ async function fetchJson(path) {
   }
 
   const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    const text = await res.text();
-    if (/response timed out/i.test(text)) {
-      throw new Error(
-        `Backend timed out at ${url}. Narrow date range, reduce characters, or retry from the backend-hosted board.`
-      );
-    }
-    throw new Error(`Expected JSON from ${url} (HTTP ${res.status}): ${text.slice(0, 200)}`);
+  const raw = await res.text();
+
+  if (/response timed out/i.test(raw)) {
+    throw new Error(
+      `Backend timed out at ${url}. Narrow date range, reduce characters, or retry from the backend-hosted board.`
+    );
   }
-  const body = await res.json();
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Expected JSON from ${url} (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch (_) {
+    throw new Error(`Invalid JSON from ${url} (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+  }
+
   if (!res.ok) {
     throw new Error(body.message || `HTTP ${res.status}`);
   }
@@ -274,7 +287,7 @@ async function run() {
     return;
   }
 
-  localStorage.setItem("altfinder_api_base", baseUrl());
+  localStorage.setItem(API_BASE_KEY, baseUrl());
   localStorage.setItem(STRICT_MODE_KEY, strictMode ? "true" : "false");
   if (!strictMode) {
     localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
@@ -283,10 +296,6 @@ async function run() {
   const params = new URLSearchParams();
   params.set("characters", names.join(","));
   params.set("distance", String(distance));
-  const fromInput = ui.from.value.trim();
-  const toInput = ui.to.value.trim();
-  if (fromInput) params.set("from", fromInput);
-  if (toInput) params.set("to", toInput);
 
   try {
     if (mode === "alts") {

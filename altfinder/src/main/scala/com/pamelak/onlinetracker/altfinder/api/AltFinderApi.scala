@@ -909,14 +909,6 @@ final class AltFinderApi[F[_]: Async](
       |            <input id="characters" placeholder="Deli Tokes, Another Name" />
       |          </div>
       |          <div>
-      |            <label for="from">From</label>
-      |            <input id="from" placeholder="2026-02-01" />
-      |          </div>
-      |          <div>
-      |            <label for="to">To</label>
-      |            <input id="to" placeholder="2026-02-28" />
-      |          </div>
-      |          <div>
       |            <label for="distance">Distance minutes</label>
       |            <input id="distance" type="number" min="0" value="0" />
       |          </div>
@@ -1053,11 +1045,10 @@ final class AltFinderApi[F[_]: Async](
       |      setError("");
       |      setStatus("Searching...");
       |      ui.output.textContent = "Loading...";
+      |      const timeoutMs = 60000;
       |
       |      const q = new URLSearchParams();
       |      const chars = $("characters").value.trim();
-      |      const from = $("from").value.trim();
-      |      const to = $("to").value.trim();
       |      const distance = $("distance").value.trim();
       |      const includeClashes = $("clashes").value;
       |
@@ -1069,18 +1060,28 @@ final class AltFinderApi[F[_]: Async](
       |      }
       |
       |      q.set("characters", chars);
-      |      if (from) q.set("from", from);
-      |      if (to) q.set("to", to);
       |      if (distance) q.set("distance", distance);
       |      q.set("includeClashes", includeClashes);
       |      q.set("format", "detailed");
       |
       |      try {
+      |        const controller = new AbortController();
+      |        const timer = setTimeout(() => controller.abort(), timeoutMs);
       |        const [res, trackerRes] = await Promise.all([
-      |          fetch("/api/altfinder/alts?" + q.toString()),
+      |          fetch("/api/altfinder/alts?" + q.toString(), { signal: controller.signal }),
       |          fetch("/api/altfinder/status")
       |        ]);
-      |        const data = await res.json();
+      |        clearTimeout(timer);
+      |        const raw = await res.text();
+      |        let data;
+      |        try {
+      |          data = raw ? JSON.parse(raw) : {};
+      |        } catch (_) {
+      |          if (/response timed out/i.test(raw)) {
+      |            throw new Error("Backend timed out. Narrow date range, reduce characters, or retry.");
+      |          }
+      |          throw new Error("Non-JSON response from backend: " + String(raw).slice(0, 200));
+      |        }
       |        const trackerStatus = await trackerRes.json();
       |        if (!res.ok) {
       |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
@@ -1090,7 +1091,11 @@ final class AltFinderApi[F[_]: Async](
       |        ui.output.textContent = data.formattedText || JSON.stringify(data, null, 2);
       |        setStatus("Done.");
       |      } catch (e) {
-      |        setError(e.message || String(e));
+      |        if (e && e.name === "AbortError") {
+      |          setError("Backend timed out. Narrow date range, reduce characters, or retry.");
+      |        } else {
+      |          setError(e.message || String(e));
+      |        }
       |        ui.output.textContent = "Search failed.";
       |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">Search failed.</td></tr>';
       |        setStatus("");
@@ -1100,8 +1105,6 @@ final class AltFinderApi[F[_]: Async](
       |    $("runBtn").addEventListener("click", runSearch);
       |    $("clearBtn").addEventListener("click", () => {
       |      $("characters").value = "";
-      |      $("from").value = "";
-      |      $("to").value = "";
       |      $("distance").value = "0";
       |      $("clashes").value = "false";
       |      setStatus("");
