@@ -1080,7 +1080,16 @@ final class AltFinderApi[F[_]: Async](
       |          fetch("/api/altfinder/alts?" + q.toString()),
       |          fetch("/api/altfinder/status")
       |        ]);
-      |        const data = await res.json();
+      |        const raw = await res.text();
+      |        let data;
+      |        try {
+      |          data = raw ? JSON.parse(raw) : {};
+      |        } catch (_) {
+      |          if (/response timed out/i.test(raw)) {
+      |            throw new Error("Backend timed out. Narrow date range, reduce characters, or retry.");
+      |          }
+      |          throw new Error("Non-JSON response from backend: " + String(raw).slice(0, 200));
+      |        }
       |        const trackerStatus = await trackerRes.json();
       |        if (!res.ok) {
       |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
