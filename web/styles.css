@@ -127,6 +127,23 @@ select {
   flex-wrap: wrap;
 }
 
+.toggle-row {
+  margin-bottom: 10px;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.checkbox-label input {
+  width: auto;
+  margin: 0;
+}
+
 button {
   border: 1px solid #166534;
   background: #15803d;

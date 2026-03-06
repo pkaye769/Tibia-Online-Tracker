@@ -30,7 +30,7 @@
             </div>
             <div>
               <label for="distance">Adjacency (minutes)</label>
-              <input id="distance" type="number" min="0" value="0" />
+              <input id="distance" type="number" min="0" value="1" />
             </div>
             <div>
               <label for="includeClashes">Include clashes</label>
@@ -39,6 +39,13 @@
                 <option value="true">true</option>
               </select>
             </div>
+          </div>
+
+          <div class="toggle-row">
+            <label class="checkbox-label" for="strictMode">
+              <input id="strictMode" type="checkbox" />
+              Strict mode (distance 0, clashes excluded)
+            </label>
           </div>
 
           <label for="characters">Characters (comma separated)</label>

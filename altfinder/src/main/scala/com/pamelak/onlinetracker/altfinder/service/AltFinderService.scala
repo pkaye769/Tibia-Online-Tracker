@@ -32,13 +32,7 @@ object AltFinderService {
       recentTradeDates: List[LocalDate]
   ) {
     override def toString: String = {
-      val name = characterName.getOrElse("")
-      val clashText = if (clashes < 0) "clashes: yes" else s"clashes: $clashes"
-      val tradeText =
-        if (recentTradeDates.nonEmpty) s" | traded ${recentTradeDates.map(_.toString).mkString(", ")}" else ""
-      val hiddenText = if (hiddenLikely) s"yes ($hiddenScore)" else s"no ($hiddenScore)"
-      val evidenceText = if (evidencePassed) "pass" else "low"
-      s"$name: adj $adjacencies / $clashText / logins $logins | session $sessionSimilarity | conf $confidence | evidence $evidenceText | hidden $hiddenText$tradeText"
+      s"${characterName.getOrElse("")}: $adjacencies / $clashes / $logins"
     }
   }
 
@@ -121,9 +115,9 @@ class AltFinderService[F[_]: Async](
     for
       _ <- Logger[F].info(s"Searching for: ${characterNames.mkString(", ")}")
       _ <- Logger[F].info(s"Date range: $from - $to")
-      pastNames <- characterNames.map(n => repo.getPastCharacterNames(n).map(l => n :: l)).sequence
-      salesList <- pastNames.map(bazaarScraper.multipleCharacterSales).sequence.map(CharacterSalesList(_))
-      tradedFrom = from.orElse { salesList.latestSale.map(_.toOffsetDateTime()) }
+      sales <- characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).sequence
+      latestSale = BazaarScraper.latestSale(sales)
+      tradedFrom = from.orElse { latestSale.map(_.toOffsetDateTime()) }
       mainSegments <- repo.getOnlineTimes(characterNames, tradedFrom, to)
       _ <- Logger[F].info(s"Got online times for searched characters (${mainSegments.length} rows)")
       _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(mainSegments))
@@ -134,17 +128,17 @@ class AltFinderService[F[_]: Async](
       adj = getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20)
       results <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
-      tradeInfo <- enrichWithCandidateTrades(results)
-      finalAdjRaw = results.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap))
-      finalAdj = if (includeLowEvidenceMatches) finalAdjRaw else finalAdjRaw.filter(_.evidencePassed)
+      filteredResults =
+        if (includeLowEvidenceMatches) results
+        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && r.logins >= minEvidenceLogins)
       altsResults = AltsResults(
         characterNames,
         tradedFrom,
         to,
         mainSegments.length,
-        finalAdj,
-        salesList,
-        tradeInfo.errorCount
+        filteredResults,
+        CharacterSalesList(sales),
+        0
       )
       _ <- results.map(i => Logger[F].info(i.toString)).sequence
     yield altsResults

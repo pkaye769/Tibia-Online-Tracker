@@ -5,6 +5,7 @@ const ui = {
   mode: $("mode"),
   distance: $("distance"),
   includeClashes: $("includeClashes"),
+  strictMode: $("strictMode"),
   characters: $("characters"),
   from: $("from"),
   to: $("to"),
@@ -36,13 +37,33 @@ const ui = {
 const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
 const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
 const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
+const STRICT_MODE_KEY = "altfinder_strict_mode_v1";
 const storedApi = localStorage.getItem("altfinder_api_base");
 const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
 ui.apiBase.value = storedApi || defaultApiBase;
 const storedDistance = localStorage.getItem(DEFAULT_DISTANCE_KEY);
 if (storedDistance !== null && storedDistance !== "") {
   ui.distance.value = storedDistance;
+} else {
+  ui.distance.value = "1";
 }
+ui.strictMode.checked = localStorage.getItem(STRICT_MODE_KEY) === "true";
+
+function syncStrictModeControls() {
+  if (ui.strictMode.checked) {
+    ui.distance.value = "0";
+    ui.includeClashes.value = "false";
+    ui.distance.disabled = true;
+    ui.includeClashes.disabled = true;
+  } else {
+    ui.distance.disabled = false;
+    ui.includeClashes.disabled = false;
+    const stored = localStorage.getItem(DEFAULT_DISTANCE_KEY);
+    ui.distance.value = stored !== null && stored !== "" ? stored : "1";
+  }
+}
+
+syncStrictModeControls();
 
 function baseUrl() {
   return (ui.apiBase.value || "").trim().replace(/\/+$/, "");
@@ -115,20 +136,48 @@ function refreshGuildSelectAndPanel() {
 
 async function fetchJson(path) {
   const url = baseUrl() + path;
-  let res;
-  try {
-    res = await fetch(url);
-  } catch (err) {
-    // Retry once for transient Render cold-start/network blips.
-    await sleep(1500);
+  const maxAttempts = 5;
+  const timeoutMs = 15000;
+  let lastError = null;
+  let res = null;
+
+  async function fetchWithTimeout(targetUrl, ms) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
     try {
-      res = await fetch(url);
-    } catch (_) {
-      throw new Error(
-        `Could not reach API at ${url}. Check Backend URL, API deploy health, and CORS/network access.`
-      );
+      return await fetch(targetUrl, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
     }
   }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      res = await fetchWithTimeout(url, timeoutMs);
+      if (res.status < 500) {
+        break;
+      }
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+
+    if (attempt < maxAttempts) {
+      const delayMs = Math.min(8000, 1000 * (2 ** (attempt - 1)));
+      await sleep(delayMs);
+    }
+  }
+
+  if (!res) {
+    const timeoutHint =
+      lastError && lastError.name === "AbortError"
+        ? "Request timed out waiting for API response."
+        : "Browser could not establish a network connection.";
+    throw new Error(
+      `Could not reach API at ${url} after ${maxAttempts} attempts. ${timeoutHint} Check Backend URL, Render deploy health, VPN/firewall/proxy rules, and CORS/network access.`
+    );
+  }
+
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     const text = await res.text();
@@ -201,8 +250,9 @@ async function run() {
   setStatus("Running...");
 
   const mode = ui.mode.value;
-  const distance = Number(ui.distance.value || 0);
-  const includeClashes = ui.includeClashes.value === "true";
+  const strictMode = ui.strictMode.checked;
+  const distance = strictMode ? 0 : Number(ui.distance.value || 1);
+  const includeClashes = strictMode ? false : ui.includeClashes.value === "true";
   const names = parseNames(ui.characters.value || "");
 
   if (names.length === 0) {
@@ -212,7 +262,10 @@ async function run() {
   }
 
   localStorage.setItem("altfinder_api_base", baseUrl());
-  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
+  localStorage.setItem(STRICT_MODE_KEY, strictMode ? "true" : "false");
+  if (!strictMode) {
+    localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
+  }
 
   const params = new URLSearchParams();
   params.set("characters", names.join(","));
@@ -362,6 +415,10 @@ ui.apiBase.addEventListener("change", checkHealth);
 ui.distance.addEventListener("change", () => {
   const distance = Number(ui.distance.value || 0);
   localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
+});
+ui.strictMode.addEventListener("change", () => {
+  localStorage.setItem(STRICT_MODE_KEY, ui.strictMode.checked ? "true" : "false");
+  syncStrictModeControls();
 });
 
 ui.guildSearchBtn.addEventListener("click", runGuildSearch);
