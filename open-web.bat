@@ -9,7 +9,7 @@ if exist "%SCRIPT_DIR%.env" (
   for /f "usebackq delims=" %%L in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%load-env.ps1" "%SCRIPT_DIR%.env"`) do call set "%%L"
 )
 
-if "%UI_URL%"=="" set "UI_URL=https://tibia-online-tracker-1.onrender.com"
+if "%UI_URL%"=="" set "UI_URL=https://tibia-scout-board-b0n7.onrender.com"
 
 set "BACKEND_PARAM="
 if not "%ALTFINDER_API_BASE%"=="" set "BACKEND_PARAM=%ALTFINDER_API_BASE%"
@@ -23,4 +23,3 @@ echo Opening %UI_URL%
 start "" "%UI_URL%"
 
 endlocal
-
