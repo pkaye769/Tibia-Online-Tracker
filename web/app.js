@@ -85,12 +85,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isoDateOffset(daysBack) {
-  const d = new Date();
-  d.setDate(d.getDate() - daysBack);
-  return d.toISOString().slice(0, 10);
-}
-
 function loadSavedCharacters() {
   try {
     return JSON.parse(localStorage.getItem(SAVED_CHARS_KEY) || "[]");
@@ -272,10 +266,8 @@ async function run() {
   params.set("distance", String(distance));
   const fromInput = ui.from.value.trim();
   const toInput = ui.to.value.trim();
-  const effectiveFrom = fromInput || isoDateOffset(30);
-  const effectiveTo = toInput || isoDateOffset(0);
-  params.set("from", effectiveFrom);
-  params.set("to", effectiveTo);
+  if (fromInput) params.set("from", fromInput);
+  if (toInput) params.set("to", toInput);
 
   try {
     if (mode === "alts") {
