@@ -31,13 +31,30 @@ const ui = {
   savedGuildsOutput: $("savedGuildsOutput"),
   guildRefreshBtn: $("guildRefreshBtn"),
   guildUseBtn: $("guildUseBtn"),
-  guildRemoveBtn: $("guildRemoveBtn")
+  guildRemoveBtn: $("guildRemoveBtn"),
+  watchGuildId: $("watchGuildId"),
+  watchChannelId: $("watchChannelId"),
+  watchCharacter: $("watchCharacter"),
+  watchDistance: $("watchDistance"),
+  watchIncludeClashes: $("watchIncludeClashes"),
+  watchThreshold: $("watchThreshold"),
+  watchWindowDays: $("watchWindowDays"),
+  watchSelect: $("watchSelect"),
+  watchAddBtn: $("watchAddBtn"),
+  watchRefreshBtn: $("watchRefreshBtn"),
+  watchRunBtn: $("watchRunBtn"),
+  watchUseBtn: $("watchUseBtn"),
+  watchRemoveBtn: $("watchRemoveBtn"),
+  watchStatus: $("watchStatus"),
+  watchOutput: $("watchOutput")
 };
 
 const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
 const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
 const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
 const STRICT_MODE_KEY = "altfinder_strict_mode_v1";
+const WATCH_GUILD_ID_KEY = "altfinder_watch_guild_id_v1";
+const WATCH_CHANNEL_ID_KEY = "altfinder_watch_channel_id_v1";
 const storedApi = localStorage.getItem("altfinder_api_base");
 const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
 ui.apiBase.value = storedApi || defaultApiBase;
@@ -48,6 +65,8 @@ if (storedDistance !== null && storedDistance !== "") {
   ui.distance.value = "1";
 }
 ui.strictMode.checked = localStorage.getItem(STRICT_MODE_KEY) === "true";
+ui.watchGuildId.value = localStorage.getItem(WATCH_GUILD_ID_KEY) || "";
+ui.watchChannelId.value = localStorage.getItem(WATCH_CHANNEL_ID_KEY) || "";
 
 function syncStrictModeControls() {
   if (ui.strictMode.checked) {
@@ -198,7 +217,8 @@ async function fetchJson(path) {
   }
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body.message || `HTTP ${res.status}`);
+    const details = Array.isArray(body.details) && body.details.length > 0 ? ` (${body.details.join("; ")})` : "";
+    throw new Error(body.message || body.error || `HTTP ${res.status}${details}`);
   }
   return body;
 }
@@ -417,6 +437,149 @@ function useSavedGuild() {
   ui.guildName.value = selected;
 }
 
+function setWatchStatus(text) {
+  ui.watchStatus.textContent = text || "";
+}
+
+function saveWatchSettings() {
+  localStorage.setItem(WATCH_GUILD_ID_KEY, ui.watchGuildId.value.trim());
+  localStorage.setItem(WATCH_CHANNEL_ID_KEY, ui.watchChannelId.value.trim());
+}
+
+function getWatchGuildId() {
+  return (ui.watchGuildId.value || "").trim();
+}
+
+function renderWatchList(data) {
+  const watches = Array.isArray(data.watches) ? data.watches : [];
+  ui.watchSelect.innerHTML = watches.map((w) => `<option value="${w.characterName}">${w.characterName}</option>`).join("");
+  if (watches.length === 0) {
+    ui.watchOutput.textContent = "No watched characters yet.";
+    return;
+  }
+  ui.watchOutput.textContent = watches.map((w) => {
+    const lastChecked = w.lastCheckedAt || "-";
+    const lastAlert = w.lastAlertAt || "-";
+    return `${w.characterName} | distance ${w.distance} | clashes ${w.includeClashes} | threshold ${w.confidenceThreshold} | window ${w.windowDays}d\n  checked: ${lastChecked}\n  alert: ${lastAlert}`;
+  }).join("\n\n");
+}
+
+async function refreshWatchList() {
+  saveWatchSettings();
+  const guildId = getWatchGuildId();
+  if (!guildId) {
+    ui.watchSelect.innerHTML = "";
+    ui.watchOutput.textContent = "Enter Guild ID to load watch list.";
+    return;
+  }
+  setWatchStatus("Refreshing...");
+  try {
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    const data = await fetchJson(`/api/altfinder/watchlist?${q.toString()}`);
+    renderWatchList(data);
+    setWatchStatus("Done.");
+  } catch (err) {
+    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
+    setWatchStatus("");
+  }
+}
+
+async function addWatch() {
+  saveWatchSettings();
+  const guildId = getWatchGuildId();
+  const channelId = (ui.watchChannelId.value || "").trim();
+  const character = (ui.watchCharacter.value || "").trim();
+  const distance = Math.max(0, Number(ui.watchDistance.value || 0));
+  const includeClashes = ui.watchIncludeClashes.value === "true";
+  const threshold = Math.max(0, Math.min(100, Number(ui.watchThreshold.value || 80)));
+  const windowDays = Math.max(1, Math.min(365, Number(ui.watchWindowDays.value || 30)));
+
+  if (!guildId || !channelId || !character) {
+    ui.watchOutput.textContent = "Guild ID, Channel ID, and Character are required.";
+    return;
+  }
+
+  setWatchStatus("Adding...");
+  try {
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    q.set("channelId", channelId);
+    q.set("character", character);
+    q.set("distance", String(distance));
+    q.set("includeClashes", includeClashes ? "true" : "false");
+    q.set("threshold", String(threshold));
+    q.set("windowDays", String(windowDays));
+    await fetchJson(`/api/altfinder/watchlist/add?${q.toString()}`);
+    ui.watchCharacter.value = "";
+    await refreshWatchList();
+    setWatchStatus("Done.");
+  } catch (err) {
+    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
+    setWatchStatus("");
+  }
+}
+
+async function removeWatch() {
+  saveWatchSettings();
+  const guildId = getWatchGuildId();
+  const character = ui.watchSelect.value;
+  if (!guildId || !character) return;
+
+  setWatchStatus("Removing...");
+  try {
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    q.set("character", character);
+    await fetchJson(`/api/altfinder/watchlist/remove?${q.toString()}`);
+    await refreshWatchList();
+    setWatchStatus("Done.");
+  } catch (err) {
+    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
+    setWatchStatus("");
+  }
+}
+
+function useWatchedCharacter() {
+  const selected = ui.watchSelect.value;
+  if (!selected) return;
+  const current = parseNames(ui.characters.value || "");
+  if (!current.some((n) => n.toLowerCase() === selected.toLowerCase())) {
+    current.push(selected);
+  }
+  ui.characters.value = current.join(", ");
+}
+
+async function runWatchBatch() {
+  saveWatchSettings();
+  const guildId = getWatchGuildId();
+  if (!guildId) {
+    ui.watchOutput.textContent = "Guild ID is required.";
+    return;
+  }
+
+  setWatchStatus("Running...");
+  try {
+    const q = new URLSearchParams();
+    q.set("guildId", guildId);
+    q.set("limit", "10");
+    const data = await fetchJson(`/api/altfinder/watchlist/run?${q.toString()}`);
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (items.length === 0) {
+      ui.watchOutput.textContent = "No watch results.";
+    } else {
+      ui.watchOutput.textContent = items.map((item) => {
+        const lines = Array.isArray(item.lines) && item.lines.length > 0 ? item.lines.join("\n") : "No matches above threshold.";
+        return `${item.characterName} (${item.matches} matches)\n${lines}`;
+      }).join("\n\n");
+    }
+    setWatchStatus("Done.");
+  } catch (err) {
+    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
+    setWatchStatus("");
+  }
+}
+
 ui.runBtn.addEventListener("click", run);
 ui.clearBtn.addEventListener("click", () => {
   setStatus("");
@@ -444,6 +607,15 @@ ui.charAddBtn.addEventListener("click", addSavedCharacter);
 ui.charUseBtn.addEventListener("click", useSavedCharacter);
 ui.charRemoveBtn.addEventListener("click", removeSavedCharacter);
 
+ui.watchGuildId.addEventListener("change", saveWatchSettings);
+ui.watchChannelId.addEventListener("change", saveWatchSettings);
+ui.watchAddBtn.addEventListener("click", addWatch);
+ui.watchRefreshBtn.addEventListener("click", refreshWatchList);
+ui.watchRunBtn.addEventListener("click", runWatchBatch);
+ui.watchUseBtn.addEventListener("click", useWatchedCharacter);
+ui.watchRemoveBtn.addEventListener("click", removeWatch);
+
 checkHealth();
 refreshCharacterSelect();
 refreshGuildSelectAndPanel();
+refreshWatchList();

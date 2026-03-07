@@ -119,6 +119,57 @@
           </div>
           <pre id="savedGuildsOutput">No saved guilds yet.</pre>
         </section>
+
+        <section class="card">
+          <h2>Watched Characters</h2>
+          <div class="grid two">
+            <div>
+              <label for="watchGuildId">Guild ID</label>
+              <input id="watchGuildId" placeholder="123456789012345678" />
+            </div>
+            <div>
+              <label for="watchChannelId">Channel ID</label>
+              <input id="watchChannelId" placeholder="123456789012345678" />
+            </div>
+          </div>
+
+          <label for="watchCharacter">Character</label>
+          <input id="watchCharacter" placeholder="Neferack" />
+
+          <div class="grid">
+            <div>
+              <label for="watchDistance">Distance</label>
+              <input id="watchDistance" type="number" min="0" value="0" />
+            </div>
+            <div>
+              <label for="watchIncludeClashes">Include clashes</label>
+              <select id="watchIncludeClashes">
+                <option value="false" selected>false</option>
+                <option value="true">true</option>
+              </select>
+            </div>
+            <div>
+              <label for="watchThreshold">Threshold</label>
+              <input id="watchThreshold" type="number" min="0" max="100" value="80" />
+            </div>
+          </div>
+
+          <label for="watchWindowDays">Window days</label>
+          <input id="watchWindowDays" type="number" min="1" max="365" value="30" />
+
+          <label for="watchSelect">Watch list</label>
+          <select id="watchSelect"></select>
+
+          <div class="actions">
+            <button id="watchAddBtn">Add</button>
+            <button id="watchRefreshBtn" class="ghost">Refresh</button>
+            <button id="watchRunBtn" class="ghost">Run</button>
+            <button id="watchUseBtn" class="ghost">Use in Search</button>
+            <button id="watchRemoveBtn" class="ghost">Remove</button>
+            <span id="watchStatus"></span>
+          </div>
+          <pre id="watchOutput">No watched characters yet.</pre>
+        </section>
       </aside>
     </div>
   </main>
