@@ -78,55 +78,54 @@ class FindAltsCommand[F[_]: Async](
     val distance = options.find(_.getName == "distance").map(_.getAsInt())
     val includeClashes = options.find(_.getName == "include-clashes").map(_.getAsBoolean()).getOrElse(false)
 
-        Logger[F].info(event.getUser().getName()) *>
+    Logger[F].info(event.getUser().getName()) *>
       ((parseFrom, parseTo) match {
         case (Right(from), Right(to)) =>
           service.findAndPrintAlts(charList, from, to, distance, includeClashes).flatMap { results =>
             service.saveLastSearch(charList, from, to, distance, includeClashes)
-              .handleErrorWith(e => Logger[F].warn(e)(s"Failed to save last search"))
+              .handleErrorWith(e => Logger[F].warn(e)("Failed to save last search"))
               .as(results)
           }.map { results =>
-
-              val dateMessage = (results.searchedFrom, results.searchedTo) match {
-                case (None, None) => "Max range"
-                case (None, Some(t)) => s"Until ${t.toLocalDate()}"
-                case (Some(f), None) => s"From ${f.toLocalDate()}"
-                case (Some(f), Some(t)) => s"From ${f.toLocalDate()} until ${t.toLocalDate()}"
-              }
-
-              val bazaarScraperError = "Error accessing bazaar sources"
-              val tradedField = (results.sales.allSales, results.sales.numberOfErrors) match
-                case (Nil, 0) => None
-                case (Nil, _) => Some(new Field("Couldn't check if traded", bazaarScraperError, false))
-                case (sales, _) =>
-                  val salesList = results.sales.characterSales.flatMap { s =>
-                    s.saleDates match
-                      case Right(Nil) => None
-                      case Right(dates) => Some(s"**${s.name}**: ${dates.map(_.toLocalDate).mkString(", ")}")
-                      case Left(_) => Some(s"**${s.name}**: $bazaarScraperError")
-                  }
-                  val dateMessage = from match
-                    case None => "Setting the `from` date to be the date of the latest sale."
-                    case Some(_) => "Using `from` date provided. Results may be inaccurate."
-                  val message = s"The following characters have been traded:\n${salesList.mkString("\n")}\n$dateMessage"
-                  Some(new Field("Traded character detected", message, false))
-
-              val tradeWarning =
-                if (results.candidateTradeErrors > 0) Some(new Field(
-                  "Candidate trade checks",
-                  s"Errors checking ${results.candidateTradeErrors} candidate(s).",
-                  false
-                )) else None
-
-              embedBuilder.addField("Searched characters", results.searchedCharacters.mkString(", "), false)
-                .addFieldOption(tradedField)
-                .addFieldOption(tradeWarning)
-                .addField("Total logins", results.mainLogins.toString(), true)
-                .addField("Date range", dateMessage, true).addField("\u200b", "\u200b", true)
-                .addField("Adjacency distance", appendMinutes(distance.getOrElse(0)), true)
-                .addField("Include clashes", includeClashes.toString, true).addField("\u200b", "\u200b", true)
-                .addField("Possible matches", results.adjacencies.take(20).map(formatMatch).mkString("\n"), false).build()
+            val dateMessage = (results.searchedFrom, results.searchedTo) match {
+              case (None, None) => "Max range"
+              case (None, Some(t)) => s"Until ${t.toLocalDate()}"
+              case (Some(f), None) => s"From ${f.toLocalDate()}"
+              case (Some(f), Some(t)) => s"From ${f.toLocalDate()} until ${t.toLocalDate()}"
             }
+
+            val bazaarScraperError = "Error accessing bazaar sources"
+            val tradedField = (results.sales.allSales, results.sales.numberOfErrors) match
+              case (Nil, 0) => None
+              case (Nil, _) => Some(new Field("Couldn't check if traded", bazaarScraperError, false))
+              case (_, _) =>
+                val salesList = results.sales.characterSales.flatMap { s =>
+                  s.saleDates match
+                    case Right(Nil) => None
+                    case Right(dates) => Some(s"**${s.name}**: ${dates.map(_.toLocalDate).mkString(", ")}")
+                    case Left(_) => Some(s"**${s.name}**: $bazaarScraperError")
+                }
+                val tradeDateMessage = from match
+                  case None => "Setting the `from` date to be the date of the latest sale."
+                  case Some(_) => "Using `from` date provided. Results may be inaccurate."
+                val message =
+                  s"The following characters have been traded:\n${salesList.mkString("\n")}\n$tradeDateMessage"
+                Some(new Field("Traded character detected", message, false))
+
+            val tradeWarning =
+              if (results.candidateTradeErrors > 0)
+                Some(new Field("Candidate trade checks", s"Errors checking ${results.candidateTradeErrors} candidate(s).", false))
+              else None
+
+            embedBuilder.addField("Searched characters", results.searchedCharacters.mkString(", "), false)
+              .addFieldOption(tradedField)
+              .addFieldOption(tradeWarning)
+              .addField("Total logins", results.mainLogins.toString(), false)
+              .addField("Date range", dateMessage, false)
+              .addField("Adjacency distance", appendMinutes(distance.getOrElse(0)), false)
+              .addField("Include clashes", includeClashes.toString, false)
+              .addField("Possible matches", results.adjacencies.take(20).map(formatMatch).mkString("\n"), false)
+              .build()
+          }
         case _ =>
           val errors = List(parseFrom, parseTo).map(_.left.toOption).flatten.mkString("\n")
           Async[F].pure(embedBuilder.addField("Failed", errors, false).build())
@@ -150,11 +149,8 @@ class FindAltsCommand[F[_]: Async](
 
   private def formatMatch(adj: AltFinderService.CharacterAdjacencies): String = {
     val name = adj.characterName.getOrElse("Unknown")
-    val clashText = if (adj.clashes < 0) "yes" else adj.clashes.toString
-    val tradeText =
-      if (adj.recentTradeDates.nonEmpty) adj.recentTradeDates.map(_.toString).mkString(", ") else "none"
-    val hiddenText = if (adj.hiddenLikely) s"yes (${adj.hiddenScore})" else s"no (${adj.hiddenScore})"
-    s"$name | conf ${adj.confidence} | hidden $hiddenText | adj ${adj.adjacencies} | clashes $clashText | logins ${adj.logins} | traded $tradeText"
+    val clashCount = if (adj.clashes < 0) 0 else adj.clashes
+    s"$name: ${adj.adjacencies} / $clashCount / ${adj.logins}"
   }
 
 }

@@ -152,7 +152,10 @@ object BotApp extends IOApp {
             .map(_.trim)
             .map(_.replaceAll("[^0-9]", ""))
             .filter(_.nonEmpty)
-          val maybeToken = Option(cfg.bot.token).map(_.trim).filter(_.nonEmpty)
+          val maybeToken = List(
+            Option(cfg.bot.token),
+            sys.env.get("ALTFINDER_TOKEN")
+          ).flatten.map(_.trim).find(_.nonEmpty)
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
           val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
           val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
@@ -163,7 +166,7 @@ object BotApp extends IOApp {
           def startDiscordIfConfigured: IO[Unit] =
             maybeToken match {
               case None =>
-                Logger[IO].warn("TOKEN is empty. Discord bot and watch runner are disabled.")
+                Logger[IO].warn("TOKEN/ALTFINDER_TOKEN is empty. Discord bot and watch runner are disabled.")
               case Some(token) =>
                 IO.delay(JDABuilder.createDefault(token).build()).flatMap { jda =>
                   val botListener = new BotListener[IO](commands, dispatcher)
