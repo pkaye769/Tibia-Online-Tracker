@@ -1,4 +1,3 @@
-
 package com.pamelak.onlinetracker.tracker
 
 import cats.effect.*
@@ -11,6 +10,7 @@ import fs2.Stream
 import org.typelevel.otel4s.trace.Tracer
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import skunk.SSL
 import skunk.Session
 
 import scala.concurrent.duration.*
@@ -29,7 +29,7 @@ object Main extends IOApp {
         user = dbCfg.user,
         database = dbCfg.database,
         password = dbCfg.password.some,
-        ssl = true
+        ssl = SSL.System
       )
       val tibiaDataClientResource = TibiaDataHttp4sClient.clientResource
 
