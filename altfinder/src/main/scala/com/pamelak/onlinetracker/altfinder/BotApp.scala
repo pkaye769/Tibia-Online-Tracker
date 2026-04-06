@@ -8,17 +8,17 @@ import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraperHttp4sClient
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.TibiaComAuctionHttp4sClient
 import com.pamelak.onlinetracker.altfinder.bot.BotListener
+import com.pamelak.onlinetracker.altfinder.bot.command.Command
 import com.pamelak.onlinetracker.altfinder.bot.command.CompareCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.ClashesCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.FindAltsCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.GuildCommand
+import com.pamelak.onlinetracker.altfinder.bot.command.GuildTrackCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.HistoryCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.LastAltsCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.TradesCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.WatchCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.WorldCommand
-import com.pamelak.onlinetracker.altfinder.bot.command.GuildTrackCommand
-import com.pamelak.onlinetracker.altfinder.bot.command.Command
 import com.pamelak.onlinetracker.altfinder.repo.AltFinderSkunkRepo
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService
 import com.pamelak.onlinetracker.altfinder.service.WatchRunner
@@ -27,8 +27,8 @@ import com.pamelak.onlinetracker.common.config.AppConfig
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction
-import org.http4s.client.Client
 import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.client.Client
 import org.http4s.server.middleware.CORS
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -124,6 +124,7 @@ object BotApp extends IOApp {
           val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
           val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
           val repo = new AltFinderSkunkRepo(dbSession)
+
           val tradeLookbackDays = sys.env.get("TRADE_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(30)
           val candidateTradeLimit = sys.env.get("CANDIDATE_TRADE_CHECK_LIMIT").flatMap(_.toIntOption).getOrElse(20)
           val hiddenLikelyMinScore = sys.env.get("HIDDEN_LIKELY_MIN_SCORE").flatMap(_.toIntOption).getOrElse(70)
@@ -135,6 +136,7 @@ object BotApp extends IOApp {
           val minEvidenceAdjacencies = sys.env.get("MIN_EVIDENCE_ADJACENCIES").flatMap(_.toIntOption).getOrElse(2)
           val includeLowEvidenceMatches =
             sys.env.get("INCLUDE_LOW_EVIDENCE_MATCHES").exists(_.trim.equalsIgnoreCase("true"))
+
           val service = new AltFinderService(
             repo,
             bazaarScraper,
@@ -147,7 +149,9 @@ object BotApp extends IOApp {
             minEvidenceAdjacencies,
             includeLowEvidenceMatches
           )
+
           val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
+
           val commands = List[Command[IO]](
             new FindAltsCommand[IO](service),
             new LastAltsCommand[IO](service),
@@ -160,18 +164,23 @@ object BotApp extends IOApp {
             new GuildTrackCommand[IO](tibiaDataClient, repo),
             new TradesCommand[IO](service)
           )
+
           val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
             .map(_.trim)
             .map(_.replaceAll("[^0-9]", ""))
             .filter(_.nonEmpty)
+
           val maybeToken = List(
             Option(cfg.bot.token),
             sys.env.get("ALTFINDER_TOKEN")
           ).flatten.map(_.trim).find(_.nonEmpty)
+
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
           val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
-          val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraper)
+
+          val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
           val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound
+
           val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
           val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)
 
@@ -189,6 +198,7 @@ object BotApp extends IOApp {
                     watchIntervalSeconds.seconds,
                     watchCooldownMinutes.minutes
                   )
+
                   (IO.delay(jda.awaitReady()) *>
                     IO.delay(jda.addEventListener(botListener)) *>
                     registerCommands(jda, commands, guildIdOverride) *>
@@ -218,5 +228,4 @@ object BotApp extends IOApp {
       }
     }
   }
-
 }
