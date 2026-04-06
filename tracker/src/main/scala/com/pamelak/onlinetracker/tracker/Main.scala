@@ -1,3 +1,4 @@
+
 package com.pamelak.onlinetracker.tracker
 
 import cats.effect.*
@@ -27,7 +28,8 @@ object Main extends IOApp {
         port = dbCfg.port,
         user = dbCfg.user,
         database = dbCfg.database,
-        password = dbCfg.password.some
+        password = dbCfg.password.some,
+        ssl = true
       )
       val tibiaDataClientResource = TibiaDataHttp4sClient.clientResource
 
