@@ -33,6 +33,7 @@ import org.http4s.server.middleware.CORS
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import org.typelevel.otel4s.trace.Tracer
+import skunk.SSL
 import skunk.Session
 
 import java.net.InetSocketAddress
@@ -114,7 +115,7 @@ object BotApp extends IOApp {
           user = dbCfg.user,
           database = dbCfg.database,
           password = dbCfg.password.some,
-          ssl = true
+          ssl = SSL.System
         )
         val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
 
@@ -169,7 +170,7 @@ object BotApp extends IOApp {
           ).flatten.map(_.trim).find(_.nonEmpty)
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
           val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
-          val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
+          val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraper)
           val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound
           val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
           val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)
