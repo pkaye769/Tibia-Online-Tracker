@@ -113,7 +113,8 @@ object BotApp extends IOApp {
           port = dbCfg.port,
           user = dbCfg.user,
           database = dbCfg.database,
-          password = dbCfg.password.some
+          password = dbCfg.password.some,
+          ssl = true
         )
         val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
 
@@ -218,6 +219,3 @@ object BotApp extends IOApp {
   }
 
 }
-
-
-
