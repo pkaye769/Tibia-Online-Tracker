@@ -89,6 +89,7 @@ object BotApp extends IOApp {
     } yield ()
   }
 
+
   private def findAvailablePort(startPort: Int, attempts: Int = 20): IO[Int] = IO.delay {
     (startPort until (startPort + attempts)).find { port =>
       var socket: ServerSocket = null
@@ -109,13 +110,20 @@ object BotApp extends IOApp {
     Dispatcher[IO].use { dispatcher =>
       AppConfig.config.load[IO].flatMap { cfg =>
         val dbCfg = cfg.database
+        val sslMode = sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
+          case Some("false") | Some("0") | Some("no") => SSL.None
+          case Some("true") | Some("1") | Some("yes") => SSL.System
+          case _ if dbCfg.host == "localhost" || dbCfg.host == "127.0.0.1" => SSL.None
+          case _ => SSL.System
+        }
+
         val dbSessionResource: Resource[IO, Session[IO]] = Session.single(
           host = dbCfg.host,
           port = dbCfg.port,
           user = dbCfg.user,
           database = dbCfg.database,
           password = dbCfg.password.some,
-          ssl = SSL.System
+          ssl = sslMode
         )
         val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
 
