@@ -202,6 +202,17 @@ final class AltFinderApi[F[_]: Async](
           statusLatencyMs = math.max(0L, nowMs - startMs)
         )
       }.flatMap(s => Ok(s.asJson))
+        .handleErrorWith { _ =>
+          Ok(TrackerStatusResponse(
+            onlineHistoryRows = -1,
+            latestWorldSave = None,
+            latestWorldSaveAgeSeconds = None,
+            bazaarCooldownSeconds = -1,
+            queryCacheSize = queryCache.size,
+            queryCacheTtlSeconds = queryCacheTtlSeconds,
+            statusLatencyMs = math.max(0L, nowMs - startMs)
+          ).asJson)
+        }
 
     case req @ GET -> Root / "api" / "altfinder" / route if route == "alts" || route == "alt" =>
       val params = req.uri.query.params
@@ -1029,20 +1040,20 @@ final class AltFinderApi[F[_]: Async](
       |
       |    async function loadStatus() {
       |      try {
-      |        const [healthRes, statusRes] = await Promise.all([
-      |          fetch("/api/altfinder/health"),
-      |          fetch("/api/altfinder/status")
-      |        ]);
+      |        const healthRes = await fetch("/api/altfinder/health");
       |        const health = await healthRes.json();
-      |        const trackerStatus = await statusRes.json();
       |        ui.healthBadge.textContent = "API health: " + (health.status || "unknown");
       |        if (health.status === "ok") ui.healthBadge.classList.add("status-ok");
-      |        if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
-      |          ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
-      |        }
       |      } catch (_) {
       |        ui.healthBadge.textContent = "API health: unavailable";
       |      }
+      |      try {
+      |        const statusRes = await fetch("/api/altfinder/status");
+      |        const trackerStatus = await statusRes.json();
+      |        if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
+      |          ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
+      |        }
+      |      } catch (_) {}
       |    }
       |
       |    async function runSearch() {
@@ -1071,10 +1082,7 @@ final class AltFinderApi[F[_]: Async](
       |      try {
       |        const controller = new AbortController();
       |        const timer = setTimeout(() => controller.abort(), timeoutMs);
-      |        const [res, trackerRes] = await Promise.all([
-      |          fetch("/api/altfinder/alts?" + q.toString(), { signal: controller.signal }),
-      |          fetch("/api/altfinder/status")
-      |        ]);
+      |        const res = await fetch("/api/altfinder/alts?" + q.toString(), { signal: controller.signal });
       |        clearTimeout(timer);
       |        const raw = await res.text();
       |        let data;
@@ -1086,7 +1094,11 @@ final class AltFinderApi[F[_]: Async](
       |          }
       |          throw new Error("Non-JSON response from backend: " + String(raw).slice(0, 200));
       |        }
-      |        const trackerStatus = await trackerRes.json();
+      |        let trackerStatus = {};
+      |        try {
+      |          const trackerRes = await fetch("/api/altfinder/status");
+      |          trackerStatus = await trackerRes.json();
+      |        } catch (_) {}
       |        if (!res.ok) {
       |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
       |        }

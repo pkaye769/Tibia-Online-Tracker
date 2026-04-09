@@ -1,12 +1,9 @@
 package com.pamelak.onlinetracker.altfinder.repo
 
-import cats.Monad
 import cats.effect.IO
-import cats.effect.kernel.Async
-import cats.effect.kernel.Concurrent
+import cats.effect.Resource
 import cats.syntax.all.*
 import com.pamelak.onlinetracker.altfinder.repo.Model.*
-import com.pamelak.onlinetracker.common.repo.SkunkExtensions
 import skunk.*
 import skunk.codec.all.bool
 import skunk.codec.all.int4
@@ -19,10 +16,15 @@ import skunk.implicits.toIdOps
 
 import java.time.OffsetDateTime
 
-class AltFinderSkunkRepo(val session: Session[IO])
-    extends AltFinderRepoAlg[IO] with AltFinderCodecs with SkunkExtensions {
+class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
+    extends AltFinderRepoAlg[IO] with AltFinderCodecs {
 
-  override def ensureSchema: IO[Unit] = {
+  private def withSession[A](f: Session[IO] => IO[A]): IO[A] = sessionPool.use(f)
+
+  private def prepareToList[A, B](session: Session[IO])(q: Query[A, B], args: A): IO[List[B]] =
+    session.stream(q, args, 65536).compile.toList
+
+  override def ensureSchema: IO[Unit] = withSession { session =>
 
   // 🔥 ADDED FIX (missing table)
   val createOnlineHistoryTable = sql"""
@@ -123,7 +125,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
       characterNames: List[String],
       from: Option[OffsetDateTime],
       to: Option[OffsetDateTime]
-  ): IO[List[OnlineSegment]] = {
+  ): IO[List[OnlineSegment]] = withSession { session =>
     val cl = characterNames.map(_.toLowerCase)
 
     val baseFragment = sql"""
@@ -140,16 +142,16 @@ class AltFinderSkunkRepo(val session: Session[IO])
     (from, to) match {
       case (Some(f), Some(t)) =>
         val q = sql"$baseFragment $joinFragment $charFragment $fromToFragment".query(onlineSegmentDecoder)
-        prepareToList(q, (cl, (f, t)))
+        prepareToList(session)(q, (cl, (f, t)))
       case (Some(f), None) =>
         val q = sql"$baseFragment $joinFragment $charFragment $fromFragment".query(onlineSegmentDecoder)
-        prepareToList(q, cl ~ f)
+        prepareToList(session)(q, cl ~ f)
       case (None, Some(t)) =>
         val q = sql"$baseFragment $joinFragment $charFragment $toFragment".query(onlineSegmentDecoder)
-        prepareToList(q, cl ~ t)
+        prepareToList(session)(q, cl ~ t)
       case (None, None) =>
         val q = sql"$baseFragment $charFragment".query(onlineSegmentDecoder)
-        prepareToList(q, cl)
+        prepareToList(session)(q, cl)
     }
   }
 
@@ -158,7 +160,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
       from: Option[OffsetDateTime],
       to: Option[OffsetDateTime],
       distance: Option[Int]
-  ): IO[List[OnlineSegment]] = {
+  ): IO[List[OnlineSegment]] = withSession { session =>
     val cl = characterNames.map(_.toLowerCase)
 
     val baseFragment = sql"""
@@ -193,24 +195,24 @@ class AltFinderSkunkRepo(val session: Session[IO])
         val q =
           sql"$baseFragment $joinFragment $whereInFragment ($innerFragment $innerJoinFragment $charFragment $fromToFragment) $fromToFragment"
             .query(onlineSegmentDecoder)
-        prepareToList(q, (cl, (f, t), (f, t)))
+        prepareToList(session)(q, (cl, (f, t), (f, t)))
       case (Some(f), None) =>
         val q =
           sql"$baseFragment $joinFragment $whereInFragment ($innerFragment $innerJoinFragment $charFragment $fromFragment) $fromFragment"
             .query(onlineSegmentDecoder)
-        prepareToList(q, (cl, f, f))
+        prepareToList(session)(q, (cl, f, f))
       case (None, Some(t)) =>
         val q =
           sql"$baseFragment $joinFragment $whereInFragment ($innerFragment $innerJoinFragment $charFragment $toFragment) $toFragment"
             .query(onlineSegmentDecoder)
-        prepareToList(q, (cl, t, t))
+        prepareToList(session)(q, (cl, t, t))
       case (None, None) =>
         val q = sql"$baseFragment $whereInFragment ($innerFragment $charFragment)".query(onlineSegmentDecoder)
-        prepareToList(q, cl)
+        prepareToList(session)(q, cl)
     }
   }
 
-  override def getCharacterName(characterId: Long): IO[String] = {
+  override def getCharacterName(characterId: Long): IO[String] = withSession { session =>
     val q: Query[Long, String] = sql"""
         SELECT name FROM character
         WHERE id = $int8
@@ -222,7 +224,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
       characterNames: List[String],
       from: Option[OffsetDateTime],
       to: Option[OffsetDateTime]
-  ): IO[List[OnlineDateSegment]] = {
+  ): IO[List[OnlineDateSegment]] = withSession { session =>
     val cl = characterNames.map(_.toLowerCase)
 
     val baseFragment = sql"""
@@ -241,28 +243,28 @@ class AltFinderSkunkRepo(val session: Session[IO])
     (from, to) match {
       case (Some(f), Some(t)) =>
         val q = sql"$baseFragment $fromToFragment $orderFragment".query(onlineDateSegmentDecoder)
-        prepareToList(q, (cl, (f, t)))
+        prepareToList(session)(q, (cl, (f, t)))
       case (Some(f), None) =>
         val q = sql"$baseFragment $fromFragment $orderFragment".query(onlineDateSegmentDecoder)
-        prepareToList(q, cl ~ f)
+        prepareToList(session)(q, cl ~ f)
       case (None, Some(t)) =>
         val q = sql"$baseFragment $toFragment $orderFragment".query(onlineDateSegmentDecoder)
-        prepareToList(q, cl ~ t)
+        prepareToList(session)(q, cl ~ t)
       case (None, None) =>
         val q = sql"$baseFragment $orderFragment".query(onlineDateSegmentDecoder)
-        prepareToList(q, cl)
+        prepareToList(session)(q, cl)
     }
   }
 
-  override def getPastCharacterNames(characterName: String): IO[List[String]] = {
+  override def getPastCharacterNames(characterName: String): IO[List[String]] = withSession { session =>
     val q = sql"""
       SELECT cnh.name FROM character c JOIN character_name_history cnh ON c.id = cnh.character_id
       WHERE lower(c.name) = $varchar
     """.query(varchar)
-    prepareToList(q, characterName.toLowerCase)
+    prepareToList(session)(q, characterName.toLowerCase)
   }
 
-  override def saveLastSearch(search: LastSearch): IO[Unit] = {
+  override def saveLastSearch(search: LastSearch): IO[Unit] = withSession { session =>
     val q = sql"""
       INSERT INTO altfinder_last_search
         (id, characters, from_date, to_date, distance_minutes, include_clashes, updated_at)
@@ -280,7 +282,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
     session.execute(q, (characters, search.from, search.to, search.distance, search.includeClashes)).void
   }
 
-  override def getLastSearch: IO[Option[LastSearch]] = {
+  override def getLastSearch: IO[Option[LastSearch]] = withSession { session =>
     val q = sql"""
       SELECT characters, from_date, to_date, distance_minutes, include_clashes
       FROM altfinder_last_search
@@ -292,7 +294,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
     })
   }
 
-  override def upsertWatch(config: WatchConfig): IO[Unit] = {
+  override def upsertWatch(config: WatchConfig): IO[Unit] = withSession { session =>
     val q = sql"""
       INSERT INTO altfinder_watch
         (guild_id, channel_id, character_name, distance_minutes, include_clashes, confidence_threshold, window_days, created_at, updated_at)
@@ -320,7 +322,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
     ).void
   }
 
-  override def removeWatch(guildId: String, characterName: String): IO[Boolean] = {
+  override def removeWatch(guildId: String, characterName: String): IO[Boolean] = withSession { session =>
     val q = sql"""
       DELETE FROM altfinder_watch
       WHERE guild_id = $varchar AND lower(character_name) = $varchar
@@ -331,7 +333,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
     }
   }
 
-  override def listWatches(guildId: String): IO[List[WatchEntry]] = {
+  override def listWatches(guildId: String): IO[List[WatchEntry]] = withSession { session =>
     val q = sql"""
       SELECT id, guild_id, channel_id, character_name, distance_minutes, include_clashes, confidence_threshold,
              window_days, created_at, updated_at, last_checked_at, last_alert_at
@@ -339,49 +341,50 @@ class AltFinderSkunkRepo(val session: Session[IO])
       WHERE guild_id = $varchar
       ORDER BY updated_at DESC
     """.query(watchEntryDecoder)
-    prepareToList(q, guildId).map(_.map {
+    prepareToList(session)(q, guildId).map(_.map {
       case (id, gid, cid, name, distance, includeClashes, threshold, windowDays, createdAt, updatedAt, lastChecked, lastAlert) =>
         WatchEntry(id, gid, cid, name, distance, includeClashes, threshold, windowDays, createdAt, updatedAt, lastChecked, lastAlert)
     })
   }
 
-  override def listAllWatches: IO[List[WatchEntry]] = {
+  override def listAllWatches: IO[List[WatchEntry]] = withSession { session =>
     val q = sql"""
       SELECT id, guild_id, channel_id, character_name, distance_minutes, include_clashes, confidence_threshold,
              window_days, created_at, updated_at, last_checked_at, last_alert_at
       FROM altfinder_watch
       ORDER BY updated_at DESC
     """.query(watchEntryDecoder)
-    prepareToList(q, Void).map(_.map {
+    prepareToList(session)(q, Void).map(_.map {
       case (id, gid, cid, name, distance, includeClashes, threshold, windowDays, createdAt, updatedAt, lastChecked, lastAlert) =>
         WatchEntry(id, gid, cid, name, distance, includeClashes, threshold, windowDays, createdAt, updatedAt, lastChecked, lastAlert)
     })
   }
 
-  override def updateWatchCheck(id: Long, checkedAt: OffsetDateTime, alertedAt: Option[OffsetDateTime]): IO[Unit] = {
-    alertedAt match {
-      case Some(alerted) =>
-        val q = sql"""
-          UPDATE altfinder_watch
-          SET last_checked_at = $timestamptz,
-              last_alert_at = $timestamptz,
-              updated_at = NOW()
-          WHERE id = $int8
-        """.command
-        session.execute(q, (checkedAt, alerted, id)).void
+  override def updateWatchCheck(id: Long, checkedAt: OffsetDateTime, alertedAt: Option[OffsetDateTime]): IO[Unit] =
+    withSession { session =>
+      alertedAt match {
+        case Some(alerted) =>
+          val q = sql"""
+            UPDATE altfinder_watch
+            SET last_checked_at = $timestamptz,
+                last_alert_at = $timestamptz,
+                updated_at = NOW()
+            WHERE id = $int8
+          """.command
+          session.execute(q, (checkedAt, alerted, id)).void
 
-      case None =>
-        val q = sql"""
-          UPDATE altfinder_watch
-          SET last_checked_at = $timestamptz,
-              updated_at = NOW()
-          WHERE id = $int8
-        """.command
-        session.execute(q, (checkedAt, id)).void
+        case None =>
+          val q = sql"""
+            UPDATE altfinder_watch
+            SET last_checked_at = $timestamptz,
+                updated_at = NOW()
+            WHERE id = $int8
+          """.command
+          session.execute(q, (checkedAt, id)).void
+      }
     }
-  }
 
-  override def upsertTrackedGuild(config: GuildTrackConfig): IO[Unit] = {
+  override def upsertTrackedGuild(config: GuildTrackConfig): IO[Unit] = withSession { session =>
     val q = sql"""
       INSERT INTO altfinder_guild_track
         (guild_id, tibia_guild_name, created_at, updated_at)
@@ -393,7 +396,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
     session.execute(q, (config.guildId, config.tibiaGuildName)).void
   }
 
-  override def removeTrackedGuild(guildId: String, tibiaGuildName: String): IO[Boolean] = {
+  override def removeTrackedGuild(guildId: String, tibiaGuildName: String): IO[Boolean] = withSession { session =>
     val q = sql"""
       DELETE FROM altfinder_guild_track
       WHERE guild_id = $varchar AND lower(tibia_guild_name) = $varchar
@@ -404,20 +407,20 @@ class AltFinderSkunkRepo(val session: Session[IO])
     }
   }
 
-  override def listTrackedGuilds(guildId: String): IO[List[GuildTrackEntry]] = {
+  override def listTrackedGuilds(guildId: String): IO[List[GuildTrackEntry]] = withSession { session =>
     val q = sql"""
       SELECT id, guild_id, tibia_guild_name, created_at, updated_at
       FROM altfinder_guild_track
       WHERE guild_id = $varchar
       ORDER BY updated_at DESC
     """.query(guildTrackEntryDecoder)
-    prepareToList(q, guildId).map(_.map {
+    prepareToList(session)(q, guildId).map(_.map {
       case (id, gid, name, createdAt, updatedAt) =>
         GuildTrackEntry(id, gid, name, createdAt, updatedAt)
     })
   }
 
-  override def saveResearchRun(run: ResearchRunWrite): IO[Unit] = {
+  override def saveResearchRun(run: ResearchRunWrite): IO[Unit] = withSession { session =>
     val q = sql"""
       INSERT INTO altfinder_research_run
         (run_type, searched_characters, target_characters, from_date, to_date, distance_minutes, include_clashes, total_logins, match_count, summary, created_at)
@@ -441,7 +444,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
     ).void
   }
 
-  override def listResearchRuns(limit: Int): IO[List[ResearchRun]] = {
+  override def listResearchRuns(limit: Int): IO[List[ResearchRun]] = withSession { session =>
     val q = sql"""
       SELECT id, run_type, searched_characters, target_characters, from_date, to_date, distance_minutes,
              include_clashes, total_logins, match_count, summary, created_at
@@ -449,7 +452,7 @@ class AltFinderSkunkRepo(val session: Session[IO])
       ORDER BY created_at DESC
       LIMIT $int4
     """.query(researchRunDecoder)
-    prepareToList(q, limit.max(1).min(200)).map(_.map {
+    prepareToList(session)(q, limit.max(1).min(200)).map(_.map {
       case (id, runType, searchedChars, targetChars, from, to, distance, includeClashes, totalLogins, matchCount, summary, createdAt) =>
         ResearchRun(
           id,
@@ -468,14 +471,14 @@ class AltFinderSkunkRepo(val session: Session[IO])
     })
   }
 
-  override def countOnlineHistoryRows: IO[Long] = {
+  override def countOnlineHistoryRows: IO[Long] = withSession { session =>
     val q = sql"""
       SELECT COUNT(*) FROM online_history
     """.query(int8)
     session.unique(q, Void)
   }
 
-  override def latestWorldSaveTime: IO[Option[OffsetDateTime]] = {
+  override def latestWorldSaveTime: IO[Option[OffsetDateTime]] = withSession { session =>
     val q = sql"""
       SELECT MAX(time) FROM world_save_time
     """.query(timestamptz)

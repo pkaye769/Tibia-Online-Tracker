@@ -117,21 +117,22 @@ object BotApp extends IOApp {
           case _ => SSL.System
         }
 
-        val dbSessionResource: Resource[IO, Session[IO]] = Session.single(
+        val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pool(
           host = dbCfg.host,
           port = dbCfg.port,
           user = dbCfg.user,
           database = dbCfg.database,
           password = dbCfg.password.some,
-          ssl = sslMode
+          ssl = sslMode,
+          max = 4
         )
         val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
 
-        (dbSessionResource, httpClientResource).tupled.use { case (dbSession, httpClient) =>
+        (dbPoolResource, httpClientResource).tupled.use { case (sessionPool, httpClient) =>
           val bazaarScraperClient = new BazaarScraperHttp4sClient(httpClient)
           val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
           val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
-          val repo = new AltFinderSkunkRepo(dbSession)
+          val repo = new AltFinderSkunkRepo(sessionPool)
 
           val tradeLookbackDays = sys.env.get("TRADE_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(30)
           val candidateTradeLimit = sys.env.get("CANDIDATE_TRADE_CHECK_LIMIT").flatMap(_.toIntOption).getOrElse(20)
