@@ -2,14 +2,17 @@ FROM eclipse-temurin:17-jdk
 
 WORKDIR /app
 
+ENV SBT_VERSION=1.8.2
+
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl gnupg ca-certificates bash \
-    && echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" > /etc/apt/sources.list.d/sbt.list \
-    && curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x99E82A75642AC823" \
-      | gpg --dearmor -o /etc/apt/trusted.gpg.d/sbt.gpg \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends sbt \
+    && apt-get install -y --no-install-recommends curl bash \
+    && curl -fsSL "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz" \
+      -o /tmp/sbt.tgz \
+    && tar -xzf /tmp/sbt.tgz -C /usr/local \
+    && rm /tmp/sbt.tgz \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/usr/local/sbt/bin:${PATH}"
 
 COPY . .
 

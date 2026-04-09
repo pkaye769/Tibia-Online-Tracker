@@ -2,6 +2,7 @@ services:
   - type: web
     name: tibia-alt-finder-api
     runtime: docker
+    plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/altfinder/health
@@ -21,7 +22,7 @@ services:
       - key: DB_HOST
         fromDatabase:
           name: tibia-tracker-db
-          property: host
+          property: hostExternalName
       - key: DB_PORT
         fromDatabase:
           name: tibia-tracker-db
@@ -42,6 +43,7 @@ services:
   - type: worker
     name: tibia-online-tracker-worker
     runtime: docker
+    plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
@@ -54,7 +56,7 @@ services:
       - key: DB_HOST
         fromDatabase:
           name: tibia-tracker-db
-          property: host
+          property: hostExternalName
       - key: DB_PORT
         fromDatabase:
           name: tibia-tracker-db
@@ -75,7 +77,8 @@ services:
   - type: web
     name: tibia-scout-board
     runtime: static
-    staticPublishPath: ./web
+    rootDir: web
+    staticPublishPath: .
 
 databases:
   - name: tibia-tracker-db
