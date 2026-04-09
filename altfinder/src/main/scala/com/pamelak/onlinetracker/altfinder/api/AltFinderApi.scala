@@ -1049,9 +1049,11 @@ final class AltFinderApi[F[_]: Async](
       |      }
       |      try {
       |        const statusRes = await fetch("/api/altfinder/status");
-      |        const trackerStatus = await statusRes.json();
-      |        if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
-      |          ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
+      |        if (statusRes.ok) {
+      |          const trackerStatus = await statusRes.json();
+      |          if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
+      |            ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
+      |          }
       |        }
       |      } catch (_) {}
       |    }
@@ -1097,7 +1099,7 @@ final class AltFinderApi[F[_]: Async](
       |        let trackerStatus = {};
       |        try {
       |          const trackerRes = await fetch("/api/altfinder/status");
-      |          trackerStatus = await trackerRes.json();
+      |          if (trackerRes.ok) trackerStatus = await trackerRes.json();
       |        } catch (_) {}
       |        if (!res.ok) {
       |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
