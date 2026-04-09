@@ -22,7 +22,7 @@ object Main extends IOApp {
   given Tracer[IO] = Tracer.noop
 
   override def run(args: List[String]): IO[ExitCode] = {
-    AppConfig.databaseConfig.load[IO].flatMap { dbCfg =>
+    AppConfig.loadDatabaseConfigIO.flatMap { dbCfg =>
       val dbSessionResource: Resource[IO, Session[IO]] = Session.single(
         host = dbCfg.host,
         port = dbCfg.port,

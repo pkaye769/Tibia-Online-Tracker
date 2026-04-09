@@ -108,21 +108,16 @@ class AltFinderSkunkRepo(val session: Session[IO])
   """.command
 
   for {
-    _ <- session.execute(createOnlineHistoryTable, Void), // 🔥 FIX FIRST
-    _ <- session.execute(createLastSearch, Void),
-    _ <- session.execute(createWatchTable, Void),
-    _ <- session.execute(createWatchGuildIdx, Void),
-    _ <- session.execute(createGuildTrackTable, Void),
-    _ <- session.execute(createGuildTrackGuildIdx, Void),
-    _ <- session.execute(createResearchRunTable, Void),
+    _ <- session.execute(createOnlineHistoryTable, Void)
+    _ <- session.execute(createLastSearch, Void)
+    _ <- session.execute(createWatchTable, Void)
+    _ <- session.execute(createWatchGuildIdx, Void)
+    _ <- session.execute(createGuildTrackTable, Void)
+    _ <- session.execute(createGuildTrackGuildIdx, Void)
+    _ <- session.execute(createResearchRunTable, Void)
     _ <- session.execute(createResearchRunCreatedIdx, Void)
   } yield ()
-}
-    for {
-      _ <- session.execute(createLastSearch, Void)
-      _ <- session.execute(createWatchTable, Void)
-      _ <- session.execute(createWatchGuildIdx, Void)
-      _ <- session.execute(createG
+  }
 
   override def getOnlineTimes(
       characterNames: List[String],

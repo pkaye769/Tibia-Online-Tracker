@@ -108,7 +108,7 @@ object BotApp extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     Dispatcher[IO].use { dispatcher =>
-      AppConfig.config.load[IO].flatMap { cfg =>
+      AppConfig.loadConfigIO.flatMap { cfg =>
         val dbCfg = cfg.database
         val sslMode = sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
           case Some("false") | Some("0") | Some("no") => SSL.None
