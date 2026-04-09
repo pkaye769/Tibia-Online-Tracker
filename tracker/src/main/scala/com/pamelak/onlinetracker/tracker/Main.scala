@@ -23,13 +23,19 @@ object Main extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     AppConfig.loadDatabaseConfigIO.flatMap { dbCfg =>
+      val sslMode = sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
+        case Some("false") | Some("0") | Some("no") => SSL.None
+        case Some("true") | Some("1") | Some("yes") => SSL.System
+        case _ if dbCfg.host == "localhost" || dbCfg.host == "127.0.0.1" => SSL.None
+        case _ => SSL.System
+      }
       val dbSessionResource: Resource[IO, Session[IO]] = Session.single(
         host = dbCfg.host,
         port = dbCfg.port,
         user = dbCfg.user,
         database = dbCfg.database,
         password = dbCfg.password.some,
-        ssl = SSL.System
+        ssl = sslMode
       )
       val tibiaDataClientResource = TibiaDataHttp4sClient.clientResource
 
