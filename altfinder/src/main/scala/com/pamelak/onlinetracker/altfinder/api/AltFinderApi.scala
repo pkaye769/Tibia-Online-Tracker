@@ -280,8 +280,12 @@ final class AltFinderApi[F[_]: Async](
               summary = summaryText
             )
           ).attempt *> Async[F].pure(response.asJson)
+        }.recoverWith { case ex =>
+          Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
         }
-        }.flatMap(json => Ok(json))
+        }.flatMap(json => Ok(json)).handleErrorWith { case ex =>
+          InternalServerError(ErrorResponse(s"Internal server error: ${ex.getMessage}", Nil).asJson)
+        }
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "trades" =>
