@@ -22,7 +22,7 @@ services:
       - key: DB_HOST
         fromDatabase:
           name: tibia-tracker-db
-          property: host
+          property: hostExternalName
       - key: DB_PORT
         fromDatabase:
           name: tibia-tracker-db
@@ -56,7 +56,7 @@ services:
       - key: DB_HOST
         fromDatabase:
           name: tibia-tracker-db
-          property: host
+          property: hostExternalName
       - key: DB_PORT
         fromDatabase:
           name: tibia-tracker-db
