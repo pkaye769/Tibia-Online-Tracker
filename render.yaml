@@ -2,7 +2,7 @@ services:
   - type: web
     name: tibia-alt-finder-api
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/altfinder/health
@@ -43,7 +43,7 @@ services:
   - type: worker
     name: tibia-online-tracker-worker
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
