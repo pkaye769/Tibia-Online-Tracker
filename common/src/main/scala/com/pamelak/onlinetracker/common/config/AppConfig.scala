@@ -56,14 +56,38 @@ object AppConfig {
   private def requiredInt(name: String): Int =
     requiredEnv(name).toIntOption.getOrElse(throw new RuntimeException(s"Invalid integer value for $name"))
 
-  def loadDatabaseConfigIO: IO[DatabaseConfig] = IO.blocking {
-    DatabaseConfig(
-      host = requiredEnv("DB_HOST"),
-      port = requiredInt("DB_PORT"),
-      user = requiredEnv("DB_USER"),
-      database = requiredEnv("DB_NAME"),
-      password = requiredEnv("DB_PASSWORD")
+  private def parseDatabaseUrl(url: String): DatabaseConfig = {
+    val uri = new java.net.URI(url.replaceFirst("^jdbc:", ""))
+    val scheme = uri.getScheme
+    if (scheme != "postgres" && scheme != "postgresql")
+      throw new RuntimeException(s"Unsupported DATABASE_URL scheme: $scheme")
+    val decode = (s: String) => java.net.URLDecoder.decode(s, java.nio.charset.StandardCharsets.UTF_8)
+    val userInfo = Option(uri.getUserInfo).getOrElse("")
+    val parts = userInfo.split(":", 2)
+    val user = parts.headOption.map(decode).getOrElse("")
+    val password = if (parts.length > 1) decode(parts(1)) else ""
+    val host = Option(uri.getHost).getOrElse(
+      throw new RuntimeException(s"DATABASE_URL is missing a host")
     )
+    val port = if (uri.getPort == -1) 5432 else uri.getPort
+    val database = Option(uri.getPath).map(_.stripPrefix("/")).getOrElse(
+      throw new RuntimeException(s"DATABASE_URL is missing a database path")
+    )
+    DatabaseConfig(host, port, user, database, password)
+  }
+
+  def loadDatabaseConfigIO: IO[DatabaseConfig] = IO.blocking {
+    envWithDotEnv("DATABASE_URL") match {
+      case Some(url) if url.nonEmpty => parseDatabaseUrl(url)
+      case _ =>
+        DatabaseConfig(
+          host = requiredEnv("DB_HOST"),
+          port = requiredInt("DB_PORT"),
+          user = requiredEnv("DB_USER"),
+          database = requiredEnv("DB_NAME"),
+          password = requiredEnv("DB_PASSWORD")
+        )
+    }
   }
 
   def loadConfigIO: IO[Config] = loadDatabaseConfigIO.map { dbCfg =>

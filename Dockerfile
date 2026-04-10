@@ -14,11 +14,17 @@ RUN apt-get update \
 
 ENV PATH="/usr/local/sbt/bin:${PATH}"
 
+# Cache dependency downloads as a separate layer before copying sources.
+# This layer is only invalidated when build.sbt or project/ changes.
+COPY build.sbt .
+COPY project/ project/
+RUN sbt -J-Xmx512m -J-Xss2m update
+
 COPY . .
 
 # Build distributable start scripts during image build.
 # Runtime will execute JVM apps directly (not sbt), which uses much less memory.
-RUN sbt "altfinder/stage" "tracker/stage"
+RUN sbt -J-Xmx512m -J-Xss2m "altfinder/stage" "tracker/stage"
 
 ENV APP=altfinder
 ENV ALTFINDER_API_HOST=0.0.0.0
