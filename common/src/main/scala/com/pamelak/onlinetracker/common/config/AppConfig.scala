@@ -21,7 +21,8 @@ object AppConfig {
     env("DB_PORT").as[Int],
     env("DB_USER").as[String],
     env("DB_NAME").as[String],
-    env("DB_PASSWORD").as[String]
+    env("DB_PASSWORD").as[String],
+    env("DB_SSL").as[String].option
   ).parMapN(DatabaseConfig.apply)
 
   val botConfig: ConfigValue[Effect, BotConfig] = env("TOKEN").as[String].default("").map(BotConfig.apply)

@@ -13,7 +13,6 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import skunk.Session
 
 import scala.concurrent.duration.*
-import cats.effect.std.Dispatcher
 
 object Main extends IOApp {
 
