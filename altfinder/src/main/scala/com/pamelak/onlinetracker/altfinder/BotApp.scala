@@ -121,7 +121,7 @@ object BotApp extends IOApp {
         val retryDelay = 5.seconds
 
         def acquireWithRetry(attempt: Int): IO[ExitCode] = {
-          val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pool(
+          val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pooled(
             host = dbCfg.host,
             port = dbCfg.port,
             user = dbCfg.user,
