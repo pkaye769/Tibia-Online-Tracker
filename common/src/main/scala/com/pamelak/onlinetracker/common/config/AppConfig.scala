@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import scala.jdk.CollectionConverters.*
 
-final case class DatabaseConfig(host: String, port: Int, user: String, database: String, password: String)
+final case class DatabaseConfig(host: String, port: Int, user: String, database: String, password: String, sslMode: Option[String] = None)
 
 final case class BotConfig(token: String)
 
@@ -73,7 +73,16 @@ object AppConfig {
     val database = Option(uri.getPath).map(_.stripPrefix("/")).getOrElse(
       throw new RuntimeException(s"DATABASE_URL is missing a database path")
     )
-    DatabaseConfig(host, port, user, database, password)
+    val sslMode = Option(uri.getQuery)
+      .flatMap { q =>
+        q.split("&").toList
+          .flatMap(_.split("=", 2) match {
+            case Array(k, v) if k == "sslmode" => Some(v)
+            case _ => None
+          })
+          .headOption
+      }
+    DatabaseConfig(host, port, user, database, password, sslMode)
   }
 
   def loadDatabaseConfigIO: IO[DatabaseConfig] = IO.blocking {

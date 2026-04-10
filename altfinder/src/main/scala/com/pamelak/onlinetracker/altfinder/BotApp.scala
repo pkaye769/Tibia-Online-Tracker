@@ -111,10 +111,16 @@ object BotApp extends IOApp {
       AppConfig.loadConfigIO.flatMap { cfg =>
         val dbCfg = cfg.database
         val sslMode = sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
-          case Some("false") | Some("0") | Some("no") => SSL.None
-          case Some("true") | Some("1") | Some("yes") => SSL.System
-          case _ if dbCfg.host == "localhost" || dbCfg.host == "127.0.0.1" => SSL.None
-          case _ => SSL.System
+          case Some("false") | Some("0") | Some("no") | Some("disable") => SSL.None
+          case Some("true") | Some("1") | Some("yes") | Some("require") | Some("trusted") => SSL.Trusted
+          case Some("verify-full") | Some("verify-ca") | Some("system") => SSL.System
+          case _ => dbCfg.sslMode.map(_.trim.toLowerCase) match {
+            case Some("disable") => SSL.None
+            case Some("require") | Some("prefer") => SSL.Trusted
+            case Some("verify-full") | Some("verify-ca") => SSL.System
+            case _ if dbCfg.host == "localhost" || dbCfg.host == "127.0.0.1" => SSL.None
+            case _ => SSL.Trusted
+          }
         }
 
         val maxRetries = 10
