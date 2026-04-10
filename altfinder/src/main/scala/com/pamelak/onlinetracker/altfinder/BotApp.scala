@@ -117,18 +117,22 @@ object BotApp extends IOApp {
           case _ => SSL.System
         }
 
-        val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pool(
-          host = dbCfg.host,
-          port = dbCfg.port,
-          user = dbCfg.user,
-          database = dbCfg.database,
-          password = dbCfg.password.some,
-          ssl = sslMode,
-          max = 4
-        )
-        val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
+        val maxRetries = 10
+        val retryDelay = 5.seconds
 
-        (dbPoolResource, httpClientResource).tupled.use { case (sessionPool, httpClient) =>
+        def acquireWithRetry(attempt: Int): IO[ExitCode] = {
+          val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pool(
+            host = dbCfg.host,
+            port = dbCfg.port,
+            user = dbCfg.user,
+            database = dbCfg.database,
+            password = dbCfg.password.some,
+            ssl = sslMode,
+            max = 4
+          )
+          val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
+
+          (dbPoolResource, httpClientResource).tupled.use { case (sessionPool, httpClient) =>
           val bazaarScraperClient = new BazaarScraperHttp4sClient(httpClient)
           val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
           val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
@@ -233,7 +237,17 @@ object BotApp extends IOApp {
                 IO.never
             }
           }
+        }.handleErrorWith { e =>
+          if (attempt < maxRetries)
+            Logger[IO].warn(e)(
+              s"DB connection failed (attempt $attempt/$maxRetries), retrying in ${retryDelay.toSeconds}s..."
+            ) *> IO.sleep(retryDelay) *> acquireWithRetry(attempt + 1)
+          else
+            Logger[IO].error(e)(s"DB connection failed after $maxRetries attempts. Giving up.") *>
+              IO.pure(ExitCode.Error)
         }
+
+        acquireWithRetry(1)
       }
     }
   }
