@@ -1041,7 +1041,8 @@ final class AltFinderApi[F[_]: Async](
       |    async function loadStatus() {
       |      try {
       |        const healthRes = await fetch("/api/altfinder/health");
-      |        const health = await healthRes.json();
+      |        const healthRaw = await healthRes.text();
+      |        const health = healthRaw ? JSON.parse(healthRaw) : {};
       |        ui.healthBadge.textContent = "API health: " + (health.status || "unknown");
       |        if (health.status === "ok") ui.healthBadge.classList.add("status-ok");
       |      } catch (_) {
@@ -1050,7 +1051,8 @@ final class AltFinderApi[F[_]: Async](
       |      try {
       |        const statusRes = await fetch("/api/altfinder/status");
       |        if (statusRes.ok) {
-      |          const trackerStatus = await statusRes.json();
+      |          const statusRaw = await statusRes.text();
+      |          const trackerStatus = statusRaw ? JSON.parse(statusRaw) : {};
       |          if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
       |            ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
       |          }
