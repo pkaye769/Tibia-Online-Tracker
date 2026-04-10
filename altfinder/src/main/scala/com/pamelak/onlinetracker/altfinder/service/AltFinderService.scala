@@ -126,8 +126,10 @@ class AltFinderService[F[_]: Async](
       _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(matchesToCheck))
       _ <- Logger[F].info(s"${matchesToCheck.length} rows to analyse")
       adj = getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20)
-      results <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
+      adjWithNames <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
+      tradeInfo <- enrichWithCandidateTrades(adjWithNames)
+      results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap))
       filteredResults =
         if (includeLowEvidenceMatches) results
         else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && r.logins >= minEvidenceLogins)
@@ -138,7 +140,7 @@ class AltFinderService[F[_]: Async](
         mainSegments.length,
         filteredResults,
         CharacterSalesList(sales),
-        0
+        tradeInfo.errorCount
       )
       _ <- results.map(i => Logger[F].info(i.toString)).sequence
     yield altsResults
