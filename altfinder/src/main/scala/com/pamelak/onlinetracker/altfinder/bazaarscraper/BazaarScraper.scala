@@ -82,7 +82,7 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
               val biddedOpt = c.get[Boolean]("hasBeenBidded").toOption
               val auctionIdOpt = c.get[Long]("auctionId").toOption
               (nickOpt, endOpt, biddedOpt) match
-                case (Some(nick), Some(epoch), Some(bidded)) if nick == name && bidded =>
+                case (Some(nick), Some(epoch), Some(bidded)) if nick.equalsIgnoreCase(name) && bidded =>
                   Some(BazaarAuction(nick, Instant.ofEpochSecond(epoch), auctionIdOpt))
                 case _ => None
             }
