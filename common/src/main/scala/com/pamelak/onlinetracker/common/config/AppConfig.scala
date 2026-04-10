@@ -3,6 +3,7 @@ package com.pamelak.onlinetracker.common.config
 import cats.effect.IO
 import cats.syntax.all.*
 import ciris.*
+import skunk.SSL
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
@@ -77,7 +78,7 @@ object AppConfig {
       .flatMap { q =>
         q.split("&").toList
           .flatMap(_.split("=", 2) match {
-            case Array(k, v) if k == "sslmode" => Some(v)
+            case Array(k, v) if k == "sslmode" => Some(decode(v))
             case _ => None
           })
           .headOption
@@ -102,4 +103,23 @@ object AppConfig {
   def loadConfigIO: IO[Config] = loadDatabaseConfigIO.map { dbCfg =>
     Config(dbCfg, BotConfig(envWithDotEnv("TOKEN").getOrElse("")))
   }
+
+  /** Determine the skunk SSL mode from the DB_SSL environment variable, the sslmode embedded
+   *  in DATABASE_URL, and the host name. Remote hosts default to SSL.Trusted (encrypt without
+   *  certificate verification, equivalent to sslmode=require) so that connections to managed
+   *  cloud databases (e.g. Render) work without needing the provider's CA in the trust store.
+   */
+  def resolveSSL(dbCfg: DatabaseConfig): SSL =
+    sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
+      case Some("false") | Some("0") | Some("no") | Some("disable") => SSL.None
+      case Some("true") | Some("1") | Some("yes") | Some("require") | Some("trusted") => SSL.Trusted
+      case Some("verify-full") | Some("verify-ca") | Some("system") => SSL.System
+      case _ => dbCfg.sslMode.map(_.trim.toLowerCase) match {
+        case Some("disable") => SSL.None
+        case Some("require") | Some("prefer") => SSL.Trusted
+        case Some("verify-full") | Some("verify-ca") => SSL.System
+        case _ if dbCfg.host == "localhost" || dbCfg.host == "127.0.0.1" => SSL.None
+        case _ => SSL.Trusted
+      }
+    }
 }
