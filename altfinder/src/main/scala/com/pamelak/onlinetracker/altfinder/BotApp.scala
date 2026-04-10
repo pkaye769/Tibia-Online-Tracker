@@ -246,9 +246,10 @@ object BotApp extends IOApp {
             Logger[IO].error(e)(s"DB connection failed after $maxRetries attempts. Giving up.") *>
               IO.pure(ExitCode.Error)
         }
-
-        acquireWithRetry(1)
       }
+
+      acquireWithRetry(1)
     }
   }
+}
 }
