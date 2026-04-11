@@ -58,7 +58,7 @@ object AppConfig {
   private def requiredInt(name: String): Int =
     requiredEnv(name).toIntOption.getOrElse(throw new RuntimeException(s"Invalid integer value for $name"))
 
-  private def parseDatabaseUrl(url: String): DatabaseConfig = {
+  private[config] def parseDatabaseUrl(url: String): DatabaseConfig = {
     val uri = new java.net.URI(url.replaceFirst("^jdbc:", ""))
     val scheme = uri.getScheme
     if (scheme != "postgres" && scheme != "postgresql")
@@ -110,8 +110,10 @@ object AppConfig {
    *  certificate verification, equivalent to sslmode=require) so that connections to managed
    *  cloud databases (e.g. Render) work without needing the provider's CA in the trust store.
    */
-  def resolveSSL(dbCfg: DatabaseConfig): SSL =
-    sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
+  def resolveSSL(dbCfg: DatabaseConfig): SSL = resolveSSL(dbCfg, sys.env.get("DB_SSL"))
+
+  private[config] def resolveSSL(dbCfg: DatabaseConfig, dbSslEnv: Option[String]): SSL =
+    dbSslEnv.map(_.trim.toLowerCase) match {
       case Some("false") | Some("0") | Some("no") | Some("disable") => SSL.None
       case Some("true") | Some("1") | Some("yes") | Some("require") | Some("trusted") => SSL.Trusted
       case Some("verify-full") | Some("verify-ca") | Some("system") => SSL.System
