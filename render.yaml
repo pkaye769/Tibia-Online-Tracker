@@ -1,3 +1,4 @@
+version: "1"
 services:
   - type: web
     name: tibia-alt-finder-api
@@ -43,6 +44,8 @@ services:
         fromDatabase:
           name: tibia-tracker-db
           property: password
+      - key: DB_SSL
+        value: require
 
   - type: worker
     name: tibia-online-tracker-worker
@@ -81,11 +84,14 @@ services:
         fromDatabase:
           name: tibia-tracker-db
           property: password
+      - key: DB_SSL
+        value: require
 
-  - type: static
+  - type: web
     name: tibia-scout-board
-    rootDir: web
-    staticPublishPath: .
+    env: static
+    staticPublishPath: web
+    plan: starter
 
 databases:
   - name: tibia-tracker-db
