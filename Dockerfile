@@ -15,7 +15,7 @@ RUN sbt -J-Xmx1g -J-Xss2m update
 
 COPY . .
 
-RUN sbt -J-Xmx1g -J-Xss2m altfinder/stage
+RUN sbt -J-Xmx1g -J-Xss2m "altfinder/stage" "tracker/stage"
 
 # ---- runtime image (no sbt, no JDK overhead) ----
 FROM eclipse-temurin:17-jre
@@ -23,6 +23,7 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 COPY --from=builder /app/altfinder/target/universal/stage ./
+COPY --from=builder /app/tracker/target/universal/stage ./tracker/
 
 ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -XX:+UseSerialGC"
 
