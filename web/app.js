@@ -72,6 +72,14 @@ function persist() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function baseUrl() { return el.backendUrl.value.trim().replace(/\/+$/, ''); }
+// Return a safe http/https origin; falls back to '#' to prevent javascript: injection
+function safeBoardUrl() {
+  try {
+    const u = new URL(baseUrl() + '/');
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch(_) {}
+  return '#';
+}
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function esc(v) {
   return String(v)
@@ -84,7 +92,7 @@ function esc(v) {
 function showError(msg) {
   el.errorMsg.textContent = msg || '';
   el.errorBox.classList.toggle('visible', !!msg);
-  el.backendLink.href = baseUrl() + '/';
+  el.backendLink.href = safeBoardUrl();
 }
 function clearError() { el.errorBox.classList.remove('visible'); }
 
