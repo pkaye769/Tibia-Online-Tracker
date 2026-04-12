@@ -301,18 +301,19 @@ class AltFinderService[F[_]: Async](
     count
   }
 
-  // Distance is the acceptable distance between logouts and logins.
-  // No point optimising this one until the database query is optimised (it takes like 50x longer than this method)
+  // Distance is the acceptable gap in minutes between a logout and a login.
+  // start/end in OnlineSegment are epoch seconds, so we multiply by 60 to convert.
   private def countAdjacencies(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment], distance: Int): Int = {
+    val distanceSecs = distance * 60L
     mainHistory.count { m =>
       other.exists { o =>
         val diff = o.start - m.end
-        diff >= 0 && diff <= distance
+        diff >= 0 && diff <= distanceSecs
       }
     } + mainHistory.count { m =>
       other.exists { o =>
         val diff = m.start - o.end
-        diff >= 0 && diff <= distance
+        diff >= 0 && diff <= distanceSecs
       }
     }
   }

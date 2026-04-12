@@ -11,7 +11,7 @@ services:
       - key: APP
         value: altfinder
       - key: TOKEN
-        sync: false
+        sync: false  # Set this secret in the Render dashboard to enable the Discord bot (TOKEN or ALTFINDER_TOKEN)
       - key: DISCORD_GUILD_ID
         sync: false
       - key: BAZAAR_WORLD
