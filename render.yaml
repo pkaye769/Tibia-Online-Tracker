@@ -8,10 +8,8 @@ services:
     dockerContext: .
     healthCheckPath: /api/altfinder/health
     envVars:
-      - key: APP
-        value: altfinder
       - key: TOKEN
-        sync: false  # Set this secret in the Render dashboard to enable the Discord bot (TOKEN or ALTFINDER_TOKEN)
+        sync: false  # Discord bot token — set in Render dashboard (also accepted as ALTFINDER_TOKEN)
       - key: DISCORD_GUILD_ID
         sync: false
       - key: BAZAAR_WORLD

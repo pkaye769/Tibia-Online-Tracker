@@ -1,37 +1,32 @@
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
-ENV SBT_VERSION=1.8.2
+RUN apt-get update && apt-get install -y curl gnupg && \
+    echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list && \
+    curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x99E82A75642AC823" | gpg --dearmor | tee /etc/apt/trusted.gpg.d/sbt.gpg > /dev/null && \
+    apt-get update && apt-get install -y sbt && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl bash \
-    && curl -fsSL "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz" \
-      -o /tmp/sbt.tgz \
-    && tar -xzf /tmp/sbt.tgz -C /usr/local \
-    && rm /tmp/sbt.tgz \
-    && rm -rf /var/lib/apt/lists/*
-
-ENV PATH="/usr/local/sbt/bin:${PATH}"
-
-# Cache dependency downloads as a separate layer before copying sources.
-# This layer is only invalidated when build.sbt or project/ changes.
+# Cache dependency resolution as a separate layer (invalidated only when build.sbt or project/ changes)
 COPY build.sbt .
 COPY project/ project/
 RUN sbt -J-Xmx1g -J-Xss2m update
 
 COPY . .
 
-# Build distributable start scripts during image build.
-# Runtime will execute JVM apps directly (not sbt), which uses much less memory.
-RUN sbt -J-Xmx1g -J-Xss2m "altfinder/stage" "tracker/stage"
+RUN sbt -J-Xmx1g -J-Xss2m altfinder/stage
 
-ENV APP=altfinder
-ENV ALTFINDER_API_HOST=0.0.0.0
-ENV ALTFINDER_API_PORT=10000
+# ---- runtime image (no sbt, no JDK overhead) ----
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+COPY --from=builder /app/altfinder/target/universal/stage ./
+
 ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -XX:+UseSerialGC"
-ENV JAVA_OPTS="-Xms64m -Xmx256m -XX:+UseSerialGC"
 
+# Render injects $PORT at runtime; 10000 is the local/fallback default
 EXPOSE 10000
 
-CMD ["/bin/bash", "-lc", "export ALTFINDER_API_HOST=0.0.0.0; export ALTFINDER_API_PORT=${PORT:-10000}; if [ \"$APP\" = \"tracker\" ]; then ./tracker/target/universal/stage/bin/online-tracker; else ./altfinder/target/universal/stage/bin/alt-finder; fi"]
+CMD ["bin/alt-finder"]
