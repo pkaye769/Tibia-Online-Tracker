@@ -6,6 +6,7 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    startCommand: bin/alt-finder
     healthCheckPath: /api/altfinder/health
     envVars:
       - key: TOKEN
@@ -51,6 +52,7 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    startCommand: tracker/bin/online-tracker
     envVars:
       - key: APP
         value: tracker
