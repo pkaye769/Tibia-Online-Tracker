@@ -232,7 +232,7 @@ class AltFinderService[F[_]: Async](
 
   def getLastSearch: F[Option[LastSearch]] = repo.getLastSearch
 
-  private def getAdjacencies(
+  private[service] def getAdjacencies(
       mainHistory: List[OnlineSegment],
       others: List[OnlineSegment],
       includeClashes: Boolean,
