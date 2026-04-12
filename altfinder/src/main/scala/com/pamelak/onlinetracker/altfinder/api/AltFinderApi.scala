@@ -571,8 +571,9 @@ final class AltFinderApi[F[_]: Async](
               val tradeStatus = trades.headOption
               val recentTradeDates = tradeStatus.map(_.recentTradeDates.map(_.toString)).getOrElse(Nil)
               val tradedCheckError = tradeStatus.exists(_.hadError)
-              // URLEncoder uses '+' for spaces; replace with %20 for path-safe URLs
-              val encodedName = java.net.URLEncoder.encode(charName, "UTF-8").replace("+", "%20")
+              // URLEncoder uses '+' for spaces; replace with %20 for query-param-safe URLs.
+              // StandardCharsets.UTF_8 avoids the deprecated String charset overload.
+              val encodedName = java.net.URLEncoder.encode(charName, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20")
               val tibiaComUrl = s"https://www.tibia.com/community/?subtopic=characters&name=$encodedName"
               val exevopanUrl = s"https://www.exevopan.com/?name=$encodedName"
               CharacterInfoResponse(
@@ -1119,6 +1120,9 @@ final class AltFinderApi[F[_]: Async](
       |
       |// ── Helpers ───────────────────────────────────────────────────────────────────
       |function baseUrl() { return el.backendUrl.value.trim().replace(/\/+$/, ''); }
+      |// Return a safe http/https origin; falls back to '#' to prevent javascript: injection.
+      |// The backend URL is intentionally user-configurable — the link lets users navigate
+      |// to the board they explicitly set up, so pointing at any http/https host is by design.
       |function safeBoardUrl() {
       |  try {
       |    const u = new URL(baseUrl() + '/');

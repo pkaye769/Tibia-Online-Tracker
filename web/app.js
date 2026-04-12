@@ -72,7 +72,9 @@ function persist() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function baseUrl() { return el.backendUrl.value.trim().replace(/\/+$/, ''); }
-// Return a safe http/https origin; falls back to '#' to prevent javascript: injection
+// Return a safe http/https origin; falls back to '#' to prevent javascript: injection.
+// The backend URL is intentionally user-configurable — the link lets users navigate
+// to the board they explicitly set up, so pointing at any http/https host is by design.
 function safeBoardUrl() {
   try {
     const u = new URL(baseUrl() + '/');
