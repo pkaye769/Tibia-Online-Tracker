@@ -64,11 +64,23 @@
             </div>
           </div>
         </section>
+
+        <!-- Character detail panel (shown when a result row is clicked) -->
+        <section class="card char-panel" id="charPanel">
+          <div class="char-panel-header">
+            <h3 id="charPanelName">Character Details</h3>
+            <button class="char-panel-close" id="charPanelClose" title="Close">✕</button>
+          </div>
+          <div id="charPanelContent">
+            <span class="char-panel-loading">Loading...</span>
+          </div>
+        </section>
       </div>
 
       <div class="side-col">
         <section class="card">
           <h2>POSSIBLE MATCHES</h2>
+          <p style="margin:0 0 4px; font-size:0.78rem; color:var(--muted)">Click a row to verify via TibiaData &amp; Exevopan.</p>
           <div class="table-wrap">
             <table>
               <thead>

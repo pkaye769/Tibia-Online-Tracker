@@ -120,6 +120,22 @@ final class AltFinderApi[F[_]: Async](
   final case class WatchBatchItem(characterName: String, matches: Int, lines: List[String])
   final case class WatchBatchResponse(guildId: String, total: Int, items: List[WatchBatchItem])
 
+  final case class CharacterInfoResponse(
+      name: String,
+      level: Int,
+      vocation: String,
+      world: String,
+      sex: String,
+      guild: Option[String],
+      guildRank: Option[String],
+      formerNames: List[String],
+      lastLogin: Option[String],
+      recentTradeDates: List[String],
+      tradedCheckError: Boolean,
+      tibiaComUrl: String,
+      exevopanUrl: String
+  )
+
   final case class AltsResponse(
       searchedCharacters: List[String],
       searchedFrom: Option[String],
@@ -151,6 +167,7 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchDeleteResponse] = deriveEncoder
   given Encoder[WatchBatchItem] = deriveEncoder
   given Encoder[WatchBatchResponse] = deriveEncoder
+  given Encoder[CharacterInfoResponse] = deriveEncoder
 
   private val queryCacheTtlSeconds = sys.env.get("QUERY_CACHE_TTL_SECONDS").flatMap(_.toIntOption).getOrElse(60).max(5)
   private val queryCache = mutable.Map.empty[String, (Long, Json)]
@@ -518,6 +535,62 @@ final class AltFinderApi[F[_]: Async](
           }
         }
       }
+
+    case req @ GET -> Root / "api" / "altfinder" / "character" =>
+      val params = req.uri.query.params
+      params.get("name").map(_.trim).filter(_.nonEmpty) match
+        case None =>
+          BadRequest(ErrorResponse("Invalid request", List("Missing required query param: name")).asJson)
+        case Some(name) =>
+          val cacheKey = s"char|$name"
+          cachedJson(cacheKey) {
+            val tibiaDataF = tibiaDataClient.getCharacter(name).map(Right(_)).handleError(e => Left(e.getMessage))
+            val tradesF = service.checkTradedCharacters(List(name), 30)
+              .map(Right(_)).handleError(e => Left(e.getMessage))
+            (tibiaDataF, tradesF).mapN { case (tibiaResult, tradesResult) =>
+              val charJson = tibiaResult.toOption
+              val charCursor = charJson.map(_.hcursor.downField("character").downField("character"))
+              val charName = charCursor.flatMap(_.get[String]("name").toOption).getOrElse(name)
+              val level = charCursor.flatMap(_.get[Double]("level").toOption).map(_.toInt).getOrElse(0)
+              val vocation = charCursor.flatMap(_.get[String]("vocation").toOption).getOrElse("-")
+              val world = charCursor.flatMap(_.get[String]("world").toOption).getOrElse("-")
+              val sex = charCursor.flatMap(_.get[String]("sex").toOption).getOrElse("-")
+              val guildName = charCursor.flatMap(
+                _.downField("guild").get[String]("name").toOption
+              )
+              val guildRank = charCursor.flatMap(
+                _.downField("guild").get[String]("rank").toOption
+              )
+              val formerNames = charCursor.flatMap(
+                _.get[List[String]]("former_names").toOption
+              ).getOrElse(Nil)
+              val lastLogin = charCursor.flatMap(_.get[String]("last_login").toOption)
+              val trades = tradesResult.toOption.getOrElse(Nil)
+              val tradeStatus = trades.headOption
+              val recentTradeDates = tradeStatus.map(_.recentTradeDates.map(_.toString)).getOrElse(Nil)
+              val tradedCheckError = tradeStatus.exists(_.hadError)
+              val encodedName = java.net.URLEncoder.encode(charName, "UTF-8").replace("+", "%20")
+              val tibiaComUrl = s"https://www.tibia.com/community/?subtopic=characters&name=$encodedName"
+              val exevopanUrl = s"https://www.exevopan.com/?name=$encodedName"
+              CharacterInfoResponse(
+                name = charName,
+                level = level,
+                vocation = vocation,
+                world = world,
+                sex = sex,
+                guild = guildName,
+                guildRank = guildRank,
+                formerNames = formerNames,
+                lastLogin = lastLogin,
+                recentTradeDates = recentTradeDates,
+                tradedCheckError = tradedCheckError,
+                tibiaComUrl = tibiaComUrl,
+                exevopanUrl = exevopanUrl
+              ).asJson
+            }
+          }.flatMap(json => Ok(json)).handleErrorWith { e =>
+            BadRequest(ErrorResponse("Character lookup failed", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
+          }
 
   }
 

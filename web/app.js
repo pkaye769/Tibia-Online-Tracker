@@ -1,713 +1,282 @@
 const $ = (id) => document.getElementById(id);
 
+// ── UI refs ──────────────────────────────────────────────────────────────────
 const ui = {
-  apiBase: $("apiBase"),
-  mode: $("mode"),
-  distance: $("distance"),
-  includeClashes: $("includeClashes"),
-  strictMode: $("strictMode"),
-  dateFrom: $("dateFrom"),
-  dateTo: $("dateTo"),
-  characters: $("characters"),
-  runBtn: $("runBtn"),
-  clearBtn: $("clearBtn"),
-  status: $("status"),
-  error: $("error"),
-  health: $("health"),
-  summary: $("summary"),
-  results: $("results"),
-  resultsTable: $("resultsTable"),
-  resultsBody: $("resultsBody"),
-  historyBtn: $("historyBtn"),
-  historyBody: $("historyBody"),
-  historyStatus: $("historyStatus"),
-  guildName: $("guildName"),
-  guildSearchBtn: $("guildSearchBtn"),
-  guildSaveBtn: $("guildSaveBtn"),
-  guildStatus: $("guildStatus"),
-  guildOutput: $("guildOutput"),
-  savedCharacter: $("savedCharacter"),
-  savedCharacterSelect: $("savedCharacterSelect"),
-  savedCharactersOutput: $("savedCharactersOutput"),
-  charAddBtn: $("charAddBtn"),
-  charUseBtn: $("charUseBtn"),
-  charRemoveBtn: $("charRemoveBtn"),
-  savedGuildSelect: $("savedGuildSelect"),
-  savedGuildsOutput: $("savedGuildsOutput"),
-  guildRefreshBtn: $("guildRefreshBtn"),
-  guildUseBtn: $("guildUseBtn"),
-  guildRemoveBtn: $("guildRemoveBtn"),
-  watchGuildId: $("watchGuildId"),
-  watchChannelId: $("watchChannelId"),
-  watchCharacter: $("watchCharacter"),
-  watchDistance: $("watchDistance"),
-  watchIncludeClashes: $("watchIncludeClashes"),
-  watchThreshold: $("watchThreshold"),
-  watchWindowDays: $("watchWindowDays"),
-  watchSelect: $("watchSelect"),
-  watchAddBtn: $("watchAddBtn"),
-  watchRefreshBtn: $("watchRefreshBtn"),
-  watchRunBtn: $("watchRunBtn"),
-  watchUseBtn: $("watchUseBtn"),
-  watchRemoveBtn: $("watchRemoveBtn"),
-  watchStatus: $("watchStatus"),
-  watchOutput: $("watchOutput")
+  characters:       $("characters"),
+  distance:         $("distance"),
+  includeClashes:   $("includeClashes"),
+  runBtn:           $("runBtn"),
+  clearBtn:         $("clearBtn"),
+  status:           $("status"),
+  error:            $("error"),
+  health:           $("health"),
+  summary:          $("summary"),
+  resultsBody:      $("resultsBody"),
+  statTotalLogins:  $("statTotalLogins"),
+  statMatches:      $("statMatches"),
+  statDateRange:    $("statDateRange"),
+  statLastWorldSave:$("statLastWorldSave"),
+  charPanel:        $("charPanel"),
+  charPanelName:    $("charPanelName"),
+  charPanelContent: $("charPanelContent"),
+  charPanelClose:   $("charPanelClose"),
 };
 
-const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
-const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
+// ── Config ───────────────────────────────────────────────────────────────────
 const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
-const STRICT_MODE_KEY = "altfinder_strict_mode_v1";
-const API_BASE_KEY = "altfinder_api_base";
-const WATCH_GUILD_ID_KEY = "altfinder_watch_guild_id_v1";
-const WATCH_CHANNEL_ID_KEY = "altfinder_watch_channel_id_v1";
-const storedApi = localStorage.getItem(API_BASE_KEY);
-const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
-const apiFromQuery = new URLSearchParams(window.location.search).get("api");
-const initialApiBase = (apiFromQuery || storedApi || defaultApiBase).trim();
-ui.apiBase.value = initialApiBase;
-if (apiFromQuery && initialApiBase) {
-  localStorage.setItem(API_BASE_KEY, initialApiBase);
-}
-const storedDistance = localStorage.getItem(DEFAULT_DISTANCE_KEY);
-if (storedDistance !== null && storedDistance !== "") {
-  ui.distance.value = storedDistance;
-} else {
-  ui.distance.value = "1";
-}
-ui.strictMode.checked = localStorage.getItem(STRICT_MODE_KEY) === "true";
-ui.watchGuildId.value = localStorage.getItem(WATCH_GUILD_ID_KEY) || "";
-ui.watchChannelId.value = localStorage.getItem(WATCH_CHANNEL_ID_KEY) || "";
+const API_BASE_KEY         = "altfinder_api_base";
+const DEFAULT_API_BASE     = "https://tibia-alt-finder-api.onrender.com";
 
-function syncStrictModeControls() {
-  if (ui.strictMode.checked) {
-    ui.distance.value = "0";
-    ui.includeClashes.value = "false";
-    ui.distance.disabled = true;
-    ui.includeClashes.disabled = true;
-  } else {
-    ui.distance.disabled = false;
-    ui.includeClashes.disabled = false;
-    const stored = localStorage.getItem(DEFAULT_DISTANCE_KEY);
-    ui.distance.value = stored !== null && stored !== "" ? stored : "1";
-  }
+const apiFromQuery  = new URLSearchParams(window.location.search).get("api");
+const storedApi     = localStorage.getItem(API_BASE_KEY);
+let   apiBase       = (apiFromQuery || storedApi || DEFAULT_API_BASE).trim();
+if (apiFromQuery) localStorage.setItem(API_BASE_KEY, apiBase);
+
+const storedDist = localStorage.getItem(DEFAULT_DISTANCE_KEY);
+if (storedDist !== null && storedDist !== "") ui.distance.value = storedDist;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function baseUrl()         { return apiBase.replace(/\/+$/, ""); }
+function setStatus(t)      { ui.status.textContent = t || ""; }
+function setError(t)       { ui.error.textContent  = t || ""; }
+function parseNames(raw)   { return raw.split(",").map(x => x.trim()).filter(Boolean); }
+function sleep(ms)         { return new Promise(r => setTimeout(r, ms)); }
+
+function escapeHtml(v) {
+  return String(v)
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;").replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
-syncStrictModeControls();
-
-function baseUrl() {
-  return (ui.apiBase.value || "").trim().replace(/\/+$/, "");
-}
-
-function setStatus(text) {
-  ui.status.textContent = text || "";
-}
-
-function setError(text, showDirectBoardLink = false) {
-  ui.error.textContent = "";
-  if (!text) return;
-
-  const message = document.createElement("div");
-  message.textContent = text;
-  ui.error.appendChild(message);
-
-  if (showDirectBoardLink) {
-    const link = document.createElement("a");
-    link.href = `${baseUrl()}/altfinder`;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = "Open backend-hosted board";
-    ui.error.appendChild(link);
-  }
-}
-
-function parseNames(raw) {
-  return raw.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function loadSavedCharacters() {
-  try {
-    return JSON.parse(localStorage.getItem(SAVED_CHARS_KEY) || "[]");
-  } catch (_) {
-    return [];
-  }
-}
-
-function saveSavedCharacters(list) {
-  localStorage.setItem(SAVED_CHARS_KEY, JSON.stringify(list));
-}
-
-function loadSavedGuilds() {
-  try {
-    return JSON.parse(localStorage.getItem(SAVED_GUILDS_KEY) || "[]");
-  } catch (_) {
-    return [];
-  }
-}
-
-function saveSavedGuilds(list) {
-  localStorage.setItem(SAVED_GUILDS_KEY, JSON.stringify(list));
-}
-
-function refreshCharacterSelect() {
-  const chars = loadSavedCharacters();
-  ui.savedCharacterSelect.innerHTML = chars.map((c) => `<option>${c}</option>`).join("");
-  ui.savedCharactersOutput.textContent = chars.length > 0 ? chars.join("\n") : "No saved characters yet.";
-}
-
-function refreshGuildSelectAndPanel() {
-  const guilds = loadSavedGuilds();
-  ui.savedGuildSelect.innerHTML = guilds.map((g) => `<option>${g.name}</option>`).join("");
-  if (guilds.length === 0) {
-    ui.savedGuildsOutput.textContent = "No saved guilds yet.";
-    return;
-  }
-  ui.savedGuildsOutput.textContent = guilds.map((g) => {
-    const online = (g.onlineCharacters || []).join(", ") || "none";
-    return `${g.name} | ${g.world || "-"} | online ${g.online || 0}/${g.members || 0}\n  ${online}`;
-  }).join("\n\n");
-}
-
-async function fetchJson(path) {
+// ── API fetch with retry ─────────────────────────────────────────────────────
+async function fetchJson(path, timeoutMs = 15000, maxAttempts = 3) {
   const url = baseUrl() + path;
-  const maxAttempts = path.startsWith("/api/altfinder/alts") ? 2 : 5;
-  const timeoutMs = path.startsWith("/api/altfinder/alts") ? 60000 : 15000;
-  let lastError = null;
+  let lastErr = null;
   let res = null;
 
-  async function fetchWithTimeout(targetUrl, ms) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ms);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      return await fetch(targetUrl, { signal: controller.signal });
-    } finally {
+      res = await fetch(url, { signal: ctrl.signal });
       clearTimeout(timer);
+      if (res.status < 500) break;
+      lastErr = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      clearTimeout(timer);
+      lastErr = e;
     }
-  }
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      res = await fetchWithTimeout(url, timeoutMs);
-      if (res.status < 500) {
-        break;
-      }
-      lastError = new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      lastError = err;
-    }
-
-    if (attempt < maxAttempts) {
-      const delayMs = Math.min(8000, 1000 * (2 ** (attempt - 1)));
-      await sleep(delayMs);
-    }
+    if (attempt < maxAttempts) await sleep(Math.min(6000, 1000 * 2 ** (attempt - 1)));
   }
 
   if (!res) {
-    const timeoutHint =
-      lastError && lastError.name === "AbortError"
-        ? "Request timed out waiting for API response."
-        : "Browser could not establish a network connection.";
-    throw new Error(
-      `Could not reach API at ${url} after ${maxAttempts} attempts. ${timeoutHint} Check Backend URL, Render deploy health, VPN/firewall/proxy rules, and CORS/network access.`
-    );
+    const hint = lastErr?.name === "AbortError" ? "Request timed out." : "Could not connect to API.";
+    throw new Error(`${hint} (${url})`);
   }
 
-  const contentType = res.headers.get("content-type") || "";
   const raw = await res.text();
+  if (/response timed out/i.test(raw))
+    throw new Error("Backend timed out. Try narrowing your search.");
 
-  if (/response timed out/i.test(raw)) {
-    throw new Error(
-      `Backend timed out at ${url}. Narrow date range, reduce characters, or retry from the backend-hosted board.`
-    );
-  }
-
-  if (!contentType.includes("application/json")) {
-    throw new Error(`Expected JSON from ${url} (HTTP ${res.status}): ${raw.slice(0, 200)}`);
-  }
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json"))
+    throw new Error(`Expected JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
 
   let body;
-  try {
-    body = JSON.parse(raw);
-  } catch (_) {
-    throw new Error(`Invalid JSON from ${url} (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+  try { body = JSON.parse(raw); } catch (_) {
+    throw new Error(`Invalid JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
   }
 
   if (!res.ok) {
-    const details = Array.isArray(body.details) && body.details.length > 0 ? ` (${body.details.join("; ")})` : "";
+    const details = Array.isArray(body.details) && body.details.length
+      ? ` (${body.details.join("; ")})` : "";
     throw new Error(body.message || body.error || `HTTP ${res.status}${details}`);
   }
   return body;
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+// ── Health check ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const data = await fetchJson("/api/altfinder/health", 10000, 2);
+    ui.health.textContent = `API health: ${data.status || "ok"}`;
+    ui.health.className = "health ok";
+  } catch (_) {
+    ui.health.textContent = "API health: unavailable";
+    ui.health.className = "health bad";
+  }
+  // Also grab Last World Save from status endpoint
+  try {
+    const s = await fetchJson("/api/altfinder/status", 10000, 1);
+    if (s.latestWorldSave && ui.statLastWorldSave.textContent === "-") {
+      ui.statLastWorldSave.textContent = s.latestWorldSave.slice(0, 10);
+    }
+  } catch (_) {}
 }
 
-function renderAlts(data, names, distance, includeClashes) {
-  const matches = Array.isArray(data.possibleMatches) ? data.possibleMatches : [];
-  const top = matches.slice().sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0));
-
-  ui.summary.textContent = [
-    `Mode: alts`,
-    `Searched characters: ${names.join(", ") || "-"}`,
-    `Total logins: ${data.totalLogins ?? 0}`,
-    `Date range: ${data.dateRange || "Max range"}`,
-    `Adjacency distance: ${distance} minutes`,
-    `Include clashes: ${includeClashes}`,
-    `Possible matches: ${top.length}`
-  ].join("\n");
-
-  // Show table, hide plain-text pre
-  ui.resultsTable.style.display = "";
-  ui.results.style.display = "none";
-
-  if (top.length === 0) {
-    ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted-cell">No matches found.</td></tr>';
+// ── Render results table ─────────────────────────────────────────────────────
+function renderResults(matches) {
+  if (!matches || matches.length === 0) {
+    ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted-cell">No matches found.</td></tr>';
     return;
   }
 
-  ui.resultsBody.innerHTML = top.map((m) => {
+  ui.resultsBody.innerHTML = matches.map(m => {
     const conf = Number(m.confidence ?? 0);
     const pillClass = conf >= 70 ? "" : conf >= 40 ? " mid" : " low";
-    const trades = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
     const hidden = m.hiddenLikely ? `yes (${m.hiddenScore})` : `no (${m.hiddenScore})`;
-    const evidence = m.evidencePassed ? "pass" : "low";
-    return (
-      "<tr>" +
-        `<td>${escapeHtml(m.name || "Unknown")}</td>` +
-        `<td><span class="score-pill${pillClass}">${escapeHtml(String(conf))}</span></td>` +
-        `<td>${escapeHtml(String(m.adjacencies ?? "-"))}</td>` +
-        `<td>${escapeHtml(String(m.clashes ?? "-"))}</td>` +
-        `<td>${escapeHtml(String(m.logins ?? "-"))}</td>` +
-        `<td>${escapeHtml(hidden)}</td>` +
-        `<td>${escapeHtml(evidence)}</td>` +
-        `<td>${escapeHtml(trades)}</td>` +
-      "</tr>"
-    );
+    const traded = Array.isArray(m.recentTradeDates) && m.recentTradeDates.length > 0;
+    const tradeCell = traded
+      ? `${escapeHtml(m.recentTradeDates[0])}<span class="trade-badge">TRADED</span>`
+      : "none";
+
+    return "<tr>" +
+      `<td style="cursor:pointer;font-weight:600" data-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || "Unknown")}</td>` +
+      `<td><span class="score-pill${pillClass}">${escapeHtml(String(conf))}</span></td>` +
+      `<td>${escapeHtml(String(m.adjacencies ?? "-"))}</td>` +
+      `<td>${escapeHtml(String(m.clashes ?? "-"))}</td>` +
+      `<td>${escapeHtml(String(m.logins ?? "-"))}</td>` +
+      `<td>${escapeHtml(hidden)}</td>` +
+      `<td>${tradeCell}</td>` +
+      "</tr>";
   }).join("");
 }
 
-function renderClashes(data, names, distance) {
-  const clashes = Array.isArray(data.clashes) ? data.clashes : [];
-  ui.summary.textContent = [
-    `Mode: clashes`,
-    `Searched characters: ${names.join(", ") || "-"}`,
-    `Adjacency distance: ${distance} minutes`,
-    `Clash pairs: ${clashes.length}`
-  ].join("\n");
-
-  // Show plain-text pre, hide table
-  ui.resultsTable.style.display = "none";
-  ui.results.style.display = "";
-
-  if (clashes.length === 0) {
-    ui.results.textContent = "No clashes found.";
-    return;
-  }
-
-  ui.results.textContent = clashes
-    .slice(0, 200)
-    .map((c) => c.formatted || `${c.name || "Unknown"}: ${c.adjacencies || 0} / ${c.clashes || 0} / ${c.logins || 0}`)
-    .join("\n");
-}
-
-async function checkHealth() {
-  try {
-    const data = await fetchJson("/api/altfinder/health");
-    ui.health.textContent = `API: online (${data.status || "ok"})`;
-    ui.health.className = "health ok";
-  } catch (_) {
-    ui.health.textContent = "API: unavailable";
-    ui.health.className = "health bad";
-  }
-}
-
+// ── Run search ───────────────────────────────────────────────────────────────
 async function run() {
   setError("");
-  setStatus("Running...");
+  setStatus("Searching…");
+  hideCharPanel();
 
-  const mode = ui.mode.value;
-  const strictMode = ui.strictMode.checked;
-  const distance = strictMode ? 0 : Number(ui.distance.value || 1);
-  const includeClashes = strictMode ? false : ui.includeClashes.value === "true";
   const names = parseNames(ui.characters.value || "");
+  if (names.length === 0) { setStatus(""); setError("Enter at least one character."); return; }
 
-  if (names.length === 0) {
-    setStatus("");
-    setError("Enter at least one character.");
-    return;
-  }
+  const distance      = Math.max(0, Number(ui.distance.value || 0));
+  const inclClashes   = ui.includeClashes.value === "true";
 
-  localStorage.setItem(API_BASE_KEY, baseUrl());
-  localStorage.setItem(STRICT_MODE_KEY, strictMode ? "true" : "false");
-  if (!strictMode) {
-    localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
-  }
+  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
 
-  const params = new URLSearchParams();
-  params.set("characters", names.join(","));
-  params.set("distance", String(distance));
-  const dateFrom = (ui.dateFrom.value || "").trim();
-  const dateTo = (ui.dateTo.value || "").trim();
-  if (dateFrom) params.set("from", dateFrom);
-  if (dateTo) params.set("to", dateTo);
+  const params = new URLSearchParams({
+    characters:    names.join(","),
+    distance:      String(distance),
+    includeClashes: inclClashes ? "true" : "false",
+    format:        "detailed",
+  });
 
   try {
-    if (mode === "alts") {
-      params.set("includeClashes", includeClashes ? "true" : "false");
-      params.set("format", "detailed");
-      const data = await fetchJson(`/api/altfinder/alts?${params.toString()}`);
-      renderAlts(data, names, distance, includeClashes);
-    } else {
-      // clashes endpoint requires both characters (searched) and targets (checked against)
-      params.set("targets", names.join(","));
-      const data = await fetchJson(`/api/altfinder/clashes?${params.toString()}`);
-      renderClashes(data, names, distance);
+    const data = await fetchJson(`/api/altfinder/alts?${params}`, 90000, 2);
+
+    // Stat boxes
+    ui.statTotalLogins.textContent  = String(data.totalLogins ?? "-");
+    ui.statMatches.textContent      = String((data.possibleMatches || []).length);
+    ui.statDateRange.textContent    = data.dateRange || "-";
+
+    // Last World Save from status (if not already loaded)
+    if (ui.statLastWorldSave.textContent === "-") {
+      fetchJson("/api/altfinder/status", 10000, 1)
+        .then(s => { if (s.latestWorldSave) ui.statLastWorldSave.textContent = s.latestWorldSave.slice(0, 10); })
+        .catch(() => {});
     }
+
+    // Results
+    renderResults(data.possibleMatches || []);
+    ui.summary.textContent = data.formattedText || JSON.stringify(data, null, 2);
     setStatus("Done.");
   } catch (err) {
     setStatus("");
-    const message = err instanceof Error ? err.message : String(err);
-    const showDirectBoardLink = message.includes("Could not reach API");
-    setError(message, showDirectBoardLink);
+    setError(err instanceof Error ? err.message : String(err));
+    ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted-cell">Search failed.</td></tr>';
   }
 }
 
-async function runGuildSearch() {
-  ui.guildStatus.textContent = "Searching...";
-  const name = ui.guildName.value.trim();
-  if (!name) {
-    ui.guildStatus.textContent = "";
-    ui.guildOutput.textContent = "Enter a guild name.";
-    return;
-  }
-  try {
-    const q = new URLSearchParams();
-    q.set("name", name);
-    const data = await fetchJson(`/api/altfinder/guild?${q.toString()}`);
-    ui.guildOutput.textContent = [
-      `Guild: ${data.name || name}`,
-      `World: ${data.world || "-"}`,
-      `Members: ${data.members || 0}`,
-      `Online: ${data.online || 0}`,
-      `Online characters: ${(data.onlineCharacters || []).join(", ") || "none"}`
-    ].join("\n");
-    ui.guildStatus.textContent = "Done.";
-  } catch (err) {
-    ui.guildStatus.textContent = "";
-    ui.guildOutput.textContent = err instanceof Error ? err.message : String(err);
-  }
-}
-
-async function saveCurrentGuild() {
-  const name = ui.guildName.value.trim();
-  if (!name) return;
-  const current = loadSavedGuilds();
-  const exists = current.some((g) => String(g.name || "").toLowerCase() === name.toLowerCase());
-  if (!exists) {
-    current.push({ name, world: "-", members: 0, online: 0, onlineCharacters: [] });
-    saveSavedGuilds(current);
-  }
-  await refreshSavedGuilds();
-}
-
-async function refreshSavedGuilds() {
-  const current = loadSavedGuilds();
-  if (current.length === 0) {
-    refreshGuildSelectAndPanel();
-    return;
-  }
-
-  for (let i = 0; i < current.length; i += 1) {
-    const g = current[i];
-    try {
-      const q = new URLSearchParams();
-      q.set("name", g.name);
-      const data = await fetchJson(`/api/altfinder/guild?${q.toString()}`);
-      current[i] = {
-        name: g.name,
-        world: data.world || "-",
-        members: Number(data.members || 0),
-        online: Number(data.online || 0),
-        onlineCharacters: Array.isArray(data.onlineCharacters) ? data.onlineCharacters : []
-      };
-    } catch (_) {
-      current[i] = g;
-    }
-  }
-  saveSavedGuilds(current);
-  refreshGuildSelectAndPanel();
-}
-
-function addSavedCharacter() {
-  const name = ui.savedCharacter.value.trim();
-  if (!name) return;
-  const chars = loadSavedCharacters();
-  if (!chars.some((c) => c.toLowerCase() === name.toLowerCase())) {
-    chars.push(name);
-    saveSavedCharacters(chars);
-  }
-  ui.savedCharacter.value = "";
-  refreshCharacterSelect();
-}
-
-function removeSavedCharacter() {
-  const selected = ui.savedCharacterSelect.value;
-  if (!selected) return;
-  const chars = loadSavedCharacters().filter((c) => c !== selected);
-  saveSavedCharacters(chars);
-  refreshCharacterSelect();
-}
-
-function useSavedCharacter() {
-  const selected = ui.savedCharacterSelect.value;
-  if (!selected) return;
-  const current = parseNames(ui.characters.value || "");
-  if (!current.some((n) => n.toLowerCase() === selected.toLowerCase())) {
-    current.push(selected);
-  }
-  ui.characters.value = current.join(", ");
-}
-
-function removeSavedGuild() {
-  const selected = ui.savedGuildSelect.value;
-  if (!selected) return;
-  const guilds = loadSavedGuilds().filter((g) => g.name !== selected);
-  saveSavedGuilds(guilds);
-  refreshGuildSelectAndPanel();
-}
-
-function useSavedGuild() {
-  const selected = ui.savedGuildSelect.value;
-  if (!selected) return;
-  ui.guildName.value = selected;
-}
-
-function setWatchStatus(text) {
-  ui.watchStatus.textContent = text || "";
-}
-
-function saveWatchSettings() {
-  localStorage.setItem(WATCH_GUILD_ID_KEY, ui.watchGuildId.value.trim());
-  localStorage.setItem(WATCH_CHANNEL_ID_KEY, ui.watchChannelId.value.trim());
-}
-
-function getWatchGuildId() {
-  return (ui.watchGuildId.value || "").trim();
-}
-
-function renderWatchList(data) {
-  const watches = Array.isArray(data.watches) ? data.watches : [];
-  ui.watchSelect.innerHTML = watches.map((w) => `<option value="${w.characterName}">${w.characterName}</option>`).join("");
-  if (watches.length === 0) {
-    ui.watchOutput.textContent = "No watched characters yet.";
-    return;
-  }
-  ui.watchOutput.textContent = watches.map((w) => {
-    const lastChecked = w.lastCheckedAt || "-";
-    const lastAlert = w.lastAlertAt || "-";
-    return `${w.characterName} | distance ${w.distance} | clashes ${w.includeClashes} | threshold ${w.confidenceThreshold} | window ${w.windowDays}d\n  checked: ${lastChecked}\n  alert: ${lastAlert}`;
-  }).join("\n\n");
-}
-
-async function refreshWatchList() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  if (!guildId) {
-    ui.watchSelect.innerHTML = "";
-    ui.watchOutput.textContent = "Enter Guild ID to load watch list.";
-    return;
-  }
-  setWatchStatus("Refreshing...");
-  try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    const data = await fetchJson(`/api/altfinder/watchlist?${q.toString()}`);
-    renderWatchList(data);
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
-}
-
-async function addWatch() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  const channelId = (ui.watchChannelId.value || "").trim();
-  const character = (ui.watchCharacter.value || "").trim();
-  const distance = Math.max(0, Number(ui.watchDistance.value || 0));
-  const includeClashes = ui.watchIncludeClashes.value === "true";
-  const threshold = Math.max(0, Math.min(100, Number(ui.watchThreshold.value || 80)));
-  const windowDays = Math.max(1, Math.min(365, Number(ui.watchWindowDays.value || 30)));
-
-  if (!guildId || !channelId || !character) {
-    ui.watchOutput.textContent = "Guild ID, Channel ID, and Character are required.";
-    return;
-  }
-
-  setWatchStatus("Adding...");
-  try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("channelId", channelId);
-    q.set("character", character);
-    q.set("distance", String(distance));
-    q.set("includeClashes", includeClashes ? "true" : "false");
-    q.set("threshold", String(threshold));
-    q.set("windowDays", String(windowDays));
-    await fetchJson(`/api/altfinder/watchlist/add?${q.toString()}`);
-    ui.watchCharacter.value = "";
-    await refreshWatchList();
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
-}
-
-async function removeWatch() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  const character = ui.watchSelect.value;
-  if (!guildId || !character) return;
-
-  setWatchStatus("Removing...");
-  try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("character", character);
-    await fetchJson(`/api/altfinder/watchlist/remove?${q.toString()}`);
-    await refreshWatchList();
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
-}
-
-function useWatchedCharacter() {
-  const selected = ui.watchSelect.value;
-  if (!selected) return;
-  const current = parseNames(ui.characters.value || "");
-  if (!current.some((n) => n.toLowerCase() === selected.toLowerCase())) {
-    current.push(selected);
-  }
-  ui.characters.value = current.join(", ");
-}
-
-async function loadResearchHistory() {
-  ui.historyStatus.textContent = "Loading...";
-  try {
-    const rows = await fetchJson("/api/altfinder/research?limit=25");
-    const list = Array.isArray(rows) ? rows : [];
-    if (list.length === 0) {
-      ui.historyBody.innerHTML = '<tr><td colspan="6" class="muted-cell">No research runs yet.</td></tr>';
-    } else {
-      ui.historyBody.innerHTML = list.map((r) => {
-        const chars = (r.searchedCharacters || []).slice(0, 4).join(", ") +
-          ((r.searchedCharacters || []).length > 4 ? "…" : "");
-        const range = [r.searchedFrom, r.searchedTo].filter(Boolean).join(" – ") || "Max";
-        const runAt = (r.createdAt || "").slice(0, 16).replace("T", " ");
-        return (
-          "<tr>" +
-            `<td>${escapeHtml(r.runType || "-")}</td>` +
-            `<td>${escapeHtml(chars || "-")}</td>` +
-            `<td>${escapeHtml(range)}</td>` +
-            `<td>${escapeHtml(String(r.distanceMinutes ?? "-"))}</td>` +
-            `<td>${escapeHtml(String(r.matchCount ?? "-"))}</td>` +
-            `<td>${escapeHtml(runAt || "-")}</td>` +
-          "</tr>"
-        );
-      }).join("");
-    }
-    ui.historyStatus.textContent = "Done.";
-  } catch (err) {
-    ui.historyBody.innerHTML = `<tr><td colspan="6" class="muted-cell">${escapeHtml(err instanceof Error ? err.message : String(err))}</td></tr>`;
-    ui.historyStatus.textContent = "";
-  }
-}
-
-async function runWatchBatch() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  if (!guildId) {
-    ui.watchOutput.textContent = "Guild ID is required.";
-    return;
-  }
-
-  setWatchStatus("Running...");
-  try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("limit", "10");
-    const data = await fetchJson(`/api/altfinder/watchlist/run?${q.toString()}`);
-    const items = Array.isArray(data.items) ? data.items : [];
-    if (items.length === 0) {
-      ui.watchOutput.textContent = "No watch results.";
-    } else {
-      ui.watchOutput.textContent = items.map((item) => {
-        const lines = Array.isArray(item.lines) && item.lines.length > 0 ? item.lines.join("\n") : "No matches above threshold.";
-        return `${item.characterName} (${item.matches} matches)\n${lines}`;
-      }).join("\n\n");
-    }
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
-}
-
-ui.runBtn.addEventListener("click", run);
-ui.clearBtn.addEventListener("click", () => {
-  setStatus("");
-  setError("");
+// ── Clear ────────────────────────────────────────────────────────────────────
+function clearAll() {
+  setStatus(""); setError("");
   ui.summary.textContent = "No search yet.";
-  ui.results.textContent = "No search yet.";
-  ui.results.style.display = "";
-  ui.resultsTable.style.display = "none";
-  ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted-cell">No search yet.</td></tr>';
-});
-ui.apiBase.addEventListener("change", checkHealth);
+  ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted-cell">No search yet.</td></tr>';
+  ui.statTotalLogins.textContent   = "-";
+  ui.statMatches.textContent       = "-";
+  ui.statDateRange.textContent     = "-";
+  ui.statLastWorldSave.textContent = "-";
+  hideCharPanel();
+}
+
+// ── Character detail panel ───────────────────────────────────────────────────
+function hideCharPanel() {
+  ui.charPanel.classList.remove("visible");
+}
+
+function showCharPanelLoading(name) {
+  ui.charPanelName.textContent = name;
+  ui.charPanelContent.innerHTML = '<span class="char-panel-loading">Fetching from TibiaData &amp; Exevopan…</span>';
+  ui.charPanel.classList.add("visible");
+  ui.charPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function field(label, value) {
+  return `<div>
+    <div class="char-field-label">${escapeHtml(label)}</div>
+    <div class="char-field-value">${escapeHtml(value || "-")}</div>
+  </div>`;
+}
+
+async function loadCharacterDetail(name) {
+  showCharPanelLoading(name);
+  try {
+    const data = await fetchJson(`/api/altfinder/character?name=${encodeURIComponent(name)}`, 20000, 2);
+
+    const guildText = data.guild
+      ? `${data.guild}${data.guildRank ? ` (${data.guildRank})` : ""}`
+      : "-";
+    const formerText = Array.isArray(data.formerNames) && data.formerNames.length
+      ? data.formerNames.join(", ") : "-";
+    const lastLoginText = data.lastLogin ? data.lastLogin.slice(0, 16).replace("T", " ") : "-";
+
+    const traded = Array.isArray(data.recentTradeDates) && data.recentTradeDates.length > 0;
+    const tradeAlert = traded
+      ? `<div class="trade-alert">⚠ RECENTLY TRADED — ${escapeHtml(data.recentTradeDates.join(", "))}</div>`
+      : "";
+    const tradeError = data.tradedCheckError
+      ? `<div class="trade-alert" style="background:#fde8d0;border-color:#d06010;color:#6c3008">⚠ Trade check error — Exevopan may be rate-limited.</div>`
+      : "";
+
+    ui.charPanelName.textContent = data.name || name;
+    ui.charPanelContent.innerHTML = `
+      <div class="char-fields">
+        ${field("Level",        String(data.level || "-"))}
+        ${field("Vocation",     data.vocation)}
+        ${field("World",        data.world)}
+        ${field("Sex",          data.sex)}
+        ${field("Guild",        guildText)}
+        ${field("Last Login",   lastLoginText)}
+        ${field("Former Names", formerText)}
+      </div>
+      ${tradeAlert}${tradeError}
+      <div class="char-panel-links">
+        <a class="char-link" href="${escapeHtml(data.tibiaComUrl)}" target="_blank" rel="noopener noreferrer">Tibia.com ↗</a>
+        <a class="char-link" href="${escapeHtml(data.exevopanUrl)}" target="_blank" rel="noopener noreferrer">Exevopan ↗</a>
+      </div>`;
+  } catch (err) {
+    ui.charPanelContent.innerHTML =
+      `<span class="char-panel-error">Failed to load: ${escapeHtml(err instanceof Error ? err.message : String(err))}</span>`;
+  }
+}
+
+// ── Event listeners ──────────────────────────────────────────────────────────
+ui.runBtn.addEventListener("click", run);
+ui.clearBtn.addEventListener("click", clearAll);
+ui.charPanelClose.addEventListener("click", hideCharPanel);
+ui.characters.addEventListener("keydown", e => { if (e.key === "Enter") run(); });
 ui.distance.addEventListener("change", () => {
-  const distance = Number(ui.distance.value || 0);
-  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
-});
-ui.strictMode.addEventListener("change", () => {
-  localStorage.setItem(STRICT_MODE_KEY, ui.strictMode.checked ? "true" : "false");
-  syncStrictModeControls();
+  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(Math.max(0, Number(ui.distance.value || 0))));
 });
 
-ui.guildSearchBtn.addEventListener("click", runGuildSearch);
-ui.guildSaveBtn.addEventListener("click", saveCurrentGuild);
-ui.guildRefreshBtn.addEventListener("click", refreshSavedGuilds);
-ui.guildUseBtn.addEventListener("click", useSavedGuild);
-ui.guildRemoveBtn.addEventListener("click", removeSavedGuild);
+// Click any result row to load character details
+ui.resultsBody.addEventListener("click", e => {
+  const td = e.target.closest("td[data-name]");
+  if (td) loadCharacterDetail(td.dataset.name);
+});
 
-ui.charAddBtn.addEventListener("click", addSavedCharacter);
-ui.charUseBtn.addEventListener("click", useSavedCharacter);
-ui.charRemoveBtn.addEventListener("click", removeSavedCharacter);
-
-ui.watchGuildId.addEventListener("change", saveWatchSettings);
-ui.watchChannelId.addEventListener("change", saveWatchSettings);
-ui.watchAddBtn.addEventListener("click", addWatch);
-ui.watchRefreshBtn.addEventListener("click", refreshWatchList);
-ui.watchRunBtn.addEventListener("click", runWatchBatch);
-ui.watchUseBtn.addEventListener("click", useWatchedCharacter);
-ui.watchRemoveBtn.addEventListener("click", removeWatch);
-
-ui.historyBtn.addEventListener("click", loadResearchHistory);
-
+// ── Init ─────────────────────────────────────────────────────────────────────
 checkHealth();
-refreshCharacterSelect();
-refreshGuildSelectAndPanel();
-refreshWatchList();
