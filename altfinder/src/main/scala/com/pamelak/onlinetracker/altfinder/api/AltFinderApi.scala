@@ -544,8 +544,10 @@ final class AltFinderApi[F[_]: Async](
         case Some(name) =>
           val cacheKey = s"char|$name"
           cachedJson(cacheKey) {
+            // trade lookback window matches the default used by the alts search
+            val tradeLookbackDays = 30
             val tibiaDataF = tibiaDataClient.getCharacter(name).map(Right(_)).handleError(e => Left(e.getMessage))
-            val tradesF = service.checkTradedCharacters(List(name), 30)
+            val tradesF = service.checkTradedCharacters(List(name), tradeLookbackDays)
               .map(Right(_)).handleError(e => Left(e.getMessage))
             (tibiaDataF, tradesF).mapN { case (tibiaResult, tradesResult) =>
               val charJson = tibiaResult.toOption
@@ -569,6 +571,7 @@ final class AltFinderApi[F[_]: Async](
               val tradeStatus = trades.headOption
               val recentTradeDates = tradeStatus.map(_.recentTradeDates.map(_.toString)).getOrElse(Nil)
               val tradedCheckError = tradeStatus.exists(_.hadError)
+              // URLEncoder uses '+' for spaces; replace with %20 for path-safe URLs
               val encodedName = java.net.URLEncoder.encode(charName, "UTF-8").replace("+", "%20")
               val tibiaComUrl = s"https://www.tibia.com/community/?subtopic=characters&name=$encodedName"
               val exevopanUrl = s"https://www.exevopan.com/?name=$encodedName"

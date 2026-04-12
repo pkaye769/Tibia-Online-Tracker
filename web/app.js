@@ -23,9 +23,13 @@ const ui = {
 };
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
-const API_BASE_KEY         = "altfinder_api_base";
-const DEFAULT_API_BASE     = "https://tibia-alt-finder-api.onrender.com";
+const DEFAULT_DISTANCE_KEY      = "altfinder_default_distance_v1";
+const API_BASE_KEY               = "altfinder_api_base";
+const DEFAULT_API_BASE           = "https://tibia-alt-finder-api.onrender.com";
+const ALTS_SEARCH_TIMEOUT_MS     = 90_000;
+const CHARACTER_LOOKUP_TIMEOUT_MS = 20_000;
+const STATUS_TIMEOUT_MS          = 10_000;
+const MAX_BACKOFF_MS             = 6_000;
 
 const apiFromQuery  = new URLSearchParams(window.location.search).get("api");
 const storedApi     = localStorage.getItem(API_BASE_KEY);
@@ -67,7 +71,7 @@ async function fetchJson(path, timeoutMs = 15000, maxAttempts = 3) {
       clearTimeout(timer);
       lastErr = e;
     }
-    if (attempt < maxAttempts) await sleep(Math.min(6000, 1000 * 2 ** (attempt - 1)));
+    if (attempt < maxAttempts) await sleep(Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (attempt - 1)));
   }
 
   if (!res) {
@@ -99,7 +103,7 @@ async function fetchJson(path, timeoutMs = 15000, maxAttempts = 3) {
 // ── Health check ─────────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
-    const data = await fetchJson("/api/altfinder/health", 10000, 2);
+    const data = await fetchJson("/api/altfinder/health", STATUS_TIMEOUT_MS, 2);
     ui.health.textContent = `API health: ${data.status || "ok"}`;
     ui.health.className = "health ok";
   } catch (_) {
@@ -108,7 +112,7 @@ async function checkHealth() {
   }
   // Also grab Last World Save from status endpoint
   try {
-    const s = await fetchJson("/api/altfinder/status", 10000, 1);
+    const s = await fetchJson("/api/altfinder/status", STATUS_TIMEOUT_MS, 1);
     if (s.latestWorldSave && ui.statLastWorldSave.textContent === "-") {
       ui.statLastWorldSave.textContent = s.latestWorldSave.slice(0, 10);
     }
@@ -165,7 +169,7 @@ async function run() {
   });
 
   try {
-    const data = await fetchJson(`/api/altfinder/alts?${params}`, 90000, 2);
+    const data = await fetchJson(`/api/altfinder/alts?${params}`, ALTS_SEARCH_TIMEOUT_MS, 2);
 
     // Stat boxes
     ui.statTotalLogins.textContent  = String(data.totalLogins ?? "-");
@@ -174,7 +178,7 @@ async function run() {
 
     // Last World Save from status (if not already loaded)
     if (ui.statLastWorldSave.textContent === "-") {
-      fetchJson("/api/altfinder/status", 10000, 1)
+      fetchJson("/api/altfinder/status", STATUS_TIMEOUT_MS, 1)
         .then(s => { if (s.latestWorldSave) ui.statLastWorldSave.textContent = s.latestWorldSave.slice(0, 10); })
         .catch(() => {});
     }
@@ -224,7 +228,7 @@ function field(label, value) {
 async function loadCharacterDetail(name) {
   showCharPanelLoading(name);
   try {
-    const data = await fetchJson(`/api/altfinder/character?name=${encodeURIComponent(name)}`, 20000, 2);
+    const data = await fetchJson(`/api/altfinder/character?name=${encodeURIComponent(name)}`, CHARACTER_LOOKUP_TIMEOUT_MS, 2);
 
     const guildText = data.guild
       ? `${data.guild}${data.guildRank ? ` (${data.guildRank})` : ""}`
