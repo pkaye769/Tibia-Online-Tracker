@@ -5,6 +5,7 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    startCommand: /bin/bash -c "export ALTFINDER_API_HOST=0.0.0.0; export ALTFINDER_API_PORT=${PORT:-10000}; exec ./altfinder/target/universal/stage/bin/alt-finder"
     healthCheckPath: /api/altfinder/health
     envVars:
       - key: APP
@@ -50,6 +51,7 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    startCommand: /bin/bash -c "exec ./tracker/target/universal/stage/bin/online-tracker"
     envVars:
       - key: APP
         value: tracker
