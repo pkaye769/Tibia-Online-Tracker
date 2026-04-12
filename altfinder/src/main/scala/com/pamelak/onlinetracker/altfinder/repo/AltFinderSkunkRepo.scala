@@ -170,18 +170,20 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     // Pre-compute epoch seconds and login timestamp for every online_history row.
     val innerSubquery = sql"""
         SELECT oh.character_id,
-               EXTRACT(EPOCH FROM ws_l.time)::bigint  AS login_sec,
-               EXTRACT(EPOCH FROM ws_lo.time)::bigint AS logout_sec,
-               ws_l.time                              AS login_ts
+               EXTRACT(EPOCH FROM ws_login.time)::bigint  AS login_sec,
+               EXTRACT(EPOCH FROM ws_logout.time)::bigint AS logout_sec,
+               ws_login.time                              AS login_ts
         FROM online_history oh
-        JOIN world_save_time ws_l  ON oh.login_time  = ws_l.id
-        JOIN world_save_time ws_lo ON oh.logout_time = ws_lo.id
+        JOIN world_save_time ws_login  ON oh.login_time  = ws_login.id
+        JOIN world_save_time ws_logout ON oh.logout_time = ws_logout.id
       """
 
-    // Adjacency: session of o1 ends within distanceSecs before eph starts, or vice-versa.
+    // Adjacency: session of o1 ends within distanceSecs before oh_epoch starts, or vice-versa.
+    // distanceSecs is a safely computed Long (distance minutes × 60) – not raw user input,
+    // so literal interpolation with #${} cannot cause SQL injection.
     val adjacencyFragment = sql"""
-        (EXTRACT(EPOCH FROM ws1_login.time)::bigint - eph.logout_sec BETWEEN 0 AND #${distanceSecs.toString}
-         OR eph.login_sec - EXTRACT(EPOCH FROM ws1_logout.time)::bigint BETWEEN 0 AND #${distanceSecs.toString})
+        (EXTRACT(EPOCH FROM ws1_login.time)::bigint - oh_epoch.logout_sec BETWEEN 0 AND #${distanceSecs.toString}
+         OR oh_epoch.login_sec - EXTRACT(EPOCH FROM ws1_logout.time)::bigint BETWEEN 0 AND #${distanceSecs.toString})
       """
 
     // Outer query: return epoch seconds for the matched characters' sessions.
@@ -194,18 +196,18 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
         JOIN world_save_time w_login  ON o.login_time  = w_login.id
         JOIN world_save_time w_logout ON o.logout_time = w_logout.id
         WHERE o.character_id IN (
-          SELECT DISTINCT eph.character_id
+          SELECT DISTINCT oh_epoch.character_id
           FROM online_history o1
           JOIN world_save_time ws1_login  ON o1.login_time  = ws1_login.id
           JOIN world_save_time ws1_logout ON o1.logout_time = ws1_logout.id
           JOIN character c ON o1.character_id = c.id
-          JOIN ($innerSubquery) eph ON $adjacencyFragment
+          JOIN ($innerSubquery) oh_epoch ON $adjacencyFragment
           WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})
       """
 
-    val innerFromToFilter = sql"AND eph.login_ts >= $timestamptz AND eph.login_ts <= $timestamptz"
-    val innerFromFilter   = sql"AND eph.login_ts >= $timestamptz"
-    val innerToFilter     = sql"AND eph.login_ts <= $timestamptz"
+    val innerFromToFilter = sql"AND oh_epoch.login_ts >= $timestamptz AND oh_epoch.login_ts <= $timestamptz"
+    val innerFromFilter   = sql"AND oh_epoch.login_ts >= $timestamptz"
+    val innerToFilter     = sql"AND oh_epoch.login_ts <= $timestamptz"
     val outerFromToFilter = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
     val outerFromFilter   = sql"AND w_login.time >= $timestamptz"
     val outerToFilter     = sql"AND w_login.time <= $timestamptz"
