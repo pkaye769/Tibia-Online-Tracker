@@ -189,7 +189,10 @@ object BotApp extends IOApp {
           ).flatten.map(_.trim).find(_.nonEmpty)
 
           val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
-          val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
+          val requestedApiPort = sys.env.get("PORT")
+            .orElse(sys.env.get("ALTFINDER_API_PORT"))
+            .flatMap(_.toIntOption)
+            .getOrElse(8080)
 
           val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
           val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound

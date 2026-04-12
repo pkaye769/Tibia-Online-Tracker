@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
@@ -8,8 +8,25 @@ RUN apt-get update && apt-get install -y curl gnupg && \
     apt-get update && apt-get install -y sbt && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Cache dependency resolution as a separate layer (invalidated only when build.sbt or project/ changes)
+COPY build.sbt .
+COPY project/ project/
+RUN sbt -J-Xmx1g -J-Xss2m update
+
 COPY . .
 
-RUN sbt altfinder/compile
+RUN sbt -J-Xmx1g -J-Xss2m altfinder/stage
 
-CMD ["sbt", "altfinder/runMain", "com.pamelak.onlinetracker.altfinder.HttpServer"]
+# ---- runtime image (no sbt, no JDK overhead) ----
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+COPY --from=builder /app/altfinder/target/universal/stage ./
+
+ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -XX:+UseSerialGC"
+
+# Render injects $PORT at runtime; 10000 is the local/fallback default
+EXPOSE 10000
+
+CMD ["bin/alt-finder"]
