@@ -1,114 +1,155 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tibia Alt Finder Console</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tibia Alt Finder</title>
+  <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
-  <main class="wrap">
+<div class="page">
+
+  <!-- ── Main column ─────────────────────────────────────────────────── -->
+  <div class="main-col">
     <header>
-      <div class="header-left">
-        <h1>TIBIA ALT FINDER CONSOLE</h1>
-        <p>Search suspected alt networks from tracked login and logout adjacency data.</p>
-      </div>
-      <div id="health" class="health">API health: checking...</div>
+      <h1>Tibia Alt Finder</h1>
+      <p class="subtitle">Fast scan for likely alts using adjacent logins, clashes, and login counts.</p>
+      <div id="apiBadge" class="api-badge">API: checking&#8230;</div>
     </header>
 
-    <div class="layout">
-      <div class="main-col">
-        <section class="card">
-          <h2>SEARCH</h2>
-
-          <label for="characters">Characters (comma separated)</label>
-          <input id="characters" placeholder="Deli Tokes, Another Name" />
-
-          <div class="row-2">
-            <div>
-              <label for="distance">Distance minutes</label>
-              <input id="distance" type="number" min="0" value="0" />
-            </div>
-            <div>
-              <label for="includeClashes">Include clashes</label>
-              <select id="includeClashes">
-                <option value="false" selected>false</option>
-                <option value="true">true</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button id="runBtn" class="btn-primary">Run Search</button>
-            <button id="clearBtn" class="btn-ghost">Clear</button>
-            <span id="status"></span>
-          </div>
-          <div id="error" class="error"></div>
-
-          <div class="stats-grid">
-            <div class="stat-box">
-              <div class="stat-label">Total Logins</div>
-              <div id="statTotalLogins" class="stat-value">-</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">Matches</div>
-              <div id="statMatches" class="stat-value">-</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">Date Range</div>
-              <div id="statDateRange" class="stat-value">-</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">Last World Save</div>
-              <div id="statLastWorldSave" class="stat-value">-</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Character detail panel (shown when a result row is clicked) -->
-        <section class="card char-panel" id="charPanel">
-          <div class="char-panel-header">
-            <h3 id="charPanelName">Character Details</h3>
-            <button class="char-panel-close" id="charPanelClose" title="Close">✕</button>
-          </div>
-          <div id="charPanelContent">
-            <span class="char-panel-loading">Loading...</span>
-          </div>
-        </section>
+    <!-- Search card -->
+    <div class="card">
+      <div class="form-group">
+        <label for="backendUrl">Backend URL</label>
+        <input id="backendUrl" type="text" value="https://tibia-alt-finder-api.onrender.com"/>
       </div>
-
-      <div class="side-col">
-        <section class="card">
-          <h2>POSSIBLE MATCHES</h2>
-          <p style="margin:0 0 4px; font-size:0.78rem; color:var(--muted)">Click a row to verify via TibiaData &amp; Exevopan.</p>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>NAME</th>
-                  <th>CONFIDENCE</th>
-                  <th>ADJ</th>
-                  <th>CLASHES</th>
-                  <th>LOGINS</th>
-                  <th>HIDDEN</th>
-                  <th>TRADES</th>
-                </tr>
-              </thead>
-              <tbody id="resultsBody">
-                <tr><td colspan="7" class="muted-cell">No search yet.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>RAW SUMMARY</h2>
-          <pre id="summary">No search yet.</pre>
-        </section>
+      <div class="row-3">
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="alts">alts</option>
+            <option value="clashes">clashes</option>
+          </select>
+        </div>
+        <div>
+          <label for="distance">Adjacency (minutes)</label>
+          <input id="distance" type="number" value="0" min="0"/>
+        </div>
+        <div>
+          <label for="includeClashes">Include clashes</label>
+          <select id="includeClashes">
+            <option value="false">false</option>
+            <option value="true">true</option>
+          </select>
+        </div>
+      </div>
+      <label class="check-row" for="strictMode">
+        <input id="strictMode" type="checkbox"/>
+        <span>Strict mode (distance 0, clashes excluded)</span>
+      </label>
+      <div class="form-group">
+        <label for="characters">Characters (comma separated)</label>
+        <input id="characters" type="text" placeholder="deli tokes"/>
+      </div>
+      <div class="actions">
+        <button id="runBtn" class="btn-green">Run</button>
+        <button id="clearBtn" class="btn-ghost">Clear</button>
+      </div>
+      <div id="errorBox" class="error-box">
+        <span id="errorMsg"></span>
+        <a id="backendLink" href="#" target="_blank" rel="noopener">Open backend-hosted board</a>
       </div>
     </div>
-  </main>
 
-  <script src="./app.js"></script>
+    <!-- Summary -->
+    <div class="card">
+      <div class="card-title">Summary</div>
+      <pre id="summary">No search yet.</pre>
+    </div>
+
+    <!-- Possible Matches -->
+    <div class="card">
+      <div class="card-title">Possible Matches</div>
+      <div id="matchesArea"><pre>No search yet.</pre></div>
+      <div id="charPanel" class="char-panel">
+        <div class="char-panel-inner">
+          <div class="char-panel-header">
+            <h4 id="charPanelName"></h4>
+            <button id="charPanelClose" class="char-panel-close">&#x2715;</button>
+          </div>
+          <div id="charPanelContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+  <div class="side-col">
+
+    <!-- Saved Characters -->
+    <div class="card">
+      <div class="card-title">Saved Characters</div>
+      <div class="form-group">
+        <label for="savedCharInput">Character</label>
+        <input id="savedCharInput" type="text" placeholder="Deli Tokes"/>
+      </div>
+      <div class="form-group">
+        <label for="savedCharList">Saved list</label>
+        <select id="savedCharList"></select>
+      </div>
+      <div class="actions">
+        <button id="addCharBtn" class="btn-green">Add</button>
+        <button id="useCharBtn" class="btn-ghost">Use in Search</button>
+        <button id="removeCharBtn" class="btn-ghost">Remove</button>
+      </div>
+      <div id="savedCharDisplay" class="saved-display">No saved characters yet.</div>
+    </div>
+
+    <!-- Saved Guilds -->
+    <div class="card">
+      <div class="card-title">Saved Guilds</div>
+      <div class="form-group">
+        <label for="savedGuildInput">Guild name (press Enter to save)</label>
+        <input id="savedGuildInput" type="text" placeholder="Guild Name"/>
+      </div>
+      <div class="form-group">
+        <label for="savedGuildList">Saved list</label>
+        <select id="savedGuildList"></select>
+      </div>
+      <div class="actions">
+        <button id="refreshGuildBtn" class="btn-green">Refresh</button>
+        <button id="loadGuildBtn" class="btn-ghost">Load</button>
+        <button id="removeGuildBtn" class="btn-ghost">Remove</button>
+      </div>
+      <div id="savedGuildDisplay" class="saved-display">No saved guilds yet.</div>
+    </div>
+
+    <!-- Watched Characters -->
+    <div class="card">
+      <div class="card-title">Watched Characters</div>
+      <div class="row-2" style="margin-bottom:10px">
+        <div>
+          <label for="watchGuildId">Guild ID</label>
+          <input id="watchGuildId" type="text" placeholder="Discord Guild ID"/>
+        </div>
+        <div>
+          <label for="watchChannelId">Channel ID</label>
+          <input id="watchChannelId" type="text" placeholder="Discord Channel ID"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="watchCharInput">Character to watch</label>
+        <input id="watchCharInput" type="text" placeholder="Character name"/>
+      </div>
+      <div class="actions">
+        <button id="addWatchBtn" class="btn-green">Add Watch</button>
+        <button id="loadWatchBtn" class="btn-ghost">Load List</button>
+      </div>
+      <div id="watchListArea" class="saved-display">Enter Guild ID and click Load List.</div>
+    </div>
+
+  </div>
+</div>
+<script src="./app.js"></script>
 </body>
 </html>

@@ -778,547 +778,635 @@ final class AltFinderApi[F[_]: Async](
     """<!doctype html>
       |<html lang="en">
       |<head>
-      |  <meta charset="utf-8" />
-      |  <meta name="viewport" content="width=device-width, initial-scale=1" />
-      |  <title>Alt Finder Console</title>
+      |  <meta charset="utf-8"/>
+      |  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+      |  <title>Tibia Alt Finder</title>
       |  <style>
-      |    :root {
-      |      --bg: #f4efe4;
-      |      --ink: #101417;
-      |      --muted: #55646f;
-      |      --card: #fff9eecc;
-      |      --line: #dbcaa6;
-      |      --accent: #d95d39;
-      |      --accent-2: #2f6e69;
-      |      --ok: #1f7a42;
-      |      --warn: #8c2f39;
-      |      --shadow: 0 20px 45px #7f735840;
-      |    }
-      |    * { box-sizing: border-box; }
-      |    body {
-      |      margin: 0;
-      |      font-family: "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
-      |      color: var(--ink);
-      |      background:
-      |        radial-gradient(circle at 14% 8%, #f7d58a 0%, transparent 35%),
-      |        radial-gradient(circle at 92% 22%, #9dd6d0 0%, transparent 33%),
-      |        linear-gradient(165deg, #efe5d0 0%, #f6f1e8 45%, #ecdfc5 100%);
-      |      min-height: 100vh;
-      |    }
-      |    .noise {
-      |      position: fixed;
-      |      inset: 0;
-      |      pointer-events: none;
-      |      opacity: 0.15;
-      |      background-image: radial-gradient(#6f5f44 0.4px, transparent 0.4px);
-      |      background-size: 4px 4px;
-      |    }
-      |    .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 18px 34px; }
-      |    .hero {
-      |      margin-bottom: 18px;
-      |      display: flex;
-      |      align-items: end;
-      |      justify-content: space-between;
-      |      gap: 12px;
-      |      opacity: 0;
-      |      transform: translateY(12px);
-      |      animation: rise 0.55s ease forwards;
-      |    }
-      |    h1 {
-      |      margin: 0;
-      |      font-size: clamp(1.6rem, 1.9vw + 1rem, 2.4rem);
-      |      letter-spacing: 0.03em;
-      |      text-transform: uppercase;
-      |    }
-      |    .sub {
-      |      margin-top: 6px;
-      |      color: var(--muted);
-      |      max-width: 760px;
-      |      font-size: 0.98rem;
-      |    }
-      |    .badge {
-      |      border: 1px solid var(--line);
-      |      background: #ffffffa0;
-      |      border-radius: 999px;
-      |      padding: 7px 12px;
-      |      font-size: 0.82rem;
-      |      font-weight: 700;
-      |      white-space: nowrap;
-      |    }
-      |    .grid {
-      |      display: grid;
-      |      gap: 14px;
-      |      grid-template-columns: 1.1fr 1fr;
-      |      align-items: start;
-      |    }
-      |    .card {
-      |      border: 1px solid var(--line);
-      |      background: var(--card);
-      |      border-radius: 16px;
-      |      padding: 16px;
-      |      box-shadow: var(--shadow);
-      |      backdrop-filter: blur(5px);
-      |      opacity: 0;
-      |      transform: translateY(14px);
-      |      animation: rise 0.6s ease forwards;
-      |    }
-      |    .card:nth-child(2) { animation-delay: 0.08s; }
-      |    .card:nth-child(3) { animation-delay: 0.14s; }
-      |    .stack { display: grid; gap: 12px; }
-      |    h2 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: 0.04em; text-transform: uppercase; }
-      |    .form-grid { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      |    .full { grid-column: 1 / -1; }
-      |    label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 4px; letter-spacing: 0.03em; }
-      |    input, select {
-      |      width: 100%;
-      |      padding: 10px 11px;
-      |      border-radius: 10px;
-      |      border: 1px solid #c8b890;
-      |      background: #fffef9;
-      |      color: var(--ink);
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-size: 0.95rem;
-      |    }
-      |    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-      |    button {
-      |      border: 1px solid transparent;
-      |      border-radius: 11px;
-      |      padding: 10px 14px;
-      |      cursor: pointer;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-weight: 700;
-      |      transition: transform 0.15s ease, filter 0.15s ease;
-      |    }
-      |    button:hover { transform: translateY(-1px); filter: brightness(0.98); }
-      |    .btn-primary {
-      |      color: #fff;
-      |      background: linear-gradient(105deg, var(--accent), #c6512f);
-      |    }
-      |    .btn-ghost {
-      |      color: var(--accent-2);
-      |      border-color: #9ec5bd;
-      |      background: #edf7f5;
-      |    }
-      |    .meta {
-      |      color: var(--muted);
-      |      font-size: 0.84rem;
-      |      min-height: 20px;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |    }
-      |    .error {
-      |      color: var(--warn);
-      |      min-height: 20px;
-      |      font-weight: 700;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-size: 0.9rem;
-      |    }
-      |    .kpis {
-      |      display: grid;
-      |      gap: 8px;
-      |      grid-template-columns: repeat(2, minmax(0, 1fr));
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |    }
-      |    .kpi {
-      |      border: 1px dashed #ccb788;
-      |      border-radius: 10px;
-      |      padding: 9px 10px;
-      |      background: #fffefbcc;
-      |    }
-      |    .kpi b { display: block; font-size: 0.76rem; color: var(--muted); font-weight: 600; letter-spacing: 0.03em; }
-      |    .kpi span { font-size: 1.08rem; font-weight: 700; }
-      |    .status-ok { color: var(--ok); }
-      |    .table-wrap {
-      |      margin-top: 8px;
-      |      overflow: auto;
-      |      border: 1px solid #d9c8a2;
-      |      border-radius: 12px;
-      |      background: #fffdf7;
-      |      max-height: 400px;
-      |    }
-      |    table {
-      |      width: 100%;
-      |      border-collapse: collapse;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-size: 0.9rem;
-      |    }
-      |    th, td { padding: 9px 10px; border-bottom: 1px solid #ebdec4; text-align: left; white-space: nowrap; }
-      |    th { position: sticky; top: 0; background: #f7ecd4; font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; }
-      |    tr:nth-child(even) td { background: #fff9eb; }
-      |    .muted { color: var(--muted); }
-      |    .score-pill {
-      |      display: inline-block;
-      |      border-radius: 999px;
-      |      padding: 3px 8px;
-      |      background: #efe5cc;
-      |      border: 1px solid #d3bf90;
-      |      font-weight: 700;
-      |    }
-      |    pre {
-      |      margin: 0;
-      |      white-space: pre-wrap;
-      |      border: 1px solid #d3c39d;
-      |      border-radius: 12px;
-      |      background: #fffdf8;
-      |      padding: 12px;
-      |      font-family: "Consolas", "Courier New", monospace;
-      |      font-size: 0.82rem;
-      |      max-height: 280px;
-      |      overflow: auto;
-      |    }
-      |    @keyframes rise {
-      |      to { opacity: 1; transform: translateY(0); }
-      |    }
-      |    @media (max-width: 950px) {
-      |      .grid { grid-template-columns: 1fr; }
-      |      .hero { align-items: start; flex-direction: column; }
-      |    }
-      |    @media (max-width: 760px) {
-      |      .form-grid { grid-template-columns: 1fr 1fr; }
-      |    }
-      |    @media (max-width: 520px) {
-      |      .form-grid { grid-template-columns: 1fr; }
-      |      .kpis { grid-template-columns: 1fr; }
-      |    }
+      |*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+      |body{
+      |  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;
+      |  background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.5;min-height:100vh;
+      |}
+      |.page{
+      |  display:grid;grid-template-columns:1fr 340px;gap:16px;
+      |  max-width:1280px;margin:0 auto;padding:24px 16px 40px;
+      |}
+      |.main-col,.side-col{display:flex;flex-direction:column;gap:12px}
+      |/* Header */
+      |header h1{font-size:1.75rem;font-weight:700;color:#fff}
+      |header .subtitle{color:#8b949e;margin-top:4px;font-size:.875rem}
+      |.api-badge{
+      |  display:inline-flex;align-items:center;gap:6px;margin-top:10px;
+      |  padding:3px 12px;border-radius:999px;border:1px solid #30363d;
+      |  font-size:.8rem;color:#8b949e;background:transparent;cursor:default;
+      |}
+      |.api-badge.ok {border-color:#238636;color:#3fb950}
+      |.api-badge.bad{border-color:#da3633;color:#f85149}
+      |/* Cards */
+      |.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
+      |.card-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:12px}
+      |/* Form */
+      |label{display:block;font-size:.75rem;color:#8b949e;margin-bottom:4px}
+      |input,select{
+      |  width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;
+      |  color:#e6edf3;padding:7px 10px;font:inherit;font-size:.875rem;
+      |}
+      |input:focus,select:focus{outline:none;border-color:#388bfd;box-shadow:0 0 0 3px rgba(56,139,253,.1)}
+      |select option{background:#161b22}
+      |.form-group{margin-bottom:12px}
+      |.row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+      |.row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      |/* Checkbox row */
+      |.check-row{
+      |  display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;
+      |  color:#8b949e;font-size:.875rem;
+      |}
+      |.check-row input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#238636;flex-shrink:0}
+      |/* Buttons */
+      |.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+      |button{
+      |  font:inherit;font-size:.875rem;font-weight:600;padding:6px 16px;
+      |  border-radius:6px;cursor:pointer;border:1px solid transparent;
+      |  white-space:nowrap;transition:background .1s,border-color .1s;
+      |}
+      |button:disabled{opacity:.5;cursor:not-allowed}
+      |.btn-green{background:#238636;color:#fff;border-color:#2ea043}
+      |.btn-green:hover:not(:disabled){background:#2ea043}
+      |.btn-ghost{background:transparent;color:#e6edf3;border-color:#30363d}
+      |.btn-ghost:hover:not(:disabled){background:#21262d}
+      |/* Error box */
+      |.error-box{
+      |  margin-top:10px;padding:10px 12px;
+      |  background:rgba(56,139,253,.1);border:1px solid rgba(56,139,253,.4);
+      |  border-radius:6px;font-size:.8rem;color:#79c0ff;
+      |  display:none;word-break:break-word;
+      |}
+      |.error-box.visible{display:block}
+      |.error-box a{color:#79c0ff;text-decoration:underline;font-size:.8rem;display:block;margin-top:6px}
+      |/* Pre */
+      |pre{
+      |  background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;
+      |  font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+      |  font-size:.78rem;color:#8b949e;white-space:pre-wrap;word-break:break-word;
+      |  max-height:320px;overflow:auto;
+      |}
+      |/* Matches table */
+      |.table-wrap{overflow:auto;max-height:350px;border:1px solid #30363d;border-radius:6px}
+      |table{width:100%;border-collapse:collapse;font-size:.8rem}
+      |th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #21262d;white-space:nowrap}
+      |th{background:#1c2128;color:#8b949e;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;position:sticky;top:0}
+      |tr:hover td{background:#1c2128;cursor:pointer}
+      |.cell-muted{color:#8b949e;font-style:italic}
+      |td.name-cell{font-weight:600;color:#79c0ff;cursor:pointer}
+      |.conf-pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:.75rem;font-weight:700}
+      |.conf-hi {background:#1a3a2a;color:#3fb950}
+      |.conf-mid{background:#3a3020;color:#d29922}
+      |.conf-lo {background:#3a2020;color:#f85149}
+      |.trade-badge{
+      |  display:inline-block;padding:1px 5px;border-radius:3px;
+      |  background:#3a2810;border:1px solid #d29922;color:#d29922;
+      |  font-size:.68rem;font-weight:700;margin-left:4px;vertical-align:middle;
+      |  text-transform:uppercase;letter-spacing:.03em;
+      |}
+      |/* Sidebar saved display */
+      |.saved-display{
+      |  background:#0d1117;border:1px solid #30363d;border-radius:6px;
+      |  padding:10px;min-height:72px;font-size:.8rem;color:#8b949e;
+      |  margin-top:8px;word-break:break-word;white-space:pre-wrap;
+      |}
+      |/* Character detail panel */
+      |.char-panel{display:none;margin-top:12px}
+      |.char-panel.open{display:block}
+      |.char-panel-inner{background:#0d1117;border:1px solid #388bfd;border-radius:6px;padding:12px}
+      |.char-panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+      |.char-panel-header h4{font-size:.95rem;font-weight:700;color:#79c0ff;margin:0}
+      |.char-panel-close{background:none;border:none;color:#8b949e;font-size:1rem;cursor:pointer;padding:2px 6px;border-radius:4px}
+      |.char-panel-close:hover{background:#21262d}
+      |.char-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+      |.char-field-lbl{font-size:.68rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+      |.char-field-val{font-size:.85rem;font-weight:600;color:#e6edf3;word-break:break-word}
+      |.trade-alert-box{
+      |  background:rgba(210,153,34,.15);border:1px solid #d29922;border-radius:6px;
+      |  padding:8px 10px;font-size:.8rem;color:#e3b341;margin-bottom:8px;
+      |}
+      |.char-links{display:flex;gap:8px;flex-wrap:wrap}
+      |.char-link{
+      |  display:inline-block;padding:4px 12px;border-radius:6px;font-size:.78rem;font-weight:600;
+      |  text-decoration:none;border:1px solid #30363d;color:#79c0ff;background:transparent;
+      |}
+      |.char-link:hover{background:#1c2128}
+      |/* Responsive */
+      |@media(max-width:900px){.page{grid-template-columns:1fr}}
+      |@media(max-width:540px){.row-3{grid-template-columns:1fr}.char-fields{grid-template-columns:1fr 1fr}}
       |  </style>
       |</head>
       |<body>
-      |  <div class="noise"></div>
-      |  <div class="wrap">
-      |    <div class="hero">
-      |      <div>
-      |        <h1>Tibia Alt Finder Console</h1>
-      |        <div class="sub">Search suspected alt networks from tracked login and logout adjacency data.</div>
+      |<div class="page">
+      |
+      |  <!-- ── Main column ─────────────────────────────────────────────────── -->
+      |  <div class="main-col">
+      |    <header>
+      |      <h1>Tibia Alt Finder</h1>
+      |      <p class="subtitle">Fast scan for likely alts using adjacent logins, clashes, and login counts.</p>
+      |      <div id="apiBadge" class="api-badge">API: checking&#8230;</div>
+      |    </header>
+      |
+      |    <!-- Search card -->
+      |    <div class="card">
+      |      <div class="form-group">
+      |        <label for="backendUrl">Backend URL</label>
+      |        <input id="backendUrl" type="text" value="https://tibia-alt-finder-api.onrender.com"/>
       |      </div>
-      |      <div class="badge" id="healthBadge">API health: ...</div>
+      |      <div class="row-3">
+      |        <div>
+      |          <label for="mode">Mode</label>
+      |          <select id="mode">
+      |            <option value="alts">alts</option>
+      |            <option value="clashes">clashes</option>
+      |          </select>
+      |        </div>
+      |        <div>
+      |          <label for="distance">Adjacency (minutes)</label>
+      |          <input id="distance" type="number" value="0" min="0"/>
+      |        </div>
+      |        <div>
+      |          <label for="includeClashes">Include clashes</label>
+      |          <select id="includeClashes">
+      |            <option value="false">false</option>
+      |            <option value="true">true</option>
+      |          </select>
+      |        </div>
+      |      </div>
+      |      <label class="check-row" for="strictMode">
+      |        <input id="strictMode" type="checkbox"/>
+      |        <span>Strict mode (distance 0, clashes excluded)</span>
+      |      </label>
+      |      <div class="form-group">
+      |        <label for="characters">Characters (comma separated)</label>
+      |        <input id="characters" type="text" placeholder="deli tokes"/>
+      |      </div>
+      |      <div class="actions">
+      |        <button id="runBtn" class="btn-green">Run</button>
+      |        <button id="clearBtn" class="btn-ghost">Clear</button>
+      |      </div>
+      |      <div id="errorBox" class="error-box">
+      |        <span id="errorMsg"></span>
+      |        <a id="backendLink" href="#" target="_blank" rel="noopener">Open backend-hosted board</a>
+      |      </div>
       |    </div>
-      |    <div class="grid">
-      |      <section class="card">
-      |        <h2>Search</h2>
-      |        <div class="form-grid">
-      |          <div class="full">
-      |            <label for="characters">Characters (comma separated)</label>
-      |            <input id="characters" placeholder="Deli Tokes, Another Name" />
-      |          </div>
-      |          <div>
-      |            <label for="distance">Distance minutes</label>
-      |            <input id="distance" type="number" min="0" value="0" />
-      |          </div>
-      |          <div>
-      |            <label for="clashes">Include clashes</label>
-      |            <select id="clashes">
-      |              <option value="false" selected>false</option>
-      |              <option value="true">true</option>
-      |            </select>
-      |          </div>
-      |          <div>
-      |            <label for="fromDate">From (optional)</label>
-      |            <input id="fromDate" type="date" />
-      |          </div>
-      |          <div>
-      |            <label for="toDate">To (optional)</label>
-      |            <input id="toDate" type="date" />
-      |          </div>
-      |        </div>
-      |        <div class="actions">
-      |          <button class="btn-primary" id="runBtn">Run Search</button>
-      |          <button class="btn-ghost" id="clearBtn">Clear</button>
-      |          <span class="meta" id="status"></span>
-      |        </div>
-      |        <div class="error" id="error"></div>
-      |        <div class="kpis">
-      |          <div class="kpi"><b>Total Logins</b><span id="kpiLogins">-</span></div>
-      |          <div class="kpi"><b>Matches</b><span id="kpiMatches">-</span></div>
-      |          <div class="kpi"><b>Date Range</b><span id="kpiRange">-</span></div>
-      |          <div class="kpi"><b>Last World Save</b><span id="kpiSave">-</span></div>
-      |        </div>
-      |      </section>
-      |      <section class="stack">
-      |        <div class="card">
-      |          <h2>Possible Matches</h2>
-      |          <div class="table-wrap">
-      |            <table>
-      |              <thead>
-      |                <tr>
-      |                  <th>Name</th>
-      |                  <th>Confidence</th>
-      |                  <th>Adj</th>
-      |                  <th>Clashes</th>
-      |                  <th>Logins</th>
-      |                  <th>Hidden</th>
-      |                  <th>Trades</th>
-      |                </tr>
-      |              </thead>
-      |              <tbody id="resultsBody">
-      |                <tr><td colspan="7" class="muted">No search yet.</td></tr>
-      |              </tbody>
-      |            </table>
-      |          </div>
-      |        </div>
-      |        <div class="card">
-      |          <h2>Raw Summary</h2>
-      |          <pre id="output">No search yet.</pre>
-      |        </div>
-      |      </section>
+      |
+      |    <!-- Summary -->
+      |    <div class="card">
+      |      <div class="card-title">Summary</div>
+      |      <pre id="summary">No search yet.</pre>
       |    </div>
-      |    <div style="margin-top:14px">
-      |      <section class="card">
-      |        <h2>Guild Search</h2>
-      |        <div class="form-grid">
-      |          <div>
-      |            <label for="guildName">Guild name</label>
-      |            <input id="guildName" placeholder="Guild Name" />
+      |
+      |    <!-- Possible Matches -->
+      |    <div class="card">
+      |      <div class="card-title">Possible Matches</div>
+      |      <div id="matchesArea"><pre>No search yet.</pre></div>
+      |      <div id="charPanel" class="char-panel">
+      |        <div class="char-panel-inner">
+      |          <div class="char-panel-header">
+      |            <h4 id="charPanelName"></h4>
+      |            <button id="charPanelClose" class="char-panel-close">&#x2715;</button>
       |          </div>
+      |          <div id="charPanelContent"></div>
       |        </div>
-      |        <div class="actions">
-      |          <button class="btn-ghost" id="guildBtn">Search</button>
-      |          <span class="meta" id="guildStatus"></span>
-      |        </div>
-      |        <pre id="guildOutput" style="margin-top:8px">No search yet.</pre>
-      |      </section>
-      |    </div>
-      |    <div style="margin-top:14px">
-      |      <section class="card">
-      |        <h2>Research History</h2>
-      |        <div class="actions">
-      |          <button class="btn-ghost" id="historyBtn">Load History</button>
-      |          <span class="meta" id="historyStatus"></span>
-      |        </div>
-      |        <div class="table-wrap">
-      |          <table>
-      |            <thead><tr><th>Type</th><th>Characters</th><th>Date Range</th><th>Distance</th><th>Matches</th><th>Run At</th></tr></thead>
-      |            <tbody id="historyBody"><tr><td colspan="6" class="muted">Click Load History.</td></tr></tbody>
-      |          </table>
-      |        </div>
-      |      </section>
+      |      </div>
       |    </div>
       |  </div>
-      |  <script>
-      |    const $ = (id) => document.getElementById(id);
-      |    const ui = {
-      |      status: $("status"),
-      |      error: $("error"),
-      |      output: $("output"),
-      |      healthBadge: $("healthBadge"),
-      |      resultsBody: $("resultsBody"),
-      |      kpiLogins: $("kpiLogins"),
-      |      kpiMatches: $("kpiMatches"),
-      |      kpiRange: $("kpiRange"),
-      |      kpiSave: $("kpiSave")
-      |    };
       |
-      |    function setStatus(message) {
-      |      ui.status.textContent = message || "";
+      |  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+      |  <div class="side-col">
+      |
+      |    <!-- Saved Characters -->
+      |    <div class="card">
+      |      <div class="card-title">Saved Characters</div>
+      |      <div class="form-group">
+      |        <label for="savedCharInput">Character</label>
+      |        <input id="savedCharInput" type="text" placeholder="Deli Tokes"/>
+      |      </div>
+      |      <div class="form-group">
+      |        <label for="savedCharList">Saved list</label>
+      |        <select id="savedCharList"></select>
+      |      </div>
+      |      <div class="actions">
+      |        <button id="addCharBtn" class="btn-green">Add</button>
+      |        <button id="useCharBtn" class="btn-ghost">Use in Search</button>
+      |        <button id="removeCharBtn" class="btn-ghost">Remove</button>
+      |      </div>
+      |      <div id="savedCharDisplay" class="saved-display">No saved characters yet.</div>
+      |    </div>
+      |
+      |    <!-- Saved Guilds -->
+      |    <div class="card">
+      |      <div class="card-title">Saved Guilds</div>
+      |      <div class="form-group">
+      |        <label for="savedGuildInput">Guild name (press Enter to save)</label>
+      |        <input id="savedGuildInput" type="text" placeholder="Guild Name"/>
+      |      </div>
+      |      <div class="form-group">
+      |        <label for="savedGuildList">Saved list</label>
+      |        <select id="savedGuildList"></select>
+      |      </div>
+      |      <div class="actions">
+      |        <button id="refreshGuildBtn" class="btn-green">Refresh</button>
+      |        <button id="loadGuildBtn" class="btn-ghost">Load</button>
+      |        <button id="removeGuildBtn" class="btn-ghost">Remove</button>
+      |      </div>
+      |      <div id="savedGuildDisplay" class="saved-display">No saved guilds yet.</div>
+      |    </div>
+      |
+      |    <!-- Watched Characters -->
+      |    <div class="card">
+      |      <div class="card-title">Watched Characters</div>
+      |      <div class="row-2" style="margin-bottom:10px">
+      |        <div>
+      |          <label for="watchGuildId">Guild ID</label>
+      |          <input id="watchGuildId" type="text" placeholder="Discord Guild ID"/>
+      |        </div>
+      |        <div>
+      |          <label for="watchChannelId">Channel ID</label>
+      |          <input id="watchChannelId" type="text" placeholder="Discord Channel ID"/>
+      |        </div>
+      |      </div>
+      |      <div class="form-group">
+      |        <label for="watchCharInput">Character to watch</label>
+      |        <input id="watchCharInput" type="text" placeholder="Character name"/>
+      |      </div>
+      |      <div class="actions">
+      |        <button id="addWatchBtn" class="btn-green">Add Watch</button>
+      |        <button id="loadWatchBtn" class="btn-ghost">Load List</button>
+      |      </div>
+      |      <div id="watchListArea" class="saved-display">Enter Guild ID and click Load List.</div>
+      |    </div>
+      |
+      |  </div>
+      |</div>
+      |<script>
+      |'use strict';
+      |
+      |const STORAGE_BACKEND   = 'altfinder_backend_url';
+      |const STORAGE_DISTANCE  = 'altfinder_distance';
+      |const STORAGE_CHARS     = 'altfinder_saved_chars';
+      |const STORAGE_GUILDS    = 'altfinder_saved_guilds';
+      |const TIMEOUT_SEARCH    = 90000;
+      |const TIMEOUT_STATUS    = 10000;
+      |const TIMEOUT_CHAR      = 20000;
+      |
+      |const el = {
+      |  backendUrl:       document.getElementById('backendUrl'),
+      |  mode:             document.getElementById('mode'),
+      |  distance:         document.getElementById('distance'),
+      |  includeClashes:   document.getElementById('includeClashes'),
+      |  strictMode:       document.getElementById('strictMode'),
+      |  characters:       document.getElementById('characters'),
+      |  runBtn:           document.getElementById('runBtn'),
+      |  clearBtn:         document.getElementById('clearBtn'),
+      |  errorBox:         document.getElementById('errorBox'),
+      |  errorMsg:         document.getElementById('errorMsg'),
+      |  backendLink:      document.getElementById('backendLink'),
+      |  summary:          document.getElementById('summary'),
+      |  matchesArea:      document.getElementById('matchesArea'),
+      |  apiBadge:         document.getElementById('apiBadge'),
+      |  savedCharInput:   document.getElementById('savedCharInput'),
+      |  savedCharList:    document.getElementById('savedCharList'),
+      |  addCharBtn:       document.getElementById('addCharBtn'),
+      |  useCharBtn:       document.getElementById('useCharBtn'),
+      |  removeCharBtn:    document.getElementById('removeCharBtn'),
+      |  savedCharDisplay: document.getElementById('savedCharDisplay'),
+      |  savedGuildInput:  document.getElementById('savedGuildInput'),
+      |  savedGuildList:   document.getElementById('savedGuildList'),
+      |  refreshGuildBtn:  document.getElementById('refreshGuildBtn'),
+      |  loadGuildBtn:     document.getElementById('loadGuildBtn'),
+      |  removeGuildBtn:   document.getElementById('removeGuildBtn'),
+      |  savedGuildDisplay:document.getElementById('savedGuildDisplay'),
+      |  watchGuildId:     document.getElementById('watchGuildId'),
+      |  watchChannelId:   document.getElementById('watchChannelId'),
+      |  watchCharInput:   document.getElementById('watchCharInput'),
+      |  addWatchBtn:      document.getElementById('addWatchBtn'),
+      |  loadWatchBtn:     document.getElementById('loadWatchBtn'),
+      |  watchListArea:    document.getElementById('watchListArea'),
+      |  charPanel:        document.getElementById('charPanel'),
+      |  charPanelName:    document.getElementById('charPanelName'),
+      |  charPanelContent: document.getElementById('charPanelContent'),
+      |  charPanelClose:   document.getElementById('charPanelClose'),
+      |};
+      |
+      |let savedChars  = [];
+      |let savedGuilds = [];
+      |let guildOnlineMap = {};
+      |
+      |// ── Persistence ───────────────────────────────────────────────────────────────
+      |function loadStorage() {
+      |  const url = localStorage.getItem(STORAGE_BACKEND);
+      |  if (url) el.backendUrl.value = url;
+      |  const dist = localStorage.getItem(STORAGE_DISTANCE);
+      |  if (dist !== null) el.distance.value = dist;
+      |  try { savedChars  = JSON.parse(localStorage.getItem(STORAGE_CHARS)  || '[]'); } catch(_) {}
+      |  try { savedGuilds = JSON.parse(localStorage.getItem(STORAGE_GUILDS) || '[]'); } catch(_) {}
+      |  renderSavedChars();
+      |  renderSavedGuilds();
+      |}
+      |
+      |function persist() {
+      |  localStorage.setItem(STORAGE_BACKEND,  el.backendUrl.value.trim());
+      |  localStorage.setItem(STORAGE_DISTANCE, el.distance.value);
+      |  localStorage.setItem(STORAGE_CHARS,    JSON.stringify(savedChars));
+      |  localStorage.setItem(STORAGE_GUILDS,   JSON.stringify(savedGuilds));
+      |}
+      |
+      |// ── Helpers ───────────────────────────────────────────────────────────────────
+      |function baseUrl() { return el.backendUrl.value.trim().replace(/\/+$/, ''); }
+      |function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+      |function esc(v) {
+      |  return String(v)
+      |    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      |    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      |    .replace(/'/g,'&#39;');
+      |}
+      |
+      |// ── Error ─────────────────────────────────────────────────────────────────────
+      |function showError(msg) {
+      |  el.errorMsg.textContent = msg || '';
+      |  el.errorBox.classList.toggle('visible', !!msg);
+      |  el.backendLink.href = baseUrl() + '/';
+      |}
+      |function clearError() { el.errorBox.classList.remove('visible'); }
+      |
+      |// ── API fetch ─────────────────────────────────────────────────────────────────
+      |async function fetchJson(path, timeoutMs, maxAttempts) {
+      |  if (maxAttempts === undefined) maxAttempts = 2;
+      |  if (timeoutMs === undefined) timeoutMs = 15000;
+      |  const url = baseUrl() + path;
+      |  let lastErr = null, res = null;
+      |  for (let i = 1; i <= maxAttempts; i++) {
+      |    const ctrl = new AbortController();
+      |    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+      |    try {
+      |      res = await fetch(url, { signal: ctrl.signal });
+      |      clearTimeout(t);
+      |      if (res.status < 500) break;
+      |      lastErr = new Error('HTTP ' + res.status);
+      |    } catch(e) { clearTimeout(t); lastErr = e; }
+      |    if (i < maxAttempts) await sleep(1200);
+      |  }
+      |  if (!res) {
+      |    const detail = lastErr && lastErr.name === 'AbortError'
+      |      ? 'Request timed out.'
+      |      : 'Browser could not establish a network connection. Check Backend URL, Render deploy health, VPN/firewall/proxy rules, and CORS/network access.';
+      |    throw new Error('Could not reach API at ' + url + ' after ' + maxAttempts + ' attempts. ' + detail);
+      |  }
+      |  const text = await res.text();
+      |  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try narrowing your search.');
+      |  const ct = res.headers.get('content-type') || '';
+      |  if (!ct.includes('application/json')) throw new Error('Non-JSON response (HTTP ' + res.status + '): ' + text.slice(0,200));
+      |  const body = JSON.parse(text);
+      |  if (!res.ok) throw new Error(body.error || body.message || 'HTTP ' + res.status);
+      |  return body;
+      |}
+      |
+      |// ── Health check ──────────────────────────────────────────────────────────────
+      |async function checkHealth() {
+      |  try {
+      |    const d = await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
+      |    el.apiBadge.textContent = 'API: ' + (d.status || 'ok');
+      |    el.apiBadge.className = 'api-badge ok';
+      |  } catch(_) {
+      |    el.apiBadge.textContent = 'API: unavailable';
+      |    el.apiBadge.className = 'api-badge bad';
+      |  }
+      |}
+      |
+      |// ── Strict mode ───────────────────────────────────────────────────────────────
+      |el.strictMode.addEventListener('change', function() {
+      |  if (this.checked) {
+      |    el.distance.value = '0'; el.includeClashes.value = 'false';
+      |    el.distance.disabled = true; el.includeClashes.disabled = true;
+      |  } else {
+      |    el.distance.disabled = false; el.includeClashes.disabled = false;
+      |  }
+      |});
+      |
+      |// ── Render matches ────────────────────────────────────────────────────────────
+      |function renderMatches(matches) {
+      |  if (!matches || matches.length === 0) {
+      |    el.matchesArea.innerHTML = '<pre>No matches found.</pre>';
+      |    return;
+      |  }
+      |  const rows = matches.map(function(m) {
+      |    const conf = Number(m.confidence || 0);
+      |    const cls = conf >= 70 ? 'conf-hi' : conf >= 40 ? 'conf-mid' : 'conf-lo';
+      |    const hidden = m.hiddenLikely ? 'yes (' + m.hiddenScore + ')' : 'no (' + m.hiddenScore + ')';
+      |    const traded = (m.recentTradeDates || []).length > 0;
+      |    const tradeCell = traded
+      |      ? esc(m.recentTradeDates[0]) + '<span class="trade-badge">TRADED</span>'
+      |      : '<span style="color:#8b949e">none</span>';
+      |    return '<tr>'
+      |      + '<td class="name-cell" data-name="' + esc(m.name||'') + '">' + esc(m.name||'Unknown') + '</td>'
+      |      + '<td><span class="conf-pill ' + cls + '">' + conf + '</span></td>'
+      |      + '<td>' + esc(String(m.adjacencies != null ? m.adjacencies : '-')) + '</td>'
+      |      + '<td>' + esc(String(m.clashes != null ? m.clashes : '-')) + '</td>'
+      |      + '<td>' + esc(String(m.logins != null ? m.logins : '-')) + '</td>'
+      |      + '<td>' + esc(hidden) + '</td>'
+      |      + '<td>' + tradeCell + '</td>'
+      |      + '</tr>';
+      |  }).join('');
+      |  el.matchesArea.innerHTML = '<div class="table-wrap"><table>'
+      |    + '<thead><tr><th>Name</th><th>Confidence</th><th>Adj</th><th>Clashes</th>'
+      |    + '<th>Logins</th><th>Hidden</th><th>Trades</th></tr></thead>'
+      |    + '<tbody>' + rows + '</tbody></table></div>';
+      |}
+      |
+      |// ── Run search ────────────────────────────────────────────────────────────────
+      |async function runSearch() {
+      |  clearError();
+      |  hideCharPanel();
+      |  const chars = el.characters.value.trim();
+      |  if (!chars) { showError('Enter at least one character name.'); return; }
+      |  const distance  = Number(el.distance.value || 0);
+      |  const clashes   = el.includeClashes.value;
+      |  const params = new URLSearchParams({
+      |    characters: chars, distance: String(distance),
+      |    includeClashes: clashes, format: 'detailed',
+      |  });
+      |  persist();
+      |  el.runBtn.disabled = true; el.runBtn.textContent = 'Running\u2026';
+      |  el.summary.textContent = 'Loading\u2026';
+      |  el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
+      |  try {
+      |    const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
+      |    el.summary.textContent = data.formattedText || JSON.stringify(data, null, 2);
+      |    renderMatches(data.possibleMatches || []);
+      |  } catch(err) {
+      |    showError(err.message || String(err));
+      |    el.summary.textContent = 'Search failed.';
+      |    el.matchesArea.innerHTML = '<pre>Search failed.</pre>';
+      |  } finally {
+      |    el.runBtn.disabled = false; el.runBtn.textContent = 'Run';
+      |  }
+      |}
+      |
+      |function clearAll() {
+      |  clearError(); hideCharPanel();
+      |  el.characters.value = '';
+      |  el.summary.textContent = 'No search yet.';
+      |  el.matchesArea.innerHTML = '<pre>No search yet.</pre>';
+      |}
+      |
+      |// ── Saved Characters ──────────────────────────────────────────────────────────
+      |function renderSavedChars() {
+      |  el.savedCharList.innerHTML = savedChars.length === 0
+      |    ? '<option value="">No saved characters</option>'
+      |    : savedChars.map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+      |  el.savedCharDisplay.textContent = savedChars.length === 0 ? 'No saved characters yet.' : savedChars.join('\n');
+      |}
+      |
+      |el.addCharBtn.addEventListener('click', function() {
+      |  const name = el.savedCharInput.value.trim();
+      |  if (!name || savedChars.includes(name)) return;
+      |  savedChars.push(name); persist(); renderSavedChars(); el.savedCharInput.value = '';
+      |});
+      |el.savedCharInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') el.addCharBtn.click(); });
+      |el.useCharBtn.addEventListener('click', function() {
+      |  const sel = el.savedCharList.value; if (sel) el.characters.value = sel;
+      |});
+      |el.removeCharBtn.addEventListener('click', function() {
+      |  const sel = el.savedCharList.value;
+      |  savedChars = savedChars.filter(function(c){ return c !== sel; });
+      |  persist(); renderSavedChars();
+      |});
+      |
+      |// ── Saved Guilds ──────────────────────────────────────────────────────────────
+      |function renderSavedGuilds() {
+      |  el.savedGuildList.innerHTML = savedGuilds.length === 0
+      |    ? '<option value="">No saved guilds</option>'
+      |    : savedGuilds.map(function(g){ return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('');
+      |  el.savedGuildDisplay.textContent = savedGuilds.length === 0 ? 'No saved guilds yet.' : savedGuilds.join('\n');
+      |}
+      |
+      |el.savedGuildInput.addEventListener('keydown', function(e) {
+      |  if (e.key !== 'Enter') return;
+      |  const name = el.savedGuildInput.value.trim();
+      |  if (!name || savedGuilds.includes(name)) return;
+      |  savedGuilds.push(name); persist(); renderSavedGuilds(); el.savedGuildInput.value = '';
+      |});
+      |el.refreshGuildBtn.addEventListener('click', async function() {
+      |  const sel = el.savedGuildList.value;
+      |  if (!sel) { el.savedGuildDisplay.textContent = 'Select a guild first.'; return; }
+      |  el.savedGuildDisplay.textContent = 'Refreshing\u2026';
+      |  try {
+      |    const data = await fetchJson('/api/altfinder/guild?name=' + encodeURIComponent(sel), TIMEOUT_STATUS, 1);
+      |    const online = data.onlineCharacters || [];
+      |    guildOnlineMap[sel] = online;
+      |    el.savedGuildDisplay.textContent = (data.name || sel) + ' (' + (data.world||'?') + ') \u2014 '
+      |      + (data.online||0) + '/' + (data.members||0) + ' online\n'
+      |      + (online.length ? online.join(', ') : 'No one online');
+      |  } catch(err) { el.savedGuildDisplay.textContent = 'Error: ' + (err.message || String(err)); }
+      |});
+      |el.loadGuildBtn.addEventListener('click', function() {
+      |  const sel = el.savedGuildList.value;
+      |  const online = guildOnlineMap[sel];
+      |  if (!online || online.length === 0) { el.savedGuildDisplay.textContent = 'Refresh the guild first to get online members.'; return; }
+      |  el.characters.value = online.join(', ');
+      |});
+      |el.removeGuildBtn.addEventListener('click', function() {
+      |  const sel = el.savedGuildList.value;
+      |  savedGuilds = savedGuilds.filter(function(g){ return g !== sel; });
+      |  delete guildOnlineMap[sel]; persist(); renderSavedGuilds();
+      |});
+      |
+      |// ── Watchlist ─────────────────────────────────────────────────────────────────
+      |async function loadWatchlist() {
+      |  const guildId = el.watchGuildId.value.trim();
+      |  if (!guildId) { el.watchListArea.textContent = 'Enter a Discord Guild ID.'; return; }
+      |  el.watchListArea.textContent = 'Loading\u2026';
+      |  try {
+      |    const data = await fetchJson('/api/altfinder/watchlist?guildId=' + encodeURIComponent(guildId), TIMEOUT_STATUS, 1);
+      |    const watches = data.watches || [];
+      |    el.watchListArea.textContent = watches.length === 0
+      |      ? 'No watches configured for this guild.'
+      |      : watches.map(function(w){ return w.characterName + ' (dist ' + w.distance + ', threshold ' + w.confidenceThreshold + '%)'; }).join('\n');
+      |  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
+      |}
+      |
+      |async function addWatch() {
+      |  const guildId   = el.watchGuildId.value.trim();
+      |  const channelId = el.watchChannelId.value.trim();
+      |  const charName  = el.watchCharInput.value.trim();
+      |  if (!guildId || !channelId || !charName) {
+      |    el.watchListArea.textContent = 'Guild ID, Channel ID and character name are all required.'; return;
+      |  }
+      |  el.watchListArea.textContent = 'Adding\u2026';
+      |  try {
+      |    await fetchJson('/api/altfinder/watchlist/add?guildId=' + encodeURIComponent(guildId)
+      |      + '&channelId=' + encodeURIComponent(channelId)
+      |      + '&character=' + encodeURIComponent(charName), TIMEOUT_STATUS, 1);
+      |    el.watchCharInput.value = '';
+      |    await loadWatchlist();
+      |  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
+      |}
+      |
+      |el.addWatchBtn.addEventListener('click', addWatch);
+      |el.loadWatchBtn.addEventListener('click', loadWatchlist);
+      |el.watchGuildId.addEventListener('keydown', function(e){ if (e.key === 'Enter') loadWatchlist(); });
+      |
+      |// ── Character detail panel ────────────────────────────────────────────────────
+      |function hideCharPanel() { el.charPanel.classList.remove('open'); }
+      |el.charPanelClose.addEventListener('click', hideCharPanel);
+      |el.matchesArea.addEventListener('click', function(e) {
+      |  const td = e.target.closest('[data-name]'); if (td) openCharPanel(td.dataset.name);
+      |});
+      |
+      |async function openCharPanel(name) {
+      |  el.charPanelName.textContent = name;
+      |  el.charPanelContent.innerHTML = '<div style="color:#8b949e;font-style:italic">Fetching from TibiaData &amp; Exevopan\u2026</div>';
+      |  el.charPanel.classList.add('open');
+      |  el.charPanel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      |  try {
+      |    const d = await fetchJson('/api/altfinder/character?name=' + encodeURIComponent(name), TIMEOUT_CHAR, 2);
+      |    const guild = d.guild ? d.guild + (d.guildRank ? ' (' + d.guildRank + ')' : '') : '-';
+      |    const former = (d.formerNames || []).join(', ') || '-';
+      |    const lastLogin = (d.lastLogin || '-').slice(0, 16).replace('T', ' ');
+      |    const traded = (d.recentTradeDates || []).length > 0;
+      |    const tradeHtml = traded
+      |      ? '<div class="trade-alert-box">\u26a0 RECENTLY TRADED \u2014 ' + esc((d.recentTradeDates||[]).join(', ')) + '</div>'
+      |      : '';
+      |    const tradeErr = d.tradedCheckError
+      |      ? '<div class="trade-alert-box" style="border-color:#f85149;color:#ffa198">\u26a0 Exevopan trade check failed (may be rate-limited).</div>'
+      |      : '';
+      |    function f(lbl, val) {
+      |      return '<div><div class="char-field-lbl">' + esc(lbl) + '</div><div class="char-field-val">' + esc(val||'-') + '</div></div>';
       |    }
+      |    el.charPanelName.textContent = d.name || name;
+      |    el.charPanelContent.innerHTML = '<div class="char-fields">'
+      |      + f('Level', String(d.level||'-')) + f('Vocation', d.vocation) + f('World', d.world)
+      |      + f('Sex', d.sex) + f('Guild', guild) + f('Last Login', lastLogin)
+      |      + f('Former Names', former) + '</div>'
+      |      + tradeHtml + tradeErr
+      |      + '<div class="char-links">'
+      |      + '<a class="char-link" href="' + esc(d.tibiaComUrl) + '" target="_blank" rel="noopener">Tibia.com \u2197</a>'
+      |      + '<a class="char-link" href="' + esc(d.exevopanUrl) + '" target="_blank" rel="noopener">Exevopan \u2197</a>'
+      |      + '</div>';
+      |  } catch(err) {
+      |    el.charPanelContent.innerHTML = '<div style="color:#f85149;font-size:.85rem">Failed: ' + esc(err.message||String(err)) + '</div>';
+      |  }
+      |}
       |
-      |    function setError(message) {
-      |      ui.error.textContent = message || "";
-      |    }
+      |// ── Event wiring ──────────────────────────────────────────────────────────────
+      |el.runBtn.addEventListener('click', runSearch);
+      |el.clearBtn.addEventListener('click', clearAll);
+      |el.characters.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
+      |el.backendUrl.addEventListener('change', function() {
+      |  localStorage.setItem(STORAGE_BACKEND, el.backendUrl.value.trim());
+      |  checkHealth();
+      |});
       |
-      |    function fillKpis(data, trackerStatus) {
-      |      ui.kpiLogins.textContent = String(data.totalLogins ?? "-");
-      |      ui.kpiMatches.textContent = String((data.possibleMatches || []).length);
-      |      ui.kpiRange.textContent = data.dateRange || "-";
-      |      ui.kpiSave.textContent = trackerStatus && trackerStatus.latestWorldSave ? trackerStatus.latestWorldSave : "-";
-      |    }
-      |
-      |    function renderRows(matches) {
-      |      if (!matches || matches.length === 0) {
-      |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No matches found.</td></tr>';
-      |        return;
-      |      }
-      |      const rows = matches.map((m) => {
-      |        const tradeDates = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
-      |        const hidden = m.hiddenLikely ? ("yes (" + m.hiddenScore + ")") : ("no (" + m.hiddenScore + ")");
-      |        return (
-      |          "<tr>" +
-      |            "<td>" + escapeHtml(m.name || "Unknown") + "</td>" +
-      |            "<td><span class=\"score-pill\">" + escapeHtml(String(m.confidence ?? "-")) + "</span></td>" +
-      |            "<td>" + escapeHtml(String(m.adjacencies ?? "-")) + "</td>" +
-      |            "<td>" + escapeHtml(String(m.clashes ?? "-")) + "</td>" +
-      |            "<td>" + escapeHtml(String(m.logins ?? "-")) + "</td>" +
-      |            "<td>" + escapeHtml(hidden) + "</td>" +
-      |            "<td>" + escapeHtml(tradeDates) + "</td>" +
-      |          "</tr>"
-      |        );
-      |      }).join("");
-      |      ui.resultsBody.innerHTML = rows;
-      |    }
-      |
-      |    function escapeHtml(value) {
-      |      return String(value)
-      |        .replaceAll("&", "&amp;")
-      |        .replaceAll("<", "&lt;")
-      |        .replaceAll(">", "&gt;")
-      |        .replaceAll("\"", "&quot;")
-      |        .replaceAll("'", "&#39;");
-      |    }
-      |
-      |    async function loadStatus() {
-      |      try {
-      |        const healthRes = await fetch("/api/altfinder/health");
-      |        const healthRaw = await healthRes.text();
-      |        const health = healthRaw ? JSON.parse(healthRaw) : {};
-      |        ui.healthBadge.textContent = "API health: " + (health.status || "unknown");
-      |        if (health.status === "ok") ui.healthBadge.classList.add("status-ok");
-      |      } catch (_) {
-      |        ui.healthBadge.textContent = "API health: unavailable";
-      |      }
-      |      try {
-      |        const statusRes = await fetch("/api/altfinder/status");
-      |        if (statusRes.ok) {
-      |          const statusRaw = await statusRes.text();
-      |          const trackerStatus = statusRaw ? JSON.parse(statusRaw) : {};
-      |          if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
-      |            ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
-      |          }
-      |        }
-      |      } catch (_) {}
-      |    }
-      |
-      |    async function runSearch() {
-      |      setError("");
-      |      setStatus("Searching...");
-      |      ui.output.textContent = "Loading...";
-      |      const timeoutMs = 60000;
-      |
-      |      const q = new URLSearchParams();
-      |      const chars = $("characters").value.trim();
-      |      const distance = $("distance").value.trim();
-      |      const includeClashes = $("clashes").value;
-      |
-      |      if (!chars) {
-      |        setError("Characters is required.");
-      |        setStatus("");
-      |        ui.output.textContent = "No search yet.";
-      |        return;
-      |      }
-      |
-      |      q.set("characters", chars);
-      |      if (distance) q.set("distance", distance);
-      |      q.set("includeClashes", includeClashes);
-      |      q.set("format", "detailed");
-      |      const fromDate = $("fromDate").value.trim();
-      |      const toDate = $("toDate").value.trim();
-      |      if (fromDate) q.set("from", fromDate);
-      |      if (toDate) q.set("to", toDate);
-      |
-      |      try {
-      |        const controller = new AbortController();
-      |        const timer = setTimeout(() => controller.abort(), timeoutMs);
-      |        const res = await fetch("/api/altfinder/alts?" + q.toString(), { signal: controller.signal });
-      |        clearTimeout(timer);
-      |        const raw = await res.text();
-      |        let data;
-      |        try {
-      |          data = raw ? JSON.parse(raw) : {};
-      |        } catch (_) {
-      |          if (/response timed out/i.test(raw)) {
-      |            throw new Error("Backend timed out. Narrow date range, reduce characters, or retry.");
-      |          }
-      |          throw new Error("Non-JSON response from backend: " + String(raw).slice(0, 200));
-      |        }
-      |        let trackerStatus = {};
-      |        try {
-      |          const trackerRes = await fetch("/api/altfinder/status");
-      |          if (trackerRes.ok) trackerStatus = await trackerRes.json();
-      |        } catch (_) {}
-      |        if (!res.ok) {
-      |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
-      |        }
-      |        fillKpis(data, trackerStatus);
-      |        renderRows(data.possibleMatches || []);
-      |        ui.output.textContent = data.formattedText || JSON.stringify(data, null, 2);
-      |        setStatus("Done.");
-      |      } catch (e) {
-      |        if (e && e.name === "AbortError") {
-      |          setError("Backend timed out. Narrow date range, reduce characters, or retry.");
-      |        } else {
-      |          setError(e.message || String(e));
-      |        }
-      |        ui.output.textContent = "Search failed.";
-      |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">Search failed.</td></tr>';
-      |        setStatus("");
-      |      }
-      |    }
-      |
-      |    function escHtml(v) {
-      |      return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
-      |    }
-      |
-      |    async function runGuildSearch() {
-      |      const name = ($("guildName").value || "").trim();
-      |      if (!name) { $("guildStatus").textContent = "Enter a guild name."; return; }
-      |      $("guildStatus").textContent = "Searching...";
-      |      try {
-      |        const res = await fetch("/api/altfinder/guild?name=" + encodeURIComponent(name));
-      |        const data = res.ok ? await res.json() : {};
-      |        const online = (data.onlineCharacters || []).join(", ") || "none";
-      |        $("guildOutput").textContent = [
-      |          "Guild: " + (data.name || name),
-      |          "World: " + (data.world || "-"),
-      |          "Members: " + (data.members || 0),
-      |          "Online: " + (data.online || 0),
-      |          "Online characters: " + online
-      |        ].join("\n");
-      |        $("guildStatus").textContent = "Done.";
-      |      } catch (e) {
-      |        $("guildOutput").textContent = e.message || String(e);
-      |        $("guildStatus").textContent = "";
-      |      }
-      |    }
-      |
-      |    async function loadHistory() {
-      |      $("historyStatus").textContent = "Loading...";
-      |      try {
-      |        const res = await fetch("/api/altfinder/research?limit=25");
-      |        const rows = res.ok ? await res.json() : [];
-      |        if (!Array.isArray(rows) || rows.length === 0) {
-      |          $("historyBody").innerHTML = '<tr><td colspan="6" class="muted">No research runs yet.</td></tr>';
-      |        } else {
-      |          $("historyBody").innerHTML = rows.map((r) => {
-      |            const chars = (r.searchedCharacters || []).slice(0, 4).join(", ") + ((r.searchedCharacters || []).length > 4 ? "…" : "");
-      |            const range = [r.searchedFrom, r.searchedTo].filter(Boolean).join(" – ") || "Max";
-      |            const runAt = (r.createdAt || "").slice(0, 16).replace("T", " ");
-      |            return "<tr>" +
-      |              "<td>" + escHtml(r.runType || "-") + "</td>" +
-      |              "<td>" + escHtml(chars || "-") + "</td>" +
-      |              "<td>" + escHtml(range) + "</td>" +
-      |              "<td>" + escHtml(String(r.distanceMinutes ?? "-")) + "m</td>" +
-      |              "<td>" + escHtml(String(r.matchCount ?? "-")) + "</td>" +
-      |              "<td>" + escHtml(runAt || "-") + "</td>" +
-      |              "</tr>";
-      |          }).join("");
-      |        }
-      |        $("historyStatus").textContent = "Done.";
-      |      } catch (e) {
-      |        $("historyBody").innerHTML = '<tr><td colspan="6" class="muted">' + (e.message || String(e)) + '</td></tr>';
-      |        $("historyStatus").textContent = "";
-      |      }
-      |    }
-      |
-      |    $("runBtn").addEventListener("click", runSearch);
-      |    $("clearBtn").addEventListener("click", () => {
-      |      $("characters").value = "";
-      |      $("distance").value = "0";
-      |      $("clashes").value = "false";
-      |      setStatus("");
-      |      setError("");
-      |      ui.output.textContent = "No search yet.";
-      |      ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No search yet.</td></tr>';
-      |      ui.kpiLogins.textContent = "-";
-      |      ui.kpiMatches.textContent = "-";
-      |      ui.kpiRange.textContent = "-";
-      |      ui.kpiSave.textContent = "-";
-      |      $("fromDate").value = "";
-      |      $("toDate").value = "";
-      |    });
-      |    $("characters").addEventListener("keydown", (e) => {
-      |      if (e.key === "Enter") runSearch();
-      |    });
-      |    $("guildBtn").addEventListener("click", runGuildSearch);
-      |    $("historyBtn").addEventListener("click", loadHistory);
-      |    loadStatus();
-      |  </script>
+      |// ── Init ──────────────────────────────────────────────────────────────────────
+      |loadStorage();
+      |checkHealth();
+      |</script>
       |</body>
       |</html>
       |""".stripMargin
