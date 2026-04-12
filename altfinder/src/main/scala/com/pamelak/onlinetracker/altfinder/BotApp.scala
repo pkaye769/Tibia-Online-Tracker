@@ -52,7 +52,13 @@ object BotApp extends IOApp {
   ): IO[Unit] = {
     val commandData = commands.map(_.command).asJava
     val allGuilds = jda.getGuilds.asScala.toList
-    val targetGuilds = allGuilds
+    val targetGuilds = guildIdOverride match {
+      case Some(gid) => allGuilds.filter(_.getId == gid) match {
+        case Nil     => allGuilds // override not found – fall back to all (warning already logged above)
+        case specific => specific
+      }
+      case None => allGuilds
+    }
 
     for {
       _ <- Logger[IO].info(s"Registering ${commands.length} commands: ${commands.map(_.command.getName).mkString(", ")}")

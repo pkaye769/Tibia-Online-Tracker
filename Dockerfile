@@ -18,13 +18,13 @@ ENV PATH="/usr/local/sbt/bin:${PATH}"
 # This layer is only invalidated when build.sbt or project/ changes.
 COPY build.sbt .
 COPY project/ project/
-RUN sbt -J-Xmx512m -J-Xss2m update
+RUN sbt -J-Xmx1g -J-Xss2m update
 
 COPY . .
 
 # Build distributable start scripts during image build.
 # Runtime will execute JVM apps directly (not sbt), which uses much less memory.
-RUN sbt -J-Xmx512m -J-Xss2m "altfinder/stage" "tracker/stage"
+RUN sbt -J-Xmx1g -J-Xss2m "altfinder/stage" "tracker/stage"
 
 ENV APP=altfinder
 ENV ALTFINDER_API_HOST=0.0.0.0

@@ -26,13 +26,11 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
 
   override def ensureSchema: IO[Unit] = withSession { session =>
 
-  // 🔥 ADDED FIX (missing table)
   val createOnlineHistoryTable = sql"""
     CREATE TABLE IF NOT EXISTS online_history (
-      id BIGSERIAL PRIMARY KEY,
-      character_id BIGINT NOT NULL,
-      login_time BIGINT NOT NULL,
-      logout_time BIGINT NOT NULL
+      character_id BIGINT NOT NULL REFERENCES character(id) ON DELETE CASCADE,
+      login_time   BIGINT NOT NULL REFERENCES world_save_time(id) ON DELETE CASCADE,
+      logout_time  BIGINT NOT NULL REFERENCES world_save_time(id) ON DELETE CASCADE
     )
   """.command
 
@@ -128,26 +126,30 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
   ): IO[List[OnlineSegment]] = withSession { session =>
     val cl = characterNames.map(_.toLowerCase)
 
+    // Return epoch seconds so that the service can compare durations in real time units.
     val baseFragment = sql"""
-        SELECT o.character_id, o.login_time, o.logout_time
-        FROM online_history o JOIN character c
-        ON o.character_id = c.id
+        SELECT o.character_id,
+               EXTRACT(EPOCH FROM w_login.time)::bigint,
+               EXTRACT(EPOCH FROM w_logout.time)::bigint
+        FROM online_history o
+        JOIN character c        ON o.character_id = c.id
+        JOIN world_save_time w_login  ON o.login_time  = w_login.id
+        JOIN world_save_time w_logout ON o.logout_time = w_logout.id
       """
-    val joinFragment = sql"JOIN world_save_time w ON o.login_time = w.id"
-    val charFragment = sql"WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})"
-    val fromToFragment = sql"AND w.time >= $timestamptz AND w.time <= $timestamptz"
-    val fromFragment = sql"AND w.time >= $timestamptz"
-    val toFragment = sql"AND w.time <= $timestamptz"
+    val charFragment   = sql"WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})"
+    val fromToFragment = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
+    val fromFragment   = sql"AND w_login.time >= $timestamptz"
+    val toFragment     = sql"AND w_login.time <= $timestamptz"
 
     (from, to) match {
       case (Some(f), Some(t)) =>
-        val q = sql"$baseFragment $joinFragment $charFragment $fromToFragment".query(onlineSegmentDecoder)
+        val q = sql"$baseFragment $charFragment $fromToFragment".query(onlineSegmentDecoder)
         prepareToList(session)(q, (cl, (f, t)))
       case (Some(f), None) =>
-        val q = sql"$baseFragment $joinFragment $charFragment $fromFragment".query(onlineSegmentDecoder)
+        val q = sql"$baseFragment $charFragment $fromFragment".query(onlineSegmentDecoder)
         prepareToList(session)(q, cl ~ f)
       case (None, Some(t)) =>
-        val q = sql"$baseFragment $joinFragment $charFragment $toFragment".query(onlineSegmentDecoder)
+        val q = sql"$baseFragment $charFragment $toFragment".query(onlineSegmentDecoder)
         prepareToList(session)(q, cl ~ t)
       case (None, None) =>
         val q = sql"$baseFragment $charFragment".query(onlineSegmentDecoder)
@@ -162,52 +164,66 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
       distance: Option[Int]
   ): IO[List[OnlineSegment]] = withSession { session =>
     val cl = characterNames.map(_.toLowerCase)
+    // Convert distance from minutes to seconds for real-time comparison.
+    val distanceSecs = distance.map(_ * 60L).getOrElse(0L)
 
-    val baseFragment = sql"""
-        SELECT o.character_id, o.login_time, o.logout_time
+    // Pre-compute epoch seconds and login timestamp for every online_history row.
+    val innerSubquery = sql"""
+        SELECT oh.character_id,
+               EXTRACT(EPOCH FROM ws_login.time)::bigint  AS login_sec,
+               EXTRACT(EPOCH FROM ws_logout.time)::bigint AS logout_sec,
+               ws_login.time                              AS login_ts
+        FROM online_history oh
+        JOIN world_save_time ws_login  ON oh.login_time  = ws_login.id
+        JOIN world_save_time ws_logout ON oh.logout_time = ws_logout.id
+      """
+
+    // Adjacency: session of o1 ends within distanceSecs before oh_epoch starts, or vice-versa.
+    // distanceSecs is a safely computed Long (distance minutes × 60) – not raw user input,
+    // so literal interpolation with #${} cannot cause SQL injection.
+    val adjacencyFragment = sql"""
+        (EXTRACT(EPOCH FROM ws1_login.time)::bigint - oh_epoch.logout_sec BETWEEN 0 AND #${distanceSecs.toString}
+         OR oh_epoch.login_sec - EXTRACT(EPOCH FROM ws1_logout.time)::bigint BETWEEN 0 AND #${distanceSecs.toString})
+      """
+
+    // Outer query: return epoch seconds for the matched characters' sessions.
+    // The inner SELECT finds all character IDs adjacent to the searched characters.
+    val outerBase = sql"""
+        SELECT o.character_id,
+               EXTRACT(EPOCH FROM w_login.time)::bigint,
+               EXTRACT(EPOCH FROM w_logout.time)::bigint
         FROM online_history o
+        JOIN world_save_time w_login  ON o.login_time  = w_login.id
+        JOIN world_save_time w_logout ON o.logout_time = w_logout.id
+        WHERE o.character_id IN (
+          SELECT DISTINCT oh_epoch.character_id
+          FROM online_history o1
+          JOIN world_save_time ws1_login  ON o1.login_time  = ws1_login.id
+          JOIN world_save_time ws1_logout ON o1.logout_time = ws1_logout.id
+          JOIN character c ON o1.character_id = c.id
+          JOIN ($innerSubquery) oh_epoch ON $adjacencyFragment
+          WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})
       """
-    val joinFragment = sql"JOIN world_save_time w ON o.login_time = w.id"
-    val whereInFragment = sql"WHERE o.character_id IN"
-    val adjacencyFragment = distance match {
-      case Some(d) => sql"""
-          ((o1.login_time - o2.logout_time >= 0 AND o1.login_time - o2.logout_time <= #${d.toString})
-           OR (o2.login_time - o1.logout_time >= 0 AND o2.login_time - o1.logout_time <= #${d.toString}))
-        """
-      case None => sql"""
-        (o1.login_time = o2.logout_time OR o1.logout_time = o2.login_time)
-      """
-    }
-    val innerFragment = sql"""
-        SELECT DISTINCT o2.character_id
-        FROM online_history o1
-        JOIN online_history o2 ON $adjacencyFragment
-        JOIN character c ON o1.character_id = c.id
-      """
-    val innerJoinFragment = sql"JOIN world_save_time w ON o2.login_time = w.id"
-    val charFragment = sql"WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})"
-    val fromToFragment = sql"AND w.time >= $timestamptz AND w.time <= $timestamptz"
-    val fromFragment = sql"AND w.time >= $timestamptz"
-    val toFragment = sql"AND w.time <= $timestamptz"
+
+    val innerFromToFilter = sql"AND oh_epoch.login_ts >= $timestamptz AND oh_epoch.login_ts <= $timestamptz"
+    val innerFromFilter   = sql"AND oh_epoch.login_ts >= $timestamptz"
+    val innerToFilter     = sql"AND oh_epoch.login_ts <= $timestamptz"
+    val outerFromToFilter = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
+    val outerFromFilter   = sql"AND w_login.time >= $timestamptz"
+    val outerToFilter     = sql"AND w_login.time <= $timestamptz"
 
     (from, to) match {
       case (Some(f), Some(t)) =>
-        val q =
-          sql"$baseFragment $joinFragment $whereInFragment ($innerFragment $innerJoinFragment $charFragment $fromToFragment) $fromToFragment"
-            .query(onlineSegmentDecoder)
+        val q = sql"$outerBase $innerFromToFilter) $outerFromToFilter".query(onlineSegmentDecoder)
         prepareToList(session)(q, (cl, (f, t), (f, t)))
       case (Some(f), None) =>
-        val q =
-          sql"$baseFragment $joinFragment $whereInFragment ($innerFragment $innerJoinFragment $charFragment $fromFragment) $fromFragment"
-            .query(onlineSegmentDecoder)
+        val q = sql"$outerBase $innerFromFilter) $outerFromFilter".query(onlineSegmentDecoder)
         prepareToList(session)(q, (cl, f, f))
       case (None, Some(t)) =>
-        val q =
-          sql"$baseFragment $joinFragment $whereInFragment ($innerFragment $innerJoinFragment $charFragment $toFragment) $toFragment"
-            .query(onlineSegmentDecoder)
+        val q = sql"$outerBase $innerToFilter) $outerToFilter".query(onlineSegmentDecoder)
         prepareToList(session)(q, (cl, t, t))
       case (None, None) =>
-        val q = sql"$baseFragment $whereInFragment ($innerFragment $charFragment)".query(onlineSegmentDecoder)
+        val q = sql"$outerBase)".query(onlineSegmentDecoder)
         prepareToList(session)(q, cl)
     }
   }
@@ -238,7 +254,7 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     val fromToFragment = sql"AND w2.time >= $timestamptz AND w1.time <= $timestamptz"
     val fromFragment = sql"AND w2.time >= $timestamptz"
     val toFragment = sql"AND w1.time <= $timestamptz"
-    val orderFragment = sql"ORDER BY w1.sequence_id"
+    val orderFragment = sql"ORDER BY w1.id"
 
     (from, to) match {
       case (Some(f), Some(t)) =>
@@ -481,7 +497,7 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
   override def latestWorldSaveTime: IO[Option[OffsetDateTime]] = withSession { session =>
     val q = sql"""
       SELECT MAX(time) FROM world_save_time
-    """.query(timestamptz)
-    session.option(q, Void)
+    """.query(timestamptz.opt)
+    session.unique(q, Void)
   }
 }

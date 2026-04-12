@@ -39,6 +39,14 @@
                 <option value="true">true</option>
               </select>
             </div>
+            <div>
+              <label for="dateFrom">From date (optional)</label>
+              <input id="dateFrom" type="date" />
+            </div>
+            <div>
+              <label for="dateTo">To date (optional)</label>
+              <input id="dateTo" type="date" />
+            </div>
           </div>
 
           <div class="toggle-row">
@@ -66,7 +74,51 @@
 
         <section class="card">
           <h2>Possible Matches</h2>
+          <div id="resultsTable" class="table-wrap" style="display:none">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Conf</th>
+                  <th>Adj</th>
+                  <th>Clashes</th>
+                  <th>Logins</th>
+                  <th>Hidden</th>
+                  <th>Evidence</th>
+                  <th>Trades</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody">
+                <tr><td colspan="8" class="muted-cell">No search yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
           <pre id="results">No search yet.</pre>
+        </section>
+
+        <section class="card">
+          <h2>Research History</h2>
+          <div class="actions">
+            <button id="historyBtn" class="ghost">Load</button>
+            <span id="historyStatus"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Characters</th>
+                  <th>Date Range</th>
+                  <th>Dist (min)</th>
+                  <th>Matches</th>
+                  <th>Run At</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody">
+                <tr><td colspan="6" class="muted-cell">Click Load to fetch history.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="card">

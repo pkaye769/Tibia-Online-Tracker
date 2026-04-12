@@ -6,6 +6,8 @@ const ui = {
   distance: $("distance"),
   includeClashes: $("includeClashes"),
   strictMode: $("strictMode"),
+  dateFrom: $("dateFrom"),
+  dateTo: $("dateTo"),
   characters: $("characters"),
   runBtn: $("runBtn"),
   clearBtn: $("clearBtn"),
@@ -14,6 +16,11 @@ const ui = {
   health: $("health"),
   summary: $("summary"),
   results: $("results"),
+  resultsTable: $("resultsTable"),
+  resultsBody: $("resultsBody"),
+  historyBtn: $("historyBtn"),
+  historyBody: $("historyBody"),
+  historyStatus: $("historyStatus"),
   guildName: $("guildName"),
   guildSearchBtn: $("guildSearchBtn"),
   guildSaveBtn: $("guildSaveBtn"),
@@ -236,6 +243,15 @@ async function fetchJson(path) {
   return body;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function renderAlts(data, names, distance, includeClashes) {
   const matches = Array.isArray(data.possibleMatches) ? data.possibleMatches : [];
   const top = matches.slice().sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0));
@@ -250,14 +266,34 @@ function renderAlts(data, names, distance, includeClashes) {
     `Possible matches: ${top.length}`
   ].join("\n");
 
+  // Show table, hide plain-text pre
+  ui.resultsTable.style.display = "";
+  ui.results.style.display = "none";
+
   if (top.length === 0) {
-    ui.results.textContent = "No matches found.";
+    ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted-cell">No matches found.</td></tr>';
     return;
   }
 
-  ui.results.textContent = top
-    .map((m) => `${m.name || "Unknown"}: ${m.adjacencies || 0} / ${m.clashes || 0} / ${m.logins || 0}`)
-    .join("\n");
+  ui.resultsBody.innerHTML = top.map((m) => {
+    const conf = Number(m.confidence ?? 0);
+    const pillClass = conf >= 70 ? "" : conf >= 40 ? " mid" : " low";
+    const trades = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
+    const hidden = m.hiddenLikely ? `yes (${m.hiddenScore})` : `no (${m.hiddenScore})`;
+    const evidence = m.evidencePassed ? "pass" : "low";
+    return (
+      "<tr>" +
+        `<td>${escapeHtml(m.name || "Unknown")}</td>` +
+        `<td><span class="score-pill${pillClass}">${escapeHtml(String(conf))}</span></td>` +
+        `<td>${escapeHtml(String(m.adjacencies ?? "-"))}</td>` +
+        `<td>${escapeHtml(String(m.clashes ?? "-"))}</td>` +
+        `<td>${escapeHtml(String(m.logins ?? "-"))}</td>` +
+        `<td>${escapeHtml(hidden)}</td>` +
+        `<td>${escapeHtml(evidence)}</td>` +
+        `<td>${escapeHtml(trades)}</td>` +
+      "</tr>"
+    );
+  }).join("");
 }
 
 function renderClashes(data, names, distance) {
@@ -268,6 +304,10 @@ function renderClashes(data, names, distance) {
     `Adjacency distance: ${distance} minutes`,
     `Clash pairs: ${clashes.length}`
   ].join("\n");
+
+  // Show plain-text pre, hide table
+  ui.resultsTable.style.display = "none";
+  ui.results.style.display = "";
 
   if (clashes.length === 0) {
     ui.results.textContent = "No clashes found.";
@@ -316,6 +356,10 @@ async function run() {
   const params = new URLSearchParams();
   params.set("characters", names.join(","));
   params.set("distance", String(distance));
+  const dateFrom = (ui.dateFrom.value || "").trim();
+  const dateTo = (ui.dateTo.value || "").trim();
+  if (dateFrom) params.set("from", dateFrom);
+  if (dateTo) params.set("to", dateTo);
 
   try {
     if (mode === "alts") {
@@ -324,6 +368,8 @@ async function run() {
       const data = await fetchJson(`/api/altfinder/alts?${params.toString()}`);
       renderAlts(data, names, distance, includeClashes);
     } else {
+      // clashes endpoint requires both characters (searched) and targets (checked against)
+      params.set("targets", names.join(","));
       const data = await fetchJson(`/api/altfinder/clashes?${params.toString()}`);
       renderClashes(data, names, distance);
     }
@@ -559,6 +605,38 @@ function useWatchedCharacter() {
   ui.characters.value = current.join(", ");
 }
 
+async function loadResearchHistory() {
+  ui.historyStatus.textContent = "Loading...";
+  try {
+    const rows = await fetchJson("/api/altfinder/research?limit=25");
+    const list = Array.isArray(rows) ? rows : [];
+    if (list.length === 0) {
+      ui.historyBody.innerHTML = '<tr><td colspan="6" class="muted-cell">No research runs yet.</td></tr>';
+    } else {
+      ui.historyBody.innerHTML = list.map((r) => {
+        const chars = (r.searchedCharacters || []).slice(0, 4).join(", ") +
+          ((r.searchedCharacters || []).length > 4 ? "…" : "");
+        const range = [r.searchedFrom, r.searchedTo].filter(Boolean).join(" – ") || "Max";
+        const runAt = (r.createdAt || "").slice(0, 16).replace("T", " ");
+        return (
+          "<tr>" +
+            `<td>${escapeHtml(r.runType || "-")}</td>` +
+            `<td>${escapeHtml(chars || "-")}</td>` +
+            `<td>${escapeHtml(range)}</td>` +
+            `<td>${escapeHtml(String(r.distanceMinutes ?? "-"))}</td>` +
+            `<td>${escapeHtml(String(r.matchCount ?? "-"))}</td>` +
+            `<td>${escapeHtml(runAt || "-")}</td>` +
+          "</tr>"
+        );
+      }).join("");
+    }
+    ui.historyStatus.textContent = "Done.";
+  } catch (err) {
+    ui.historyBody.innerHTML = `<tr><td colspan="6" class="muted-cell">${escapeHtml(err instanceof Error ? err.message : String(err))}</td></tr>`;
+    ui.historyStatus.textContent = "";
+  }
+}
+
 async function runWatchBatch() {
   saveWatchSettings();
   const guildId = getWatchGuildId();
@@ -595,6 +673,9 @@ ui.clearBtn.addEventListener("click", () => {
   setError("");
   ui.summary.textContent = "No search yet.";
   ui.results.textContent = "No search yet.";
+  ui.results.style.display = "";
+  ui.resultsTable.style.display = "none";
+  ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted-cell">No search yet.</td></tr>';
 });
 ui.apiBase.addEventListener("change", checkHealth);
 ui.distance.addEventListener("change", () => {
@@ -623,6 +704,8 @@ ui.watchRefreshBtn.addEventListener("click", refreshWatchList);
 ui.watchRunBtn.addEventListener("click", runWatchBatch);
 ui.watchUseBtn.addEventListener("click", useWatchedCharacter);
 ui.watchRemoveBtn.addEventListener("click", removeWatch);
+
+ui.historyBtn.addEventListener("click", loadResearchHistory);
 
 checkHealth();
 refreshCharacterSelect();

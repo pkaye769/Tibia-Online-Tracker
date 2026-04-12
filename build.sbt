@@ -3,7 +3,7 @@ ThisBuild / scalaVersion := "3.3.5"
 
 ThisBuild / dockerBaseImage := "eclipse-temurin:17-jre"
 
-lazy val root = (project in file(".")).aggregate(tracker, altfinder)
+lazy val root = (project in file(".")).aggregate(common, tracker, altfinder)
 
 lazy val common = (project in file("common")).settings(libraryDependencies ++= commonDependencies)
 
