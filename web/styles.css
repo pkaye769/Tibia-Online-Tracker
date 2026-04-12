@@ -160,7 +160,9 @@ button.ghost {
 }
 
 #status,
-#guildStatus {
+#guildStatus,
+#watchStatus,
+#historyStatus {
   color: var(--muted);
   font-size: 13px;
 }
@@ -200,4 +202,64 @@ pre {
   .grid.two {
     grid-template-columns: 1fr;
   }
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+  max-height: 400px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.muted-cell {
+  color: var(--muted);
+}
+
+.score-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(21, 128, 61, 0.25);
+  border: 1px solid #166534;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.score-pill.mid {
+  background: rgba(146, 64, 14, 0.25);
+  border-color: #b45309;
+}
+
+.score-pill.low {
+  background: rgba(127, 29, 29, 0.25);
+  border-color: #991b1b;
 }

@@ -857,7 +857,7 @@ final class AltFinderApi[F[_]: Async](
       |      border: 1px solid #d9c8a2;
       |      border-radius: 12px;
       |      background: #fffdf7;
-      |      max-height: 460px;
+      |      max-height: 400px;
       |    }
       |    table {
       |      width: 100%;
@@ -934,6 +934,14 @@ final class AltFinderApi[F[_]: Async](
       |              <option value="true">true</option>
       |            </select>
       |          </div>
+      |          <div>
+      |            <label for="fromDate">From (optional)</label>
+      |            <input id="fromDate" type="date" />
+      |          </div>
+      |          <div>
+      |            <label for="toDate">To (optional)</label>
+      |            <input id="toDate" type="date" />
+      |          </div>
       |        </div>
       |        <div class="actions">
       |          <button class="btn-primary" id="runBtn">Run Search</button>
@@ -973,6 +981,37 @@ final class AltFinderApi[F[_]: Async](
       |        <div class="card">
       |          <h2>Raw Summary</h2>
       |          <pre id="output">No search yet.</pre>
+      |        </div>
+      |      </section>
+      |    </div>
+      |    <div style="margin-top:14px">
+      |      <section class="card">
+      |        <h2>Guild Search</h2>
+      |        <div class="form-grid">
+      |          <div>
+      |            <label for="guildName">Guild name</label>
+      |            <input id="guildName" placeholder="Guild Name" />
+      |          </div>
+      |        </div>
+      |        <div class="actions">
+      |          <button class="btn-ghost" id="guildBtn">Search</button>
+      |          <span class="meta" id="guildStatus"></span>
+      |        </div>
+      |        <pre id="guildOutput" style="margin-top:8px">No search yet.</pre>
+      |      </section>
+      |    </div>
+      |    <div style="margin-top:14px">
+      |      <section class="card">
+      |        <h2>Research History</h2>
+      |        <div class="actions">
+      |          <button class="btn-ghost" id="historyBtn">Load History</button>
+      |          <span class="meta" id="historyStatus"></span>
+      |        </div>
+      |        <div class="table-wrap">
+      |          <table>
+      |            <thead><tr><th>Type</th><th>Characters</th><th>Date Range</th><th>Distance</th><th>Matches</th><th>Run At</th></tr></thead>
+      |            <tbody id="historyBody"><tr><td colspan="6" class="muted">Click Load History.</td></tr></tbody>
+      |          </table>
       |        </div>
       |      </section>
       |    </div>
@@ -1082,6 +1121,10 @@ final class AltFinderApi[F[_]: Async](
       |      if (distance) q.set("distance", distance);
       |      q.set("includeClashes", includeClashes);
       |      q.set("format", "detailed");
+      |      const fromDate = $("fromDate").value.trim();
+      |      const toDate = $("toDate").value.trim();
+      |      if (fromDate) q.set("from", fromDate);
+      |      if (toDate) q.set("to", toDate);
       |
       |      try {
       |        const controller = new AbortController();
@@ -1122,6 +1165,61 @@ final class AltFinderApi[F[_]: Async](
       |      }
       |    }
       |
+      |    function escHtml(v) {
+      |      return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+      |    }
+      |
+      |    async function runGuildSearch() {
+      |      const name = ($("guildName").value || "").trim();
+      |      if (!name) { $("guildStatus").textContent = "Enter a guild name."; return; }
+      |      $("guildStatus").textContent = "Searching...";
+      |      try {
+      |        const res = await fetch("/api/altfinder/guild?name=" + encodeURIComponent(name));
+      |        const data = res.ok ? await res.json() : {};
+      |        const online = (data.onlineCharacters || []).join(", ") || "none";
+      |        $("guildOutput").textContent = [
+      |          "Guild: " + (data.name || name),
+      |          "World: " + (data.world || "-"),
+      |          "Members: " + (data.members || 0),
+      |          "Online: " + (data.online || 0),
+      |          "Online characters: " + online
+      |        ].join("\n");
+      |        $("guildStatus").textContent = "Done.";
+      |      } catch (e) {
+      |        $("guildOutput").textContent = e.message || String(e);
+      |        $("guildStatus").textContent = "";
+      |      }
+      |    }
+      |
+      |    async function loadHistory() {
+      |      $("historyStatus").textContent = "Loading...";
+      |      try {
+      |        const res = await fetch("/api/altfinder/research?limit=25");
+      |        const rows = res.ok ? await res.json() : [];
+      |        if (!Array.isArray(rows) || rows.length === 0) {
+      |          $("historyBody").innerHTML = '<tr><td colspan="6" class="muted">No research runs yet.</td></tr>';
+      |        } else {
+      |          $("historyBody").innerHTML = rows.map((r) => {
+      |            const chars = (r.searchedCharacters || []).slice(0, 4).join(", ") + ((r.searchedCharacters || []).length > 4 ? "…" : "");
+      |            const range = [r.searchedFrom, r.searchedTo].filter(Boolean).join(" – ") || "Max";
+      |            const runAt = (r.createdAt || "").slice(0, 16).replace("T", " ");
+      |            return "<tr>" +
+      |              "<td>" + escHtml(r.runType || "-") + "</td>" +
+      |              "<td>" + escHtml(chars || "-") + "</td>" +
+      |              "<td>" + escHtml(range) + "</td>" +
+      |              "<td>" + escHtml(String(r.distanceMinutes ?? "-")) + "m</td>" +
+      |              "<td>" + escHtml(String(r.matchCount ?? "-")) + "</td>" +
+      |              "<td>" + escHtml(runAt || "-") + "</td>" +
+      |              "</tr>";
+      |          }).join("");
+      |        }
+      |        $("historyStatus").textContent = "Done.";
+      |      } catch (e) {
+      |        $("historyBody").innerHTML = '<tr><td colspan="6" class="muted">' + (e.message || String(e)) + '</td></tr>';
+      |        $("historyStatus").textContent = "";
+      |      }
+      |    }
+      |
       |    $("runBtn").addEventListener("click", runSearch);
       |    $("clearBtn").addEventListener("click", () => {
       |      $("characters").value = "";
@@ -1134,10 +1232,15 @@ final class AltFinderApi[F[_]: Async](
       |      ui.kpiLogins.textContent = "-";
       |      ui.kpiMatches.textContent = "-";
       |      ui.kpiRange.textContent = "-";
+      |      ui.kpiSave.textContent = "-";
+      |      $("fromDate").value = "";
+      |      $("toDate").value = "";
       |    });
       |    $("characters").addEventListener("keydown", (e) => {
       |      if (e.key === "Enter") runSearch();
       |    });
+      |    $("guildBtn").addEventListener("click", runGuildSearch);
+      |    $("historyBtn").addEventListener("click", loadHistory);
       |    loadStatus();
       |  </script>
       |</body>
