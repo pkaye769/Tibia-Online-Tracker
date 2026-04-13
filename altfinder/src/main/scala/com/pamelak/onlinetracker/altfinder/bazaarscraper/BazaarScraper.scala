@@ -40,8 +40,7 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
     for
       allSales <- names.map(singleCharacterSales).sequence
       dates = allSales.flatMap(_.saleDates.getOrElse(Nil))
-      errored = allSales.map(_.saleDates).find(_.isLeft)
-    yield CharacterSales(allSales.head.name, errored.getOrElse(Right(dates)))
+    yield CharacterSales(allSales.head.name, Right(dates))
   }
 
   private def singleCharacterSales(name: String): F[CharacterSales] = {
