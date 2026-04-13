@@ -25,8 +25,7 @@ class BazaarScraperSpec extends munit.FunSuite {
   test("multipleCharacterSales returns Right with dates when all lookups succeed") {
     val scraper = new BazaarScraper[IO](clientAlwaysReturns(IO.pure(auctionJson)))
     val result  = scraper.multipleCharacterSales(List("Alice")).unsafeRunSync()
-    assert(result.saleDates.isRight)
-    assert(result.saleDates.toOption.get.nonEmpty)
+    assert(result.saleDates.exists(_.nonEmpty))
   }
 
   test("multipleCharacterSales returns Right(empty) when no auctions are found") {
@@ -51,6 +50,6 @@ class BazaarScraperSpec extends munit.FunSuite {
     val scraper = new BazaarScraper[IO](client)
     val result  = scraper.multipleCharacterSales(List("Alice", "OldAlice")).unsafeRunSync()
     assert(result.saleDates.isRight, "partial failure must not produce Left")
-    assert(result.saleDates.toOption.get.nonEmpty, "dates from the successful lookup must be preserved")
+    assert(result.saleDates.exists(_.nonEmpty), "dates from the successful lookup must be preserved")
   }
 }
