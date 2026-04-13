@@ -68,7 +68,7 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
     ssDay.minusDays(1) // workaround for exevo pan bug https://github.com/xandjiji/exevo-pan/issues/241
   }
 
-  private def parseJson(jsonString: String, name: String): Either[BazaarScraperError, List[BazaarAuction]] = {
+  private[bazaarscraper] def parseJson(jsonString: String, name: String): Either[BazaarScraperError, List[BazaarAuction]] = {
     parse(jsonString).leftMap(err => BazaarScraperError(s"Invalid JSON: ${err.getMessage}")).flatMap { json =>
       val pageCur = json.hcursor.downField("page")
       pageCur.as[List[Json]] match

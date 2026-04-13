@@ -88,8 +88,69 @@ class AppConfigSpec extends munit.FunSuite {
     assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com"), Some("verify-full")), SSL.System)
   }
 
-  test("resolveSSL respects sslmode in URL when no env override") {
-    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("disable")), None), SSL.None)
-    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("require")), None), SSL.Trusted)
+  test("resolveSSL returns SSL.None when DB_SSL=0") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com"), Some("0")), SSL.None)
+  }
+
+  test("resolveSSL returns SSL.None when DB_SSL=no") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com"), Some("no")), SSL.None)
+  }
+
+  test("resolveSSL returns SSL.Trusted when DB_SSL=1") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("localhost"), Some("1")), SSL.Trusted)
+  }
+
+  test("resolveSSL returns SSL.Trusted when DB_SSL=yes") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("localhost"), Some("yes")), SSL.Trusted)
+  }
+
+  test("resolveSSL returns SSL.Trusted when DB_SSL=trusted") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("localhost"), Some("trusted")), SSL.Trusted)
+  }
+
+  test("resolveSSL returns SSL.System when DB_SSL=verify-ca") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com"), Some("verify-ca")), SSL.System)
+  }
+
+  test("resolveSSL returns SSL.System when DB_SSL=system") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com"), Some("system")), SSL.System)
+  }
+
+  test("resolveSSL returns SSL.Trusted for remote host when sslmode=prefer in URL") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("prefer")), None), SSL.Trusted)
+  }
+
+  test("resolveSSL returns SSL.System when sslmode=verify-full in URL") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("verify-full")), None), SSL.System)
+  }
+
+  test("resolveSSL returns SSL.System when sslmode=verify-ca in URL") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("verify-ca")), None), SSL.System)
+  }
+
+  test("resolveSSL falls back to SSL.Trusted for unknown sslmode on remote host") {
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("unknownmode")), None), SSL.Trusted)
+  }
+
+  test("resolveSSL env override wins over URL sslmode") {
+    // URL says disable, env says require → env wins
+    assertEquals(AppConfig.resolveSSL(dbCfg("db.example.com", Some("disable")), Some("require")), SSL.Trusted)
+  }
+
+  // ---- parseDatabaseUrl edge cases ----
+
+  test("parseDatabaseUrl URL-decodes special characters in password") {
+    val cfg = AppConfig.parseDatabaseUrl("postgres://alice:p%40ssw0rd@db.example.com:5432/mydb")
+    assertEquals(cfg.password, "p@ssw0rd")
+  }
+
+  test("parseDatabaseUrl URL-decodes special characters in username") {
+    val cfg = AppConfig.parseDatabaseUrl("postgres://ali%40ce:pass@db.example.com:5432/mydb")
+    assertEquals(cfg.user, "ali@ce")
+  }
+
+  test("parseDatabaseUrl returns empty string for missing password") {
+    val cfg = AppConfig.parseDatabaseUrl("postgres://alice@db.example.com:5432/mydb")
+    assertEquals(cfg.password, "")
   }
 }

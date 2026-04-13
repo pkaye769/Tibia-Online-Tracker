@@ -16,6 +16,7 @@ lazy val tracker = (project in file("tracker")).enablePlugins(JavaAppPackaging, 
   Compile / run / fork := true,
   Compile / doc / sources := Seq.empty,
   libraryDependencies ++= trackerDependencies,
+  libraryDependencies += "org.scalameta" %% "munit" % munitVersion % Test,
   scalacOptions ++= Seq("-Xmax-inlines", "64"), // https://github.com/circe/circe/issues/1760
   dockerExposedPorts += 443
 ).dependsOn(common)
