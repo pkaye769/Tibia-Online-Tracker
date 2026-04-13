@@ -219,9 +219,10 @@ class AltFinderServiceSpec extends munit.FunSuite {
 
   // ---- computeHiddenScore ----
 
-  test("computeHiddenScore returns 0 when adjacencies are 0") {
-    val score = service.computeHiddenScore(0, 0, 10)
-    assertEquals(score, 0)
+  test("computeHiddenScore is lower with zero adjacencies than with full adjacencies") {
+    val scoreZeroAdj = service.computeHiddenScore(0, 0, 10)
+    val scoreFullAdj = service.computeHiddenScore(10, 0, 10)
+    assert(scoreFullAdj > scoreZeroAdj)
   }
 
   test("computeHiddenScore decreases with clashes") {

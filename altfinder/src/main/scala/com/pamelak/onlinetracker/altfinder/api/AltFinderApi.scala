@@ -626,7 +626,7 @@ final class AltFinderApi[F[_]: Async](
           case Right(value) => Some(value)
   }
 
-  private def parseDate(raw: String): Either[String, OffsetDateTime] = {
+  private[api] def parseDate(raw: String): Either[String, OffsetDateTime] = {
     Try(LocalDate.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE)).toEither.left
       .map(_ => s"Date needs to be in YYYY-MM-DD format. Could not parse date: $raw")
       .map(d => ZonedDateTime.of(d, LocalTime.of(10, 0), berlinZone).toOffsetDateTime)
@@ -663,7 +663,7 @@ final class AltFinderApi[F[_]: Async](
             None
   }
 
-  private def buildDateRange(from: Option[OffsetDateTime], to: Option[OffsetDateTime]): String = {
+  private[api] def buildDateRange(from: Option[OffsetDateTime], to: Option[OffsetDateTime]): String = {
     (from, to) match
       case (None, None) => "Max range"
       case (None, Some(t)) => s"Until ${t.toLocalDate}"
@@ -722,13 +722,13 @@ final class AltFinderApi[F[_]: Async](
     (name, world, total, online, onlineCharacters)
   }
 
-  private def formatClassic(adj: CharacterAdjacencies): String = {
+  private[api] def formatClassic(adj: CharacterAdjacencies): String = {
     val name = adj.characterName.getOrElse("Unknown")
     val clashText = if (adj.clashes < 0) "yes" else adj.clashes.toString
     s"$name: ${adj.adjacencies} / $clashText / ${adj.logins}"
   }
 
-  private def formatDetailed(adj: CharacterAdjacencies): String = {
+  private[api] def formatDetailed(adj: CharacterAdjacencies): String = {
     val name = adj.characterName.getOrElse("Unknown")
     val clashText = if (adj.clashes < 0) "yes" else adj.clashes.toString
     val tradeText =
@@ -744,7 +744,7 @@ final class AltFinderApi[F[_]: Async](
     s"adj=${adj.adjacencies}, $clashText, logins=${adj.logins}, sessionSimilarity=${adj.sessionSimilarity}, $evidenceText"
   }
 
-  private def appendMinutes(i: Int) = if (i == 1) s"$i minute" else s"$i minutes"
+  private[api] def appendMinutes(i: Int) = if (i == 1) s"$i minute" else s"$i minutes"
 
   private def buildFormattedText(
       results: AltFinderService.AltsResults,

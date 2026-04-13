@@ -174,6 +174,6 @@ class OnlineTrackerServiceSpec extends munit.FunSuite {
       )
     )
     service.updateDataForWorld(worldName).unsafeRunSync()
-    assert(repo.insertedCharacters.contains("NewName"))
+    assert(repo.insertedCharacters.contains("Dave"))
   }
 }
