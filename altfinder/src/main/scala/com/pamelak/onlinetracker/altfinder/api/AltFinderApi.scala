@@ -121,6 +121,8 @@ final class AltFinderApi[F[_]: Async](
   final case class WatchBatchItem(characterName: String, matches: Int, lines: List[String])
   final case class WatchBatchResponse(guildId: String, total: Int, items: List[WatchBatchItem])
 
+  final case class OnlineNamesResponse(count: Int, names: List[String])
+
   final case class CharacterInfoResponse(
       name: String,
       level: Int,
@@ -169,6 +171,7 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchBatchItem] = deriveEncoder
   given Encoder[WatchBatchResponse] = deriveEncoder
   given Encoder[CharacterInfoResponse] = deriveEncoder
+  given Encoder[OnlineNamesResponse] = deriveEncoder
 
   private val queryCacheTtlSeconds = sys.env.get("QUERY_CACHE_TTL_SECONDS").flatMap(_.toIntOption).getOrElse(60).max(5)
   private val queryCache = mutable.Map.empty[String, (Long, Json)]
@@ -549,6 +552,16 @@ final class AltFinderApi[F[_]: Async](
         }
       }
 
+    case GET -> Root / "api" / "altfinder" / "online" =>
+      val cacheKey = "online"
+      cachedJson(cacheKey) {
+        repo.getCurrentlyOnlineNames.map { names =>
+          OnlineNamesResponse(count = names.length, names = names).asJson
+        }
+      }.flatMap(json => Ok(json)).handleErrorWith { e =>
+        InternalServerError(ErrorResponse("Could not fetch online names", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
+      }
+
     case req @ GET -> Root / "api" / "altfinder" / "character" =>
       val params = req.uri.query.params
       params.get("name").map(_.trim).filter(_.nonEmpty) match
@@ -819,6 +832,8 @@ final class AltFinderApi[F[_]: Async](
       |/* Cards */
       |.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
       |.card-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:12px}
+      |.card-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px}
+      |.btn-sm{padding:4px 10px;font-size:.78rem}
       |/* Form */
       |label{display:block;font-size:.75rem;color:#8b949e;margin-bottom:4px}
       |input,select{
@@ -1032,6 +1047,16 @@ final class AltFinderApi[F[_]: Async](
       |      <div id="savedGuildDisplay" class="saved-display">No saved guilds yet.</div>
       |    </div>
       |
+      |    <!-- Currently Online -->
+      |    <div class="card">
+      |      <div class="card-header-row">
+      |        <div class="card-title">Currently Online</div>
+      |        <button id="refreshOnlineBtn" class="btn-ghost btn-sm">&#8635; Refresh</button>
+      |      </div>
+      |      <p style="font-size:.78rem;color:#8b949e;margin-bottom:8px">Characters currently logged in (auto-refreshes every 30s).</p>
+      |      <div id="onlineArea" class="saved-display">Loading&#8230;</div>
+      |    </div>
+      |
       |    <!-- Watched Characters -->
       |    <div class="card">
       |      <div class="card-title">Watched Characters</div>
@@ -1096,16 +1121,18 @@ final class AltFinderApi[F[_]: Async](
       |  loadGuildBtn:     document.getElementById('loadGuildBtn'),
       |  removeGuildBtn:   document.getElementById('removeGuildBtn'),
       |  savedGuildDisplay:document.getElementById('savedGuildDisplay'),
-      |  watchGuildId:     document.getElementById('watchGuildId'),
-      |  watchChannelId:   document.getElementById('watchChannelId'),
-      |  watchCharInput:   document.getElementById('watchCharInput'),
-      |  addWatchBtn:      document.getElementById('addWatchBtn'),
-      |  loadWatchBtn:     document.getElementById('loadWatchBtn'),
-      |  watchListArea:    document.getElementById('watchListArea'),
-      |  charPanel:        document.getElementById('charPanel'),
-      |  charPanelName:    document.getElementById('charPanelName'),
-      |  charPanelContent: document.getElementById('charPanelContent'),
-      |  charPanelClose:   document.getElementById('charPanelClose'),
+      |  watchGuildId:      document.getElementById('watchGuildId'),
+      |  watchChannelId:    document.getElementById('watchChannelId'),
+      |  watchCharInput:    document.getElementById('watchCharInput'),
+      |  addWatchBtn:       document.getElementById('addWatchBtn'),
+      |  loadWatchBtn:      document.getElementById('loadWatchBtn'),
+      |  watchListArea:     document.getElementById('watchListArea'),
+      |  refreshOnlineBtn:  document.getElementById('refreshOnlineBtn'),
+      |  onlineArea:        document.getElementById('onlineArea'),
+      |  charPanel:         document.getElementById('charPanel'),
+      |  charPanelName:     document.getElementById('charPanelName'),
+      |  charPanelContent:  document.getElementById('charPanelContent'),
+      |  charPanelClose:    document.getElementById('charPanelClose'),
       |};
       |
       |let savedChars  = [];
@@ -1441,6 +1468,20 @@ final class AltFinderApi[F[_]: Async](
       |  }
       |}
       |
+      |// ── Currently Online ──────────────────────────────────────────────────────────
+      |async function refreshOnlineNames() {
+      |  try {
+      |    const d = await fetchJson('/api/altfinder/online', TIMEOUT_STATUS, 1);
+      |    const names = d.names || [];
+      |    el.onlineArea.textContent = names.length === 0
+      |      ? 'No characters currently online.'
+      |      : names.length + ' online:\n' + names.join('\n');
+      |  } catch(_) {
+      |    el.onlineArea.textContent = 'Could not load.';
+      |  }
+      |}
+      |el.refreshOnlineBtn.addEventListener('click', refreshOnlineNames);
+      |
       |// ── Event wiring ──────────────────────────────────────────────────────────────
       |el.runBtn.addEventListener('click', runSearch);
       |el.clearBtn.addEventListener('click', clearAll);
@@ -1453,6 +1494,8 @@ final class AltFinderApi[F[_]: Async](
       |// ── Init ──────────────────────────────────────────────────────────────────────
       |loadStorage();
       |checkHealth();
+      |refreshOnlineNames();
+      |setInterval(refreshOnlineNames, 30000);
       |</script>
       |</body>
       |</html>

@@ -80,6 +80,9 @@ const el = {
   loadGuildBtn:       document.getElementById('loadGuildBtn'),
   removeGuildBtn:     document.getElementById('removeGuildBtn'),
   savedGuildDisplay:  document.getElementById('savedGuildDisplay'),
+  // Currently online
+  refreshOnlineBtn:   document.getElementById('refreshOnlineBtn'),
+  onlineArea:         document.getElementById('onlineArea'),
   // Watchlist
   watchGuildId:       document.getElementById('watchGuildId'),
   watchChannelId:     document.getElementById('watchChannelId'),
@@ -755,9 +758,26 @@ el.backendUrl.addEventListener('change', function() {
   refreshStatus();
 });
 
+// ── Currently Online ──────────────────────────────────────────────────────────
+async function refreshOnlineNames() {
+  try {
+    const d = await fetchJson('/api/altfinder/online', TIMEOUT_STATUS, 1);
+    const names = d.names || [];
+    el.onlineArea.textContent = names.length === 0
+      ? 'No characters currently online.'
+      : names.length + ' online:\n' + names.join('\n');
+  } catch(_) {
+    el.onlineArea.textContent = 'Could not load.';
+  }
+}
+el.refreshOnlineBtn.addEventListener('click', refreshOnlineNames);
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadStorage();
 checkHealth();
 refreshStatus();
+refreshOnlineNames();
 // Auto-refresh status every 60 seconds
 setInterval(refreshStatus, 60000);
+// Auto-refresh online names every 30 seconds
+setInterval(refreshOnlineNames, 30000);
