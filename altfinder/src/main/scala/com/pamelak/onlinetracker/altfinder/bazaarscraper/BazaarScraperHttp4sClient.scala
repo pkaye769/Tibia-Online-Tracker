@@ -21,8 +21,17 @@ import org.http4s.implicits.uri
 import scala.concurrent.duration.*
 
 object BazaarScraperHttp4sClient {
+  // Only retry once and only on 5xx server errors.
+  // Retrying on timeouts (Left[Throwable]) multiplies latency (5s × retries), which can push
+  // the full search past the 25-second API timeout.  Client errors (4xx) and rate-limit
+  // responses are handled separately by the rate-limit cooldown logic.
+  private val maxRetries = 1
   private val retryPolicy: RetryPolicy[IO] = (_, result, unsuccessfulAttempts) => {
-    if unsuccessfulAttempts > 2 then None else if result.exists(_.status == Status.Ok) then None else 1.second.some
+    if unsuccessfulAttempts >= maxRetries then None
+    else result match {
+      case Right(resp) if resp.status.code >= 500 => 1.second.some
+      case _ => None
+    }
   }
 
   val clientResource: Resource[IO, Client[IO]] = BlazeClientBuilder[IO].withRequestTimeout(5.seconds).resource
