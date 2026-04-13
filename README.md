@@ -2,6 +2,8 @@
 
 Tracks Tibia online login/logout history and finds likely alts from adjacency patterns.
 
+> **Latest:** [PR #19 — fix: add server-side timeouts to /alts, /trades, /clashes to prevent Render proxy connection drops](https://github.com/pkaye769/Tibia-Online-Tracker/pull/19)
+
 ## Features
 
 - Tracker service stores online sessions into PostgreSQL
@@ -147,6 +149,10 @@ If you see `404` at `/api/altfinder/health`, the URL is not pointing to the altf
 - `/watch`
 - `/guildtrack`
 - `/trades`
+
+## Changelog
+
+- [#19 fix: add server-side timeouts to /alts, /trades, /clashes to prevent Render proxy connection drops](https://github.com/pkaye769/Tibia-Online-Tracker/pull/19)
 
 ## Troubleshooting
 
