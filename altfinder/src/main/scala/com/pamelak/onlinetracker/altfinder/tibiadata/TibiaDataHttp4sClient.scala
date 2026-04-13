@@ -36,4 +36,9 @@ class TibiaDataHttp4sClient[F[_]: Sync](client: Client[F])(using Concurrent[F])
     val target = apiRoot / "guild" / name
     client.expect(target)(jsonOf[F, Json])
   }
+
+  def getCharacter(name: String): F[Json] = {
+    val target = apiRoot / "character" / name
+    client.expect(target)(jsonOf[F, Json])
+  }
 }

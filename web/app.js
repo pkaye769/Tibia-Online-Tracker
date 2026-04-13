@@ -1,713 +1,371 @@
-const $ = (id) => document.getElementById(id);
+'use strict';
 
-const ui = {
-  apiBase: $("apiBase"),
-  mode: $("mode"),
-  distance: $("distance"),
-  includeClashes: $("includeClashes"),
-  strictMode: $("strictMode"),
-  dateFrom: $("dateFrom"),
-  dateTo: $("dateTo"),
-  characters: $("characters"),
-  runBtn: $("runBtn"),
-  clearBtn: $("clearBtn"),
-  status: $("status"),
-  error: $("error"),
-  health: $("health"),
-  summary: $("summary"),
-  results: $("results"),
-  resultsTable: $("resultsTable"),
-  resultsBody: $("resultsBody"),
-  historyBtn: $("historyBtn"),
-  historyBody: $("historyBody"),
-  historyStatus: $("historyStatus"),
-  guildName: $("guildName"),
-  guildSearchBtn: $("guildSearchBtn"),
-  guildSaveBtn: $("guildSaveBtn"),
-  guildStatus: $("guildStatus"),
-  guildOutput: $("guildOutput"),
-  savedCharacter: $("savedCharacter"),
-  savedCharacterSelect: $("savedCharacterSelect"),
-  savedCharactersOutput: $("savedCharactersOutput"),
-  charAddBtn: $("charAddBtn"),
-  charUseBtn: $("charUseBtn"),
-  charRemoveBtn: $("charRemoveBtn"),
-  savedGuildSelect: $("savedGuildSelect"),
-  savedGuildsOutput: $("savedGuildsOutput"),
-  guildRefreshBtn: $("guildRefreshBtn"),
-  guildUseBtn: $("guildUseBtn"),
-  guildRemoveBtn: $("guildRemoveBtn"),
-  watchGuildId: $("watchGuildId"),
-  watchChannelId: $("watchChannelId"),
-  watchCharacter: $("watchCharacter"),
-  watchDistance: $("watchDistance"),
-  watchIncludeClashes: $("watchIncludeClashes"),
-  watchThreshold: $("watchThreshold"),
-  watchWindowDays: $("watchWindowDays"),
-  watchSelect: $("watchSelect"),
-  watchAddBtn: $("watchAddBtn"),
-  watchRefreshBtn: $("watchRefreshBtn"),
-  watchRunBtn: $("watchRunBtn"),
-  watchUseBtn: $("watchUseBtn"),
-  watchRemoveBtn: $("watchRemoveBtn"),
-  watchStatus: $("watchStatus"),
-  watchOutput: $("watchOutput")
+const STORAGE_BACKEND   = 'altfinder_backend_url';
+const STORAGE_DISTANCE  = 'altfinder_distance';
+const STORAGE_CHARS     = 'altfinder_saved_chars';
+const STORAGE_GUILDS    = 'altfinder_saved_guilds';
+const TIMEOUT_SEARCH    = 90000;
+const TIMEOUT_STATUS    = 10000;
+const TIMEOUT_CHAR      = 20000;
+
+const el = {
+  backendUrl:       document.getElementById('backendUrl'),
+  mode:             document.getElementById('mode'),
+  distance:         document.getElementById('distance'),
+  includeClashes:   document.getElementById('includeClashes'),
+  strictMode:       document.getElementById('strictMode'),
+  characters:       document.getElementById('characters'),
+  runBtn:           document.getElementById('runBtn'),
+  clearBtn:         document.getElementById('clearBtn'),
+  errorBox:         document.getElementById('errorBox'),
+  errorMsg:         document.getElementById('errorMsg'),
+  backendLink:      document.getElementById('backendLink'),
+  summary:          document.getElementById('summary'),
+  matchesArea:      document.getElementById('matchesArea'),
+  apiBadge:         document.getElementById('apiBadge'),
+  savedCharInput:   document.getElementById('savedCharInput'),
+  savedCharList:    document.getElementById('savedCharList'),
+  addCharBtn:       document.getElementById('addCharBtn'),
+  useCharBtn:       document.getElementById('useCharBtn'),
+  removeCharBtn:    document.getElementById('removeCharBtn'),
+  savedCharDisplay: document.getElementById('savedCharDisplay'),
+  savedGuildInput:  document.getElementById('savedGuildInput'),
+  savedGuildList:   document.getElementById('savedGuildList'),
+  refreshGuildBtn:  document.getElementById('refreshGuildBtn'),
+  loadGuildBtn:     document.getElementById('loadGuildBtn'),
+  removeGuildBtn:   document.getElementById('removeGuildBtn'),
+  savedGuildDisplay:document.getElementById('savedGuildDisplay'),
+  watchGuildId:     document.getElementById('watchGuildId'),
+  watchChannelId:   document.getElementById('watchChannelId'),
+  watchCharInput:   document.getElementById('watchCharInput'),
+  addWatchBtn:      document.getElementById('addWatchBtn'),
+  loadWatchBtn:     document.getElementById('loadWatchBtn'),
+  watchListArea:    document.getElementById('watchListArea'),
+  charPanel:        document.getElementById('charPanel'),
+  charPanelName:    document.getElementById('charPanelName'),
+  charPanelContent: document.getElementById('charPanelContent'),
+  charPanelClose:   document.getElementById('charPanelClose'),
 };
 
-const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
-const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
-const DEFAULT_DISTANCE_KEY = "altfinder_default_distance_v1";
-const STRICT_MODE_KEY = "altfinder_strict_mode_v1";
-const API_BASE_KEY = "altfinder_api_base";
-const WATCH_GUILD_ID_KEY = "altfinder_watch_guild_id_v1";
-const WATCH_CHANNEL_ID_KEY = "altfinder_watch_channel_id_v1";
-const storedApi = localStorage.getItem(API_BASE_KEY);
-const defaultApiBase = "https://tibia-alt-finder-api.onrender.com";
-const apiFromQuery = new URLSearchParams(window.location.search).get("api");
-const initialApiBase = (apiFromQuery || storedApi || defaultApiBase).trim();
-ui.apiBase.value = initialApiBase;
-if (apiFromQuery && initialApiBase) {
-  localStorage.setItem(API_BASE_KEY, initialApiBase);
-}
-const storedDistance = localStorage.getItem(DEFAULT_DISTANCE_KEY);
-if (storedDistance !== null && storedDistance !== "") {
-  ui.distance.value = storedDistance;
-} else {
-  ui.distance.value = "1";
-}
-ui.strictMode.checked = localStorage.getItem(STRICT_MODE_KEY) === "true";
-ui.watchGuildId.value = localStorage.getItem(WATCH_GUILD_ID_KEY) || "";
-ui.watchChannelId.value = localStorage.getItem(WATCH_CHANNEL_ID_KEY) || "";
+let savedChars  = [];
+let savedGuilds = [];
+let guildOnlineMap = {};
 
-function syncStrictModeControls() {
-  if (ui.strictMode.checked) {
-    ui.distance.value = "0";
-    ui.includeClashes.value = "false";
-    ui.distance.disabled = true;
-    ui.includeClashes.disabled = true;
-  } else {
-    ui.distance.disabled = false;
-    ui.includeClashes.disabled = false;
-    const stored = localStorage.getItem(DEFAULT_DISTANCE_KEY);
-    ui.distance.value = stored !== null && stored !== "" ? stored : "1";
-  }
+// ── Persistence ───────────────────────────────────────────────────────────────
+function loadStorage() {
+  const url = localStorage.getItem(STORAGE_BACKEND);
+  if (url) el.backendUrl.value = url;
+  const dist = localStorage.getItem(STORAGE_DISTANCE);
+  if (dist !== null) el.distance.value = dist;
+  try { savedChars  = JSON.parse(localStorage.getItem(STORAGE_CHARS)  || '[]'); } catch(_) {}
+  try { savedGuilds = JSON.parse(localStorage.getItem(STORAGE_GUILDS) || '[]'); } catch(_) {}
+  renderSavedChars();
+  renderSavedGuilds();
 }
 
-syncStrictModeControls();
-
-function baseUrl() {
-  return (ui.apiBase.value || "").trim().replace(/\/+$/, "");
+function persist() {
+  localStorage.setItem(STORAGE_BACKEND,  el.backendUrl.value.trim());
+  localStorage.setItem(STORAGE_DISTANCE, el.distance.value);
+  localStorage.setItem(STORAGE_CHARS,    JSON.stringify(savedChars));
+  localStorage.setItem(STORAGE_GUILDS,   JSON.stringify(savedGuilds));
 }
 
-function setStatus(text) {
-  ui.status.textContent = text || "";
-}
-
-function setError(text, showDirectBoardLink = false) {
-  ui.error.textContent = "";
-  if (!text) return;
-
-  const message = document.createElement("div");
-  message.textContent = text;
-  ui.error.appendChild(message);
-
-  if (showDirectBoardLink) {
-    const link = document.createElement("a");
-    link.href = `${baseUrl()}/altfinder`;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = "Open backend-hosted board";
-    ui.error.appendChild(link);
-  }
-}
-
-function parseNames(raw) {
-  return raw.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function loadSavedCharacters() {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function baseUrl() { return el.backendUrl.value.trim().replace(/\/+$/, ''); }
+// Return a safe http/https origin; falls back to '#' to prevent javascript: injection.
+// The backend URL is intentionally user-configurable — the link lets users navigate
+// to the board they explicitly set up, so pointing at any http/https host is by design.
+function safeBoardUrl() {
   try {
-    return JSON.parse(localStorage.getItem(SAVED_CHARS_KEY) || "[]");
-  } catch (_) {
-    return [];
-  }
+    const u = new URL(baseUrl() + '/');
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch(_) {}
+  return '#';
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function esc(v) {
+  return String(v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 
-function saveSavedCharacters(list) {
-  localStorage.setItem(SAVED_CHARS_KEY, JSON.stringify(list));
+// ── Error ─────────────────────────────────────────────────────────────────────
+function showError(msg) {
+  el.errorMsg.textContent = msg || '';
+  el.errorBox.classList.toggle('visible', !!msg);
+  el.backendLink.href = safeBoardUrl();
 }
+function clearError() { el.errorBox.classList.remove('visible'); }
 
-function loadSavedGuilds() {
-  try {
-    return JSON.parse(localStorage.getItem(SAVED_GUILDS_KEY) || "[]");
-  } catch (_) {
-    return [];
-  }
-}
-
-function saveSavedGuilds(list) {
-  localStorage.setItem(SAVED_GUILDS_KEY, JSON.stringify(list));
-}
-
-function refreshCharacterSelect() {
-  const chars = loadSavedCharacters();
-  ui.savedCharacterSelect.innerHTML = chars.map((c) => `<option>${c}</option>`).join("");
-  ui.savedCharactersOutput.textContent = chars.length > 0 ? chars.join("\n") : "No saved characters yet.";
-}
-
-function refreshGuildSelectAndPanel() {
-  const guilds = loadSavedGuilds();
-  ui.savedGuildSelect.innerHTML = guilds.map((g) => `<option>${g.name}</option>`).join("");
-  if (guilds.length === 0) {
-    ui.savedGuildsOutput.textContent = "No saved guilds yet.";
-    return;
-  }
-  ui.savedGuildsOutput.textContent = guilds.map((g) => {
-    const online = (g.onlineCharacters || []).join(", ") || "none";
-    return `${g.name} | ${g.world || "-"} | online ${g.online || 0}/${g.members || 0}\n  ${online}`;
-  }).join("\n\n");
-}
-
-async function fetchJson(path) {
+// ── API fetch ─────────────────────────────────────────────────────────────────
+async function fetchJson(path, timeoutMs, maxAttempts) {
+  if (maxAttempts === undefined) maxAttempts = 2;
+  if (timeoutMs === undefined) timeoutMs = 15000;
   const url = baseUrl() + path;
-  const maxAttempts = path.startsWith("/api/altfinder/alts") ? 2 : 5;
-  const timeoutMs = path.startsWith("/api/altfinder/alts") ? 60000 : 15000;
-  let lastError = null;
-  let res = null;
-
-  async function fetchWithTimeout(targetUrl, ms) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ms);
+  let lastErr = null, res = null;
+  for (let i = 1; i <= maxAttempts; i++) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      return await fetch(targetUrl, { signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
+      res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.status < 500) break;
+      lastErr = new Error('HTTP ' + res.status);
+    } catch(e) { clearTimeout(t); lastErr = e; }
+    if (i < maxAttempts) await sleep(1200);
   }
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      res = await fetchWithTimeout(url, timeoutMs);
-      if (res.status < 500) {
-        break;
-      }
-      lastError = new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      lastError = err;
-    }
-
-    if (attempt < maxAttempts) {
-      const delayMs = Math.min(8000, 1000 * (2 ** (attempt - 1)));
-      await sleep(delayMs);
-    }
-  }
-
   if (!res) {
-    const timeoutHint =
-      lastError && lastError.name === "AbortError"
-        ? "Request timed out waiting for API response."
-        : "Browser could not establish a network connection.";
-    throw new Error(
-      `Could not reach API at ${url} after ${maxAttempts} attempts. ${timeoutHint} Check Backend URL, Render deploy health, VPN/firewall/proxy rules, and CORS/network access.`
-    );
+    const detail = lastErr && lastErr.name === 'AbortError'
+      ? 'Request timed out.'
+      : 'Browser could not establish a network connection. Check Backend URL, Render deploy health, VPN/firewall/proxy rules, and CORS/network access.';
+    throw new Error('Could not reach API at ' + url + ' after ' + maxAttempts + ' attempts. ' + detail);
   }
-
-  const contentType = res.headers.get("content-type") || "";
-  const raw = await res.text();
-
-  if (/response timed out/i.test(raw)) {
-    throw new Error(
-      `Backend timed out at ${url}. Narrow date range, reduce characters, or retry from the backend-hosted board.`
-    );
-  }
-
-  if (!contentType.includes("application/json")) {
-    throw new Error(`Expected JSON from ${url} (HTTP ${res.status}): ${raw.slice(0, 200)}`);
-  }
-
-  let body;
-  try {
-    body = JSON.parse(raw);
-  } catch (_) {
-    throw new Error(`Invalid JSON from ${url} (HTTP ${res.status}): ${raw.slice(0, 200)}`);
-  }
-
-  if (!res.ok) {
-    const details = Array.isArray(body.details) && body.details.length > 0 ? ` (${body.details.join("; ")})` : "";
-    throw new Error(body.message || body.error || `HTTP ${res.status}${details}`);
-  }
+  const text = await res.text();
+  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try narrowing your search.');
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) throw new Error('Non-JSON response (HTTP ' + res.status + '): ' + text.slice(0,200));
+  const body = JSON.parse(text);
+  if (!res.ok) throw new Error(body.error || body.message || 'HTTP ' + res.status);
   return body;
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function renderAlts(data, names, distance, includeClashes) {
-  const matches = Array.isArray(data.possibleMatches) ? data.possibleMatches : [];
-  const top = matches.slice().sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0));
-
-  ui.summary.textContent = [
-    `Mode: alts`,
-    `Searched characters: ${names.join(", ") || "-"}`,
-    `Total logins: ${data.totalLogins ?? 0}`,
-    `Date range: ${data.dateRange || "Max range"}`,
-    `Adjacency distance: ${distance} minutes`,
-    `Include clashes: ${includeClashes}`,
-    `Possible matches: ${top.length}`
-  ].join("\n");
-
-  // Show table, hide plain-text pre
-  ui.resultsTable.style.display = "";
-  ui.results.style.display = "none";
-
-  if (top.length === 0) {
-    ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted-cell">No matches found.</td></tr>';
-    return;
-  }
-
-  ui.resultsBody.innerHTML = top.map((m) => {
-    const conf = Number(m.confidence ?? 0);
-    const pillClass = conf >= 70 ? "" : conf >= 40 ? " mid" : " low";
-    const trades = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
-    const hidden = m.hiddenLikely ? `yes (${m.hiddenScore})` : `no (${m.hiddenScore})`;
-    const evidence = m.evidencePassed ? "pass" : "low";
-    return (
-      "<tr>" +
-        `<td>${escapeHtml(m.name || "Unknown")}</td>` +
-        `<td><span class="score-pill${pillClass}">${escapeHtml(String(conf))}</span></td>` +
-        `<td>${escapeHtml(String(m.adjacencies ?? "-"))}</td>` +
-        `<td>${escapeHtml(String(m.clashes ?? "-"))}</td>` +
-        `<td>${escapeHtml(String(m.logins ?? "-"))}</td>` +
-        `<td>${escapeHtml(hidden)}</td>` +
-        `<td>${escapeHtml(evidence)}</td>` +
-        `<td>${escapeHtml(trades)}</td>` +
-      "</tr>"
-    );
-  }).join("");
-}
-
-function renderClashes(data, names, distance) {
-  const clashes = Array.isArray(data.clashes) ? data.clashes : [];
-  ui.summary.textContent = [
-    `Mode: clashes`,
-    `Searched characters: ${names.join(", ") || "-"}`,
-    `Adjacency distance: ${distance} minutes`,
-    `Clash pairs: ${clashes.length}`
-  ].join("\n");
-
-  // Show plain-text pre, hide table
-  ui.resultsTable.style.display = "none";
-  ui.results.style.display = "";
-
-  if (clashes.length === 0) {
-    ui.results.textContent = "No clashes found.";
-    return;
-  }
-
-  ui.results.textContent = clashes
-    .slice(0, 200)
-    .map((c) => c.formatted || `${c.name || "Unknown"}: ${c.adjacencies || 0} / ${c.clashes || 0} / ${c.logins || 0}`)
-    .join("\n");
-}
-
+// ── Health check ──────────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
-    const data = await fetchJson("/api/altfinder/health");
-    ui.health.textContent = `API: online (${data.status || "ok"})`;
-    ui.health.className = "health ok";
-  } catch (_) {
-    ui.health.textContent = "API: unavailable";
-    ui.health.className = "health bad";
+    const d = await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
+    el.apiBadge.textContent = 'API: ' + (d.status || 'ok');
+    el.apiBadge.className = 'api-badge ok';
+  } catch(_) {
+    el.apiBadge.textContent = 'API: unavailable';
+    el.apiBadge.className = 'api-badge bad';
   }
 }
 
-async function run() {
-  setError("");
-  setStatus("Running...");
+// ── Strict mode ───────────────────────────────────────────────────────────────
+el.strictMode.addEventListener('change', function() {
+  if (this.checked) {
+    el.distance.value = '0'; el.includeClashes.value = 'false';
+    el.distance.disabled = true; el.includeClashes.disabled = true;
+  } else {
+    el.distance.disabled = false; el.includeClashes.disabled = false;
+  }
+});
 
-  const mode = ui.mode.value;
-  const strictMode = ui.strictMode.checked;
-  const distance = strictMode ? 0 : Number(ui.distance.value || 1);
-  const includeClashes = strictMode ? false : ui.includeClashes.value === "true";
-  const names = parseNames(ui.characters.value || "");
-
-  if (names.length === 0) {
-    setStatus("");
-    setError("Enter at least one character.");
+// ── Render matches ────────────────────────────────────────────────────────────
+function renderMatches(matches) {
+  if (!matches || matches.length === 0) {
+    el.matchesArea.innerHTML = '<pre>No matches found.</pre>';
     return;
   }
+  const rows = matches.map(function(m) {
+    const conf = Number(m.confidence || 0);
+    const cls = conf >= 70 ? 'conf-hi' : conf >= 40 ? 'conf-mid' : 'conf-lo';
+    const hidden = m.hiddenLikely ? 'yes (' + m.hiddenScore + ')' : 'no (' + m.hiddenScore + ')';
+    const traded = (m.recentTradeDates || []).length > 0;
+    const tradeCell = traded
+      ? esc(m.recentTradeDates[0]) + '<span class="trade-badge">TRADED</span>'
+      : '<span style="color:#8b949e">none</span>';
+    return '<tr>'
+      + '<td class="name-cell" data-name="' + esc(m.name||'') + '">' + esc(m.name||'Unknown') + '</td>'
+      + '<td><span class="conf-pill ' + cls + '">' + conf + '</span></td>'
+      + '<td>' + esc(String(m.adjacencies != null ? m.adjacencies : '-')) + '</td>'
+      + '<td>' + esc(String(m.clashes != null ? m.clashes : '-')) + '</td>'
+      + '<td>' + esc(String(m.logins != null ? m.logins : '-')) + '</td>'
+      + '<td>' + esc(hidden) + '</td>'
+      + '<td>' + tradeCell + '</td>'
+      + '</tr>';
+  }).join('');
+  el.matchesArea.innerHTML = '<div class="table-wrap"><table>'
+    + '<thead><tr><th>Name</th><th>Confidence</th><th>Adj</th><th>Clashes</th>'
+    + '<th>Logins</th><th>Hidden</th><th>Trades</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div>';
+}
 
-  localStorage.setItem(API_BASE_KEY, baseUrl());
-  localStorage.setItem(STRICT_MODE_KEY, strictMode ? "true" : "false");
-  if (!strictMode) {
-    localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
-  }
-
-  const params = new URLSearchParams();
-  params.set("characters", names.join(","));
-  params.set("distance", String(distance));
-  const dateFrom = (ui.dateFrom.value || "").trim();
-  const dateTo = (ui.dateTo.value || "").trim();
-  if (dateFrom) params.set("from", dateFrom);
-  if (dateTo) params.set("to", dateTo);
-
+// ── Run search ────────────────────────────────────────────────────────────────
+async function runSearch() {
+  clearError();
+  hideCharPanel();
+  const chars = el.characters.value.trim();
+  if (!chars) { showError('Enter at least one character name.'); return; }
+  const distance  = Number(el.distance.value || 0);
+  const clashes   = el.includeClashes.value;
+  const params = new URLSearchParams({
+    characters: chars, distance: String(distance),
+    includeClashes: clashes, format: 'detailed',
+  });
+  persist();
+  el.runBtn.disabled = true; el.runBtn.textContent = 'Running\u2026';
+  el.summary.textContent = 'Loading\u2026';
+  el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    if (mode === "alts") {
-      params.set("includeClashes", includeClashes ? "true" : "false");
-      params.set("format", "detailed");
-      const data = await fetchJson(`/api/altfinder/alts?${params.toString()}`);
-      renderAlts(data, names, distance, includeClashes);
-    } else {
-      // clashes endpoint requires both characters (searched) and targets (checked against)
-      params.set("targets", names.join(","));
-      const data = await fetchJson(`/api/altfinder/clashes?${params.toString()}`);
-      renderClashes(data, names, distance);
-    }
-    setStatus("Done.");
-  } catch (err) {
-    setStatus("");
-    const message = err instanceof Error ? err.message : String(err);
-    const showDirectBoardLink = message.includes("Could not reach API");
-    setError(message, showDirectBoardLink);
+    const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
+    el.summary.textContent = data.formattedText || JSON.stringify(data, null, 2);
+    renderMatches(data.possibleMatches || []);
+  } catch(err) {
+    showError(err.message || String(err));
+    el.summary.textContent = 'Search failed.';
+    el.matchesArea.innerHTML = '<pre>Search failed.</pre>';
+  } finally {
+    el.runBtn.disabled = false; el.runBtn.textContent = 'Run';
   }
 }
 
-async function runGuildSearch() {
-  ui.guildStatus.textContent = "Searching...";
-  const name = ui.guildName.value.trim();
-  if (!name) {
-    ui.guildStatus.textContent = "";
-    ui.guildOutput.textContent = "Enter a guild name.";
-    return;
-  }
+function clearAll() {
+  clearError(); hideCharPanel();
+  el.characters.value = '';
+  el.summary.textContent = 'No search yet.';
+  el.matchesArea.innerHTML = '<pre>No search yet.</pre>';
+}
+
+// ── Saved Characters ──────────────────────────────────────────────────────────
+function renderSavedChars() {
+  el.savedCharList.innerHTML = savedChars.length === 0
+    ? '<option value="">No saved characters</option>'
+    : savedChars.map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+  el.savedCharDisplay.textContent = savedChars.length === 0 ? 'No saved characters yet.' : savedChars.join('\n');
+}
+
+el.addCharBtn.addEventListener('click', function() {
+  const name = el.savedCharInput.value.trim();
+  if (!name || savedChars.includes(name)) return;
+  savedChars.push(name); persist(); renderSavedChars(); el.savedCharInput.value = '';
+});
+el.savedCharInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') el.addCharBtn.click(); });
+el.useCharBtn.addEventListener('click', function() {
+  const sel = el.savedCharList.value; if (sel) el.characters.value = sel;
+});
+el.removeCharBtn.addEventListener('click', function() {
+  const sel = el.savedCharList.value;
+  savedChars = savedChars.filter(function(c){ return c !== sel; });
+  persist(); renderSavedChars();
+});
+
+// ── Saved Guilds ──────────────────────────────────────────────────────────────
+function renderSavedGuilds() {
+  el.savedGuildList.innerHTML = savedGuilds.length === 0
+    ? '<option value="">No saved guilds</option>'
+    : savedGuilds.map(function(g){ return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('');
+  el.savedGuildDisplay.textContent = savedGuilds.length === 0 ? 'No saved guilds yet.' : savedGuilds.join('\n');
+}
+
+el.savedGuildInput.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  const name = el.savedGuildInput.value.trim();
+  if (!name || savedGuilds.includes(name)) return;
+  savedGuilds.push(name); persist(); renderSavedGuilds(); el.savedGuildInput.value = '';
+});
+el.refreshGuildBtn.addEventListener('click', async function() {
+  const sel = el.savedGuildList.value;
+  if (!sel) { el.savedGuildDisplay.textContent = 'Select a guild first.'; return; }
+  el.savedGuildDisplay.textContent = 'Refreshing\u2026';
   try {
-    const q = new URLSearchParams();
-    q.set("name", name);
-    const data = await fetchJson(`/api/altfinder/guild?${q.toString()}`);
-    ui.guildOutput.textContent = [
-      `Guild: ${data.name || name}`,
-      `World: ${data.world || "-"}`,
-      `Members: ${data.members || 0}`,
-      `Online: ${data.online || 0}`,
-      `Online characters: ${(data.onlineCharacters || []).join(", ") || "none"}`
-    ].join("\n");
-    ui.guildStatus.textContent = "Done.";
-  } catch (err) {
-    ui.guildStatus.textContent = "";
-    ui.guildOutput.textContent = err instanceof Error ? err.message : String(err);
-  }
-}
+    const data = await fetchJson('/api/altfinder/guild?name=' + encodeURIComponent(sel), TIMEOUT_STATUS, 1);
+    const online = data.onlineCharacters || [];
+    guildOnlineMap[sel] = online;
+    el.savedGuildDisplay.textContent = (data.name || sel) + ' (' + (data.world||'?') + ') \u2014 '
+      + (data.online||0) + '/' + (data.members||0) + ' online\n'
+      + (online.length ? online.join(', ') : 'No one online');
+  } catch(err) { el.savedGuildDisplay.textContent = 'Error: ' + (err.message || String(err)); }
+});
+el.loadGuildBtn.addEventListener('click', function() {
+  const sel = el.savedGuildList.value;
+  const online = guildOnlineMap[sel];
+  if (!online || online.length === 0) { el.savedGuildDisplay.textContent = 'Refresh the guild first to get online members.'; return; }
+  el.characters.value = online.join(', ');
+});
+el.removeGuildBtn.addEventListener('click', function() {
+  const sel = el.savedGuildList.value;
+  savedGuilds = savedGuilds.filter(function(g){ return g !== sel; });
+  delete guildOnlineMap[sel]; persist(); renderSavedGuilds();
+});
 
-async function saveCurrentGuild() {
-  const name = ui.guildName.value.trim();
-  if (!name) return;
-  const current = loadSavedGuilds();
-  const exists = current.some((g) => String(g.name || "").toLowerCase() === name.toLowerCase());
-  if (!exists) {
-    current.push({ name, world: "-", members: 0, online: 0, onlineCharacters: [] });
-    saveSavedGuilds(current);
-  }
-  await refreshSavedGuilds();
-}
-
-async function refreshSavedGuilds() {
-  const current = loadSavedGuilds();
-  if (current.length === 0) {
-    refreshGuildSelectAndPanel();
-    return;
-  }
-
-  for (let i = 0; i < current.length; i += 1) {
-    const g = current[i];
-    try {
-      const q = new URLSearchParams();
-      q.set("name", g.name);
-      const data = await fetchJson(`/api/altfinder/guild?${q.toString()}`);
-      current[i] = {
-        name: g.name,
-        world: data.world || "-",
-        members: Number(data.members || 0),
-        online: Number(data.online || 0),
-        onlineCharacters: Array.isArray(data.onlineCharacters) ? data.onlineCharacters : []
-      };
-    } catch (_) {
-      current[i] = g;
-    }
-  }
-  saveSavedGuilds(current);
-  refreshGuildSelectAndPanel();
-}
-
-function addSavedCharacter() {
-  const name = ui.savedCharacter.value.trim();
-  if (!name) return;
-  const chars = loadSavedCharacters();
-  if (!chars.some((c) => c.toLowerCase() === name.toLowerCase())) {
-    chars.push(name);
-    saveSavedCharacters(chars);
-  }
-  ui.savedCharacter.value = "";
-  refreshCharacterSelect();
-}
-
-function removeSavedCharacter() {
-  const selected = ui.savedCharacterSelect.value;
-  if (!selected) return;
-  const chars = loadSavedCharacters().filter((c) => c !== selected);
-  saveSavedCharacters(chars);
-  refreshCharacterSelect();
-}
-
-function useSavedCharacter() {
-  const selected = ui.savedCharacterSelect.value;
-  if (!selected) return;
-  const current = parseNames(ui.characters.value || "");
-  if (!current.some((n) => n.toLowerCase() === selected.toLowerCase())) {
-    current.push(selected);
-  }
-  ui.characters.value = current.join(", ");
-}
-
-function removeSavedGuild() {
-  const selected = ui.savedGuildSelect.value;
-  if (!selected) return;
-  const guilds = loadSavedGuilds().filter((g) => g.name !== selected);
-  saveSavedGuilds(guilds);
-  refreshGuildSelectAndPanel();
-}
-
-function useSavedGuild() {
-  const selected = ui.savedGuildSelect.value;
-  if (!selected) return;
-  ui.guildName.value = selected;
-}
-
-function setWatchStatus(text) {
-  ui.watchStatus.textContent = text || "";
-}
-
-function saveWatchSettings() {
-  localStorage.setItem(WATCH_GUILD_ID_KEY, ui.watchGuildId.value.trim());
-  localStorage.setItem(WATCH_CHANNEL_ID_KEY, ui.watchChannelId.value.trim());
-}
-
-function getWatchGuildId() {
-  return (ui.watchGuildId.value || "").trim();
-}
-
-function renderWatchList(data) {
-  const watches = Array.isArray(data.watches) ? data.watches : [];
-  ui.watchSelect.innerHTML = watches.map((w) => `<option value="${w.characterName}">${w.characterName}</option>`).join("");
-  if (watches.length === 0) {
-    ui.watchOutput.textContent = "No watched characters yet.";
-    return;
-  }
-  ui.watchOutput.textContent = watches.map((w) => {
-    const lastChecked = w.lastCheckedAt || "-";
-    const lastAlert = w.lastAlertAt || "-";
-    return `${w.characterName} | distance ${w.distance} | clashes ${w.includeClashes} | threshold ${w.confidenceThreshold} | window ${w.windowDays}d\n  checked: ${lastChecked}\n  alert: ${lastAlert}`;
-  }).join("\n\n");
-}
-
-async function refreshWatchList() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  if (!guildId) {
-    ui.watchSelect.innerHTML = "";
-    ui.watchOutput.textContent = "Enter Guild ID to load watch list.";
-    return;
-  }
-  setWatchStatus("Refreshing...");
+// ── Watchlist ─────────────────────────────────────────────────────────────────
+async function loadWatchlist() {
+  const guildId = el.watchGuildId.value.trim();
+  if (!guildId) { el.watchListArea.textContent = 'Enter a Discord Guild ID.'; return; }
+  el.watchListArea.textContent = 'Loading\u2026';
   try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    const data = await fetchJson(`/api/altfinder/watchlist?${q.toString()}`);
-    renderWatchList(data);
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
+    const data = await fetchJson('/api/altfinder/watchlist?guildId=' + encodeURIComponent(guildId), TIMEOUT_STATUS, 1);
+    const watches = data.watches || [];
+    el.watchListArea.textContent = watches.length === 0
+      ? 'No watches configured for this guild.'
+      : watches.map(function(w){ return w.characterName + ' (dist ' + w.distance + ', threshold ' + w.confidenceThreshold + '%)'; }).join('\n');
+  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
 }
 
 async function addWatch() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  const channelId = (ui.watchChannelId.value || "").trim();
-  const character = (ui.watchCharacter.value || "").trim();
-  const distance = Math.max(0, Number(ui.watchDistance.value || 0));
-  const includeClashes = ui.watchIncludeClashes.value === "true";
-  const threshold = Math.max(0, Math.min(100, Number(ui.watchThreshold.value || 80)));
-  const windowDays = Math.max(1, Math.min(365, Number(ui.watchWindowDays.value || 30)));
-
-  if (!guildId || !channelId || !character) {
-    ui.watchOutput.textContent = "Guild ID, Channel ID, and Character are required.";
-    return;
+  const guildId   = el.watchGuildId.value.trim();
+  const channelId = el.watchChannelId.value.trim();
+  const charName  = el.watchCharInput.value.trim();
+  if (!guildId || !channelId || !charName) {
+    el.watchListArea.textContent = 'Guild ID, Channel ID and character name are all required.'; return;
   }
-
-  setWatchStatus("Adding...");
+  el.watchListArea.textContent = 'Adding\u2026';
   try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("channelId", channelId);
-    q.set("character", character);
-    q.set("distance", String(distance));
-    q.set("includeClashes", includeClashes ? "true" : "false");
-    q.set("threshold", String(threshold));
-    q.set("windowDays", String(windowDays));
-    await fetchJson(`/api/altfinder/watchlist/add?${q.toString()}`);
-    ui.watchCharacter.value = "";
-    await refreshWatchList();
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
+    await fetchJson('/api/altfinder/watchlist/add?guildId=' + encodeURIComponent(guildId)
+      + '&channelId=' + encodeURIComponent(channelId)
+      + '&character=' + encodeURIComponent(charName), TIMEOUT_STATUS, 1);
+    el.watchCharInput.value = '';
+    await loadWatchlist();
+  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
 }
 
-async function removeWatch() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  const character = ui.watchSelect.value;
-  if (!guildId || !character) return;
+el.addWatchBtn.addEventListener('click', addWatch);
+el.loadWatchBtn.addEventListener('click', loadWatchlist);
+el.watchGuildId.addEventListener('keydown', function(e){ if (e.key === 'Enter') loadWatchlist(); });
 
-  setWatchStatus("Removing...");
+// ── Character detail panel ────────────────────────────────────────────────────
+function hideCharPanel() { el.charPanel.classList.remove('open'); }
+el.charPanelClose.addEventListener('click', hideCharPanel);
+el.matchesArea.addEventListener('click', function(e) {
+  const td = e.target.closest('[data-name]'); if (td) openCharPanel(td.dataset.name);
+});
+
+async function openCharPanel(name) {
+  el.charPanelName.textContent = name;
+  el.charPanelContent.innerHTML = '<div style="color:#8b949e;font-style:italic">Fetching from TibiaData &amp; Exevopan\u2026</div>';
+  el.charPanel.classList.add('open');
+  el.charPanel.scrollIntoView({ behavior:'smooth', block:'nearest' });
   try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("character", character);
-    await fetchJson(`/api/altfinder/watchlist/remove?${q.toString()}`);
-    await refreshWatchList();
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
-}
-
-function useWatchedCharacter() {
-  const selected = ui.watchSelect.value;
-  if (!selected) return;
-  const current = parseNames(ui.characters.value || "");
-  if (!current.some((n) => n.toLowerCase() === selected.toLowerCase())) {
-    current.push(selected);
-  }
-  ui.characters.value = current.join(", ");
-}
-
-async function loadResearchHistory() {
-  ui.historyStatus.textContent = "Loading...";
-  try {
-    const rows = await fetchJson("/api/altfinder/research?limit=25");
-    const list = Array.isArray(rows) ? rows : [];
-    if (list.length === 0) {
-      ui.historyBody.innerHTML = '<tr><td colspan="6" class="muted-cell">No research runs yet.</td></tr>';
-    } else {
-      ui.historyBody.innerHTML = list.map((r) => {
-        const chars = (r.searchedCharacters || []).slice(0, 4).join(", ") +
-          ((r.searchedCharacters || []).length > 4 ? "…" : "");
-        const range = [r.searchedFrom, r.searchedTo].filter(Boolean).join(" – ") || "Max";
-        const runAt = (r.createdAt || "").slice(0, 16).replace("T", " ");
-        return (
-          "<tr>" +
-            `<td>${escapeHtml(r.runType || "-")}</td>` +
-            `<td>${escapeHtml(chars || "-")}</td>` +
-            `<td>${escapeHtml(range)}</td>` +
-            `<td>${escapeHtml(String(r.distanceMinutes ?? "-"))}</td>` +
-            `<td>${escapeHtml(String(r.matchCount ?? "-"))}</td>` +
-            `<td>${escapeHtml(runAt || "-")}</td>` +
-          "</tr>"
-        );
-      }).join("");
+    const d = await fetchJson('/api/altfinder/character?name=' + encodeURIComponent(name), TIMEOUT_CHAR, 2);
+    const guild = d.guild ? d.guild + (d.guildRank ? ' (' + d.guildRank + ')' : '') : '-';
+    const former = (d.formerNames || []).join(', ') || '-';
+    const lastLogin = (d.lastLogin || '-').slice(0, 16).replace('T', ' ');
+    const traded = (d.recentTradeDates || []).length > 0;
+    const tradeHtml = traded
+      ? '<div class="trade-alert-box">\u26a0 RECENTLY TRADED \u2014 ' + esc((d.recentTradeDates||[]).join(', ')) + '</div>'
+      : '';
+    const tradeErr = d.tradedCheckError
+      ? '<div class="trade-alert-box" style="border-color:#f85149;color:#ffa198">\u26a0 Exevopan trade check failed (may be rate-limited).</div>'
+      : '';
+    function f(lbl, val) {
+      return '<div><div class="char-field-lbl">' + esc(lbl) + '</div><div class="char-field-val">' + esc(val||'-') + '</div></div>';
     }
-    ui.historyStatus.textContent = "Done.";
-  } catch (err) {
-    ui.historyBody.innerHTML = `<tr><td colspan="6" class="muted-cell">${escapeHtml(err instanceof Error ? err.message : String(err))}</td></tr>`;
-    ui.historyStatus.textContent = "";
+    el.charPanelName.textContent = d.name || name;
+    el.charPanelContent.innerHTML = '<div class="char-fields">'
+      + f('Level', String(d.level||'-')) + f('Vocation', d.vocation) + f('World', d.world)
+      + f('Sex', d.sex) + f('Guild', guild) + f('Last Login', lastLogin)
+      + f('Former Names', former) + '</div>'
+      + tradeHtml + tradeErr
+      + '<div class="char-links">'
+      + '<a class="char-link" href="' + esc(d.tibiaComUrl) + '" target="_blank" rel="noopener">Tibia.com \u2197</a>'
+      + '<a class="char-link" href="' + esc(d.exevopanUrl) + '" target="_blank" rel="noopener">Exevopan \u2197</a>'
+      + '</div>';
+  } catch(err) {
+    el.charPanelContent.innerHTML = '<div style="color:#f85149;font-size:.85rem">Failed: ' + esc(err.message||String(err)) + '</div>';
   }
 }
 
-async function runWatchBatch() {
-  saveWatchSettings();
-  const guildId = getWatchGuildId();
-  if (!guildId) {
-    ui.watchOutput.textContent = "Guild ID is required.";
-    return;
-  }
-
-  setWatchStatus("Running...");
-  try {
-    const q = new URLSearchParams();
-    q.set("guildId", guildId);
-    q.set("limit", "10");
-    const data = await fetchJson(`/api/altfinder/watchlist/run?${q.toString()}`);
-    const items = Array.isArray(data.items) ? data.items : [];
-    if (items.length === 0) {
-      ui.watchOutput.textContent = "No watch results.";
-    } else {
-      ui.watchOutput.textContent = items.map((item) => {
-        const lines = Array.isArray(item.lines) && item.lines.length > 0 ? item.lines.join("\n") : "No matches above threshold.";
-        return `${item.characterName} (${item.matches} matches)\n${lines}`;
-      }).join("\n\n");
-    }
-    setWatchStatus("Done.");
-  } catch (err) {
-    ui.watchOutput.textContent = err instanceof Error ? err.message : String(err);
-    setWatchStatus("");
-  }
-}
-
-ui.runBtn.addEventListener("click", run);
-ui.clearBtn.addEventListener("click", () => {
-  setStatus("");
-  setError("");
-  ui.summary.textContent = "No search yet.";
-  ui.results.textContent = "No search yet.";
-  ui.results.style.display = "";
-  ui.resultsTable.style.display = "none";
-  ui.resultsBody.innerHTML = '<tr><td colspan="8" class="muted-cell">No search yet.</td></tr>';
-});
-ui.apiBase.addEventListener("change", checkHealth);
-ui.distance.addEventListener("change", () => {
-  const distance = Number(ui.distance.value || 0);
-  localStorage.setItem(DEFAULT_DISTANCE_KEY, String(distance));
-});
-ui.strictMode.addEventListener("change", () => {
-  localStorage.setItem(STRICT_MODE_KEY, ui.strictMode.checked ? "true" : "false");
-  syncStrictModeControls();
+// ── Event wiring ──────────────────────────────────────────────────────────────
+el.runBtn.addEventListener('click', runSearch);
+el.clearBtn.addEventListener('click', clearAll);
+el.characters.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
+el.backendUrl.addEventListener('change', function() {
+  localStorage.setItem(STORAGE_BACKEND, el.backendUrl.value.trim());
+  checkHealth();
 });
 
-ui.guildSearchBtn.addEventListener("click", runGuildSearch);
-ui.guildSaveBtn.addEventListener("click", saveCurrentGuild);
-ui.guildRefreshBtn.addEventListener("click", refreshSavedGuilds);
-ui.guildUseBtn.addEventListener("click", useSavedGuild);
-ui.guildRemoveBtn.addEventListener("click", removeSavedGuild);
-
-ui.charAddBtn.addEventListener("click", addSavedCharacter);
-ui.charUseBtn.addEventListener("click", useSavedCharacter);
-ui.charRemoveBtn.addEventListener("click", removeSavedCharacter);
-
-ui.watchGuildId.addEventListener("change", saveWatchSettings);
-ui.watchChannelId.addEventListener("change", saveWatchSettings);
-ui.watchAddBtn.addEventListener("click", addWatch);
-ui.watchRefreshBtn.addEventListener("click", refreshWatchList);
-ui.watchRunBtn.addEventListener("click", runWatchBatch);
-ui.watchUseBtn.addEventListener("click", useWatchedCharacter);
-ui.watchRemoveBtn.addEventListener("click", removeWatch);
-
-ui.historyBtn.addEventListener("click", loadResearchHistory);
-
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadStorage();
 checkHealth();
-refreshCharacterSelect();
-refreshGuildSelectAndPanel();
-refreshWatchList();

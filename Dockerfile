@@ -24,10 +24,12 @@ WORKDIR /app
 
 COPY --from=builder /app/altfinder/target/universal/stage ./
 COPY --from=builder /app/tracker/target/universal/stage ./tracker/
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x entrypoint.sh
 
 ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -XX:+UseSerialGC"
 
 # Render injects $PORT at runtime; 10000 is the local/fallback default
 EXPOSE 10000
 
-CMD ["bin/alt-finder"]
+ENTRYPOINT ["./entrypoint.sh"]
