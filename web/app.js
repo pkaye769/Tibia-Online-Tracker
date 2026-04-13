@@ -410,7 +410,7 @@ async function runSearch() {
   el.summary.innerHTML = 'Loading\u2026';
   el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     renderSummary(data.formattedText || JSON.stringify(data, null, 2));
     renderMatches(data.possibleMatches || []);
   } catch(err) {
@@ -441,7 +441,7 @@ async function runTrades() {
   el.tradesRunBtn.disabled = true; el.tradesRunBtn.textContent = 'Checking\u2026';
   el.tradesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/trades?' + params, TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/trades?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     const results = data.results || [];
     if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; return; }
     const rows = results.map(function(r) {
@@ -493,7 +493,7 @@ async function runClashes() {
   el.clashesSummary.textContent = 'Loading\u2026';
   el.clashesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/clashes?' + params, TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/clashes?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     el.clashesSummary.textContent = data.formattedText || JSON.stringify(data, null, 2);
     const matches = data.clashes || [];
     if (matches.length === 0) { el.clashesArea.innerHTML = '<pre>No clash matches found.</pre>'; return; }

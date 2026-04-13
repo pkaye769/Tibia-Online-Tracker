@@ -1283,7 +1283,7 @@ final class AltFinderApi[F[_]: Async](
       |  el.summary.textContent = 'Loading\u2026';
       |  el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
       |  try {
-      |    const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
+      |    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
       |    renderSummary(data.formattedText || JSON.stringify(data, null, 2));
       |    renderMatches(data.possibleMatches || []);
       |  } catch(err) {
