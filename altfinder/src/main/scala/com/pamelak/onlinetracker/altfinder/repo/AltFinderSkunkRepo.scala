@@ -640,4 +640,14 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     """.query(timestamptz.opt)
     session.unique(q, Void)
   }
+
+  override def getCurrentlyOnlineNames: IO[List[String]] = withSession { session =>
+    val q = sql"""
+      SELECT c.name
+      FROM currently_online co
+      JOIN character c ON co.character_id = c.id
+      ORDER BY c.name
+    """.query(varchar)
+    session.stream(q, Void, 65536).compile.toList
+  }
 }

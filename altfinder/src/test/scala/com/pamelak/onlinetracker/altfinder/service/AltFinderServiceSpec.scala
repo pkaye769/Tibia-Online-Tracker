@@ -32,6 +32,7 @@ class AltFinderServiceSpec extends munit.FunSuite {
     def listResearchRuns(limit: Int) = IO.pure(Nil)
     def countOnlineHistoryRows = IO.pure(0L)
     def latestWorldSaveTime = IO.pure(None)
+    def getCurrentlyOnlineNames = IO.pure(Nil)
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
