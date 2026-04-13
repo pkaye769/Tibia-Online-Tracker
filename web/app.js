@@ -367,7 +367,7 @@ function renderSummary(text) {
   let highlightNext = false;
   const html = lines.map(line => {
     const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (HIGHLIGHT_AFTER.has(line)) { highlightNext = true; return escaped; }
+    if (HIGHLIGHT_AFTER.has(line.trim())) { highlightNext = true; return escaped; }
     if (highlightNext && line.trim() !== '') {
       highlightNext = false;
       return `<span class="summary-chars">${escaped}</span>`;
