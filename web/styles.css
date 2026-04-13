@@ -37,8 +37,9 @@ header .subtitle{color:#8b949e;margin-top:4px;font-size:.875rem}
 label{display:block;font-size:.75rem;color:#8b949e;margin-bottom:4px}
 input,select{
   width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;
-  color:#e6edf3;padding:7px 10px;font:inherit;font-size:.875rem;
+  color:#f0f6fc;padding:7px 10px;font:inherit;font-size:.875rem;font-weight:500;
 }
+input::placeholder{color:#8b949e}
 input:focus,select:focus{outline:none;border-color:#388bfd;box-shadow:0 0 0 3px rgba(56,139,253,.1)}
 select option{background:#161b22}
 .form-group{margin-bottom:12px}
@@ -79,6 +80,7 @@ pre{
   font-size:.78rem;color:#8b949e;white-space:pre-wrap;word-break:break-word;
   max-height:320px;overflow:auto;
 }
+.summary-chars{color:#e6edf3;font-weight:600}
 /* Tab bar */
 .tab-bar{display:flex;gap:0;border-bottom:1px solid #30363d;margin-bottom:0}
 .tab{

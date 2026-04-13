@@ -360,6 +360,23 @@ el.csvBtn.addEventListener('click', function() {
   URL.revokeObjectURL(a.href);
 });
 
+// ── Summary renderer ──────────────────────────────────────────────────────────
+function renderSummary(text) {
+  const HIGHLIGHT_AFTER = new Set(['Searched characters', 'Checked against']);
+  const lines = text.split('\n');
+  let highlightNext = false;
+  const html = lines.map(line => {
+    const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (HIGHLIGHT_AFTER.has(line.trim())) { highlightNext = true; return escaped; }
+    if (highlightNext && line.trim() !== '') {
+      highlightNext = false;
+      return `<span class="summary-chars">${escaped}</span>`;
+    }
+    return escaped;
+  }).join('\n');
+  el.summary.innerHTML = html;
+}
+
 // ── Run alt search ────────────────────────────────────────────────────────────
 async function runSearch() {
   clearError();
@@ -379,15 +396,15 @@ async function runSearch() {
   if (to)   params.set('to', to);
   persist();
   el.runBtn.disabled = true; el.runBtn.textContent = 'Running\u2026';
-  el.summary.textContent = 'Loading\u2026';
+  el.summary.innerHTML = 'Loading\u2026';
   el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
     const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
-    el.summary.textContent = data.formattedText || JSON.stringify(data, null, 2);
+    renderSummary(data.formattedText || JSON.stringify(data, null, 2));
     renderMatches(data.possibleMatches || []);
   } catch(err) {
     showError(err.message || String(err));
-    el.summary.textContent = 'Search failed.';
+    el.summary.innerHTML = 'Search failed.';
     el.matchesArea.innerHTML = '<pre>Search failed.</pre>';
   } finally {
     el.runBtn.disabled = false; el.runBtn.textContent = 'Run';
@@ -398,7 +415,7 @@ function clearAll() {
   clearError(); hideCharPanel();
   el.characters.value = '';
   el.altFrom.value = ''; el.altTo.value = '';
-  el.summary.textContent = 'No search yet.';
+  el.summary.innerHTML = 'No search yet.';
   el.matchesArea.innerHTML = '<pre>No search yet.</pre>';
   lastMatches = [];
 }
