@@ -1,5 +1,6 @@
 package com.pamelak.onlinetracker.altfinder.service
 
+import cats.Parallel
 import cats.effect.kernel.Async
 import cats.implicits.*
 import com.carrotsearch.sizeof.RamUsageEstimator
@@ -67,7 +68,7 @@ object AltFinderService {
 
 }
 
-class AltFinderService[F[_]: Async](
+class AltFinderService[F[_]: Async: Parallel](
     repo: AltFinderRepoAlg[F],
     bazaarScraper: BazaarScraper[F],
     tradeLookbackDays: Int = 30,
@@ -115,7 +116,7 @@ class AltFinderService[F[_]: Async](
     for
       _ <- Logger[F].info(s"Searching for: ${characterNames.mkString(", ")}")
       _ <- Logger[F].info(s"Date range: $from - $to")
-      sales <- characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).sequence
+      sales <- characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).parSequence
       latestSale = BazaarScraper.latestSale(sales)
       tradedFrom = from.orElse { latestSale.map(_.toOffsetDateTime()) }
       mainSegments <- repo.getOnlineTimes(characterNames, tradedFrom, to)
@@ -219,7 +220,7 @@ class AltFinderService[F[_]: Async](
             CharacterTradeStatus(name, allNames, filtered, hadError = false)
         }
       }
-    }.sequence
+    }.parSequence
   }
 
   def saveLastSearch(
@@ -340,7 +341,7 @@ class AltFinderService[F[_]: Async](
                 (name, Right(filtered))
           }
         }
-      }.sequence.map { results =>
+      }.parSequence.map { results =>
         val errors = results.count(_._2.isLeft)
         val tradeMap = results.collect { case (name, Right(dates)) if dates.nonEmpty => name -> dates }.toMap
         CandidateTradeInfo(tradeMap, errors)
