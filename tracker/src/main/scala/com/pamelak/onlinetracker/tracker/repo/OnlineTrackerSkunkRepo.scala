@@ -19,6 +19,101 @@ import java.time.OffsetDateTime
 class OnlineTrackerSkunkRepo(val session: Session[IO])
     extends OnlineTrackerRepoAlg[IO] with OnlineTrackerCodecs with SkunkExtensions {
 
+  override def ensureSchema: IO[Unit] = {
+    val createWorldTable = sql"""
+      CREATE TABLE IF NOT EXISTS world (
+        id   BIGSERIAL PRIMARY KEY,
+        name VARCHAR   NOT NULL UNIQUE
+      )
+    """.command
+
+    val createCharacterTable = sql"""
+      CREATE TABLE IF NOT EXISTS character (
+        id                 BIGSERIAL PRIMARY KEY,
+        name               VARCHAR   NOT NULL UNIQUE,
+        created            TIMESTAMPTZ NOT NULL,
+        current_name_since TIMESTAMPTZ NOT NULL
+      )
+    """.command
+
+    val createCharacterNameHistoryTable = sql"""
+      CREATE TABLE IF NOT EXISTS character_name_history (
+        id           BIGSERIAL PRIMARY KEY,
+        character_id BIGINT NOT NULL REFERENCES character(id) ON DELETE CASCADE,
+        name         VARCHAR   NOT NULL,
+        from_date    TIMESTAMPTZ NOT NULL,
+        until_date   TIMESTAMPTZ NOT NULL
+      )
+    """.command
+
+    val createWorldSaveTimeTable = sql"""
+      CREATE TABLE IF NOT EXISTS world_save_time (
+        id          BIGSERIAL PRIMARY KEY,
+        world_id    BIGINT NOT NULL REFERENCES world(id) ON DELETE CASCADE,
+        sequence_id BIGINT NOT NULL,
+        time        TIMESTAMPTZ NOT NULL,
+        UNIQUE (world_id, sequence_id),
+        UNIQUE (world_id, time)
+      )
+    """.command
+
+    val createCurrentlyOnlineTable = sql"""
+      CREATE TABLE IF NOT EXISTS currently_online (
+        character_id BIGINT NOT NULL REFERENCES character(id) ON DELETE CASCADE,
+        world_id     BIGINT NOT NULL REFERENCES world(id) ON DELETE CASCADE,
+        login_time   BIGINT NOT NULL REFERENCES world_save_time(id) ON DELETE CASCADE,
+        PRIMARY KEY (character_id, world_id)
+      )
+    """.command
+
+    val createOnlineHistoryTable = sql"""
+      CREATE TABLE IF NOT EXISTS online_history (
+        character_id BIGINT NOT NULL REFERENCES character(id) ON DELETE CASCADE,
+        login_time   BIGINT NOT NULL REFERENCES world_save_time(id) ON DELETE CASCADE,
+        logout_time  BIGINT NOT NULL REFERENCES world_save_time(id) ON DELETE CASCADE
+      )
+    """.command
+
+    val createOnlineHistoryCharacterIdx = sql"""
+      CREATE INDEX IF NOT EXISTS online_history_character_id_idx ON online_history(character_id)
+    """.command
+
+    val createOnlineHistoryLoginIdx = sql"""
+      CREATE INDEX IF NOT EXISTS online_history_login_time_idx ON online_history(login_time)
+    """.command
+
+    val createOnlineHistoryLogoutIdx = sql"""
+      CREATE INDEX IF NOT EXISTS online_history_logout_time_idx ON online_history(logout_time)
+    """.command
+
+    val createCharacterNameHistoryIdx = sql"""
+      CREATE INDEX IF NOT EXISTS character_name_history_character_id_idx ON character_name_history(character_id)
+    """.command
+
+    val createWorldSaveTimeWorldIdx = sql"""
+      CREATE INDEX IF NOT EXISTS world_save_time_world_id_idx ON world_save_time(world_id)
+    """.command
+
+    val seedWorld = sql"""
+      INSERT INTO world (name) VALUES ('Nefera') ON CONFLICT (name) DO NOTHING
+    """.command
+
+    for {
+      _ <- session.execute(createWorldTable, Void)
+      _ <- session.execute(createCharacterTable, Void)
+      _ <- session.execute(createCharacterNameHistoryTable, Void)
+      _ <- session.execute(createWorldSaveTimeTable, Void)
+      _ <- session.execute(createCurrentlyOnlineTable, Void)
+      _ <- session.execute(createOnlineHistoryTable, Void)
+      _ <- session.execute(createOnlineHistoryCharacterIdx, Void)
+      _ <- session.execute(createOnlineHistoryLoginIdx, Void)
+      _ <- session.execute(createOnlineHistoryLogoutIdx, Void)
+      _ <- session.execute(createCharacterNameHistoryIdx, Void)
+      _ <- session.execute(createWorldSaveTimeWorldIdx, Void)
+      _ <- session.execute(seedWorld, Void)
+    } yield ()
+  }
+
   override def getWorld(name: String): IO[WorldRow] = {
     val q: Query[String, WorldRow] = sql"""
         SELECT id, name

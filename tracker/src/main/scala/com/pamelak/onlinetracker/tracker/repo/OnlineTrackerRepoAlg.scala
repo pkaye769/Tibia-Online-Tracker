@@ -5,6 +5,8 @@ import com.pamelak.onlinetracker.tracker.repo.Model.*
 import java.time.OffsetDateTime
 
 trait OnlineTrackerRepoAlg[F[_]] {
+  def ensureSchema: F[Unit]
+
   def getWorld(name: String): F[WorldRow]
   def getOrCreateWorld(name: String): F[WorldRow]
 
