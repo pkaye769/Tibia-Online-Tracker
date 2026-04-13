@@ -125,7 +125,7 @@ class AltFinderService[F[_]: Async](
       _ <- Logger[F].info("Got online times for possible matched characters")
       _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(matchesToCheck))
       _ <- Logger[F].info(s"${matchesToCheck.length} rows to analyse")
-      adj = getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20)
+      adj <- Async[F].blocking(getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20))
       adjWithNames <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       tradeInfo <- enrichWithCandidateTrades(adjWithNames)
@@ -159,7 +159,7 @@ class AltFinderService[F[_]: Async](
       mainSegments <- repo.getOnlineTimes(characterNames, from, to)
       toCheckSegments <- repo.getOnlineTimes(toCheck, from, to)
       _ <- Logger[F].info(s"${toCheckSegments.length} rows to analyse from ${mainSegments.length} segments")
-      adj = getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance = 0)
+      adj <- Async[F].blocking(getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance = 0))
       results <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       _ <- results.map(i => Logger[F].info(i.toString)).sequence
@@ -176,10 +176,12 @@ class AltFinderService[F[_]: Async](
     for
       mainSegments <- repo.getOnlineTimes(characterNames, from, to)
       toCheckSegments <- repo.getOnlineTimes(toCheck, from, to)
-      adj = getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance)
-        .filter(_.clashes > 0)
-        .sortBy(a => (-a.clashes, -a.adjacencies))
-        .take(30)
+      adj <- Async[F].blocking {
+        getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance)
+          .filter(_.clashes > 0)
+          .sortBy(a => (-a.clashes, -a.adjacencies))
+          .take(30)
+      }
       clashes <- adj.map(a => repo.getCharacterName(a.characterId).map(n => a.copy(characterName = Some(n)))).sequence
     yield ClashResults(characterNames, toCheck, from, to, clashes)
   }
@@ -194,10 +196,10 @@ class AltFinderService[F[_]: Async](
     for
       aSegments <- repo.getOnlineTimes(List(characterA), from, to)
       bSegments <- repo.getOnlineTimes(List(characterB), from, to)
-      aToBAdj = getAdjacencies(aSegments, bSegments, includeClashes = true, distance)
-        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterB), 0, 0, bSegments.length, 0, 0, 0, false, false, Nil))
-      bToAAdj = getAdjacencies(bSegments, aSegments, includeClashes = true, distance)
-        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, 0, false, false, Nil))
+      aToBAdj <- Async[F].blocking(getAdjacencies(aSegments, bSegments, includeClashes = true, distance)
+        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterB), 0, 0, bSegments.length, 0, 0, 0, false, false, Nil)))
+      bToAAdj <- Async[F].blocking(getAdjacencies(bSegments, aSegments, includeClashes = true, distance)
+        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, 0, false, false, Nil)))
     yield CompareResults(aToBAdj, bToAAdj)
   }
 

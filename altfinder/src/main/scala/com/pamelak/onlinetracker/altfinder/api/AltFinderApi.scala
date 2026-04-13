@@ -1231,6 +1231,29 @@ final class AltFinderApi[F[_]: Async](
       |}
       |
       |// ── Run search ────────────────────────────────────────────────────────────────
+      |// ── Summary renderer ─────────────────────────────────────────────────────────────────────────────────
+      |function renderSummary(text) {
+      |  const NAME_AFTER = new Set(['Searched characters', 'Checked against']);
+      |  const LABEL_LINES = new Set([
+      |    'Searched characters', 'Checked against',
+      |    'Total logins', 'Date range', 'Adjacency distance', 'Include clashes',
+      |    'Total clashes', 'Possible matches', 'Clash matches',
+      |    'Traded character detected', "Couldn't check if traded", 'Candidate trade checks',
+      |  ]);
+      |  const lines = text.split('\n');
+      |  let highlightNext = false;
+      |  const html = lines.map(line => {
+      |    const escaped = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      |    const trimmed = line.trim();
+      |    if (trimmed === '') { highlightNext = false; return escaped; }
+      |    if (NAME_AFTER.has(trimmed)) { highlightNext = true; return escaped; }
+      |    if (highlightNext && trimmed !== '') { highlightNext = false; return `<span class="summary-chars">${escaped}</span>`; }
+      |    if (LABEL_LINES.has(trimmed)) return escaped;
+      |    return `<span style="color:#e6edf3">${escaped}</span>`;
+      |  }).join('\n');
+      |  el.summary.innerHTML = html;
+      |}
+      |
       |async function runSearch() {
       |  clearError();
       |  hideCharPanel();
@@ -1248,7 +1271,7 @@ final class AltFinderApi[F[_]: Async](
       |  el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
       |  try {
       |    const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
-      |    el.summary.textContent = data.formattedText || JSON.stringify(data, null, 2);
+      |    renderSummary(data.formattedText || JSON.stringify(data, null, 2));
       |    renderMatches(data.possibleMatches || []);
       |  } catch(err) {
       |    showError(err.message || String(err));

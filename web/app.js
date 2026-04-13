@@ -362,17 +362,28 @@ el.csvBtn.addEventListener('click', function() {
 
 // ── Summary renderer ──────────────────────────────────────────────────────────
 function renderSummary(text) {
-  const HIGHLIGHT_AFTER = new Set(['Searched characters', 'Checked against']);
+  // Lines after these labels get the bright "chars" highlight (names).
+  const NAME_AFTER = new Set(['Searched characters', 'Checked against']);
+  // These lines are section labels – keep them in the muted grey colour.
+  const LABEL_LINES = new Set([
+    'Searched characters', 'Checked against',
+    'Total logins', 'Date range', 'Adjacency distance', 'Include clashes',
+    'Total clashes', 'Possible matches', 'Clash matches',
+    'Traded character detected', "Couldn't check if traded", 'Candidate trade checks',
+  ]);
   const lines = text.split('\n');
   let highlightNext = false;
   const html = lines.map(line => {
     const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (HIGHLIGHT_AFTER.has(line.trim())) { highlightNext = true; return escaped; }
-    if (highlightNext && line.trim() !== '') {
+    const trimmed = line.trim();
+    if (trimmed === '') { highlightNext = false; return escaped; }
+    if (NAME_AFTER.has(trimmed)) { highlightNext = true; return escaped; }
+    if (highlightNext && trimmed !== '') {
       highlightNext = false;
       return `<span class="summary-chars">${escaped}</span>`;
     }
-    return escaped;
+    if (LABEL_LINES.has(trimmed)) return escaped;
+    return `<span style="color:#e6edf3">${escaped}</span>`;
   }).join('\n');
   el.summary.innerHTML = html;
 }
