@@ -154,6 +154,18 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
       from: Option[OffsetDateTime],
       to: Option[OffsetDateTime]
   ): IO[List[OnlineSegment]] = withSession { session =>
+    for {
+      historical <- fetchHistoricalOnlineTimes(session, characterNames, from, to)
+      current    <- fetchCurrentlyOnlineSessions(session, characterNames, from, to)
+    } yield historical ++ current
+  }
+
+  private def fetchHistoricalOnlineTimes(
+      session: Session[IO],
+      characterNames: List[String],
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime]
+  ): IO[List[OnlineSegment]] = {
     val cl = characterNames.map(_.toLowerCase)
 
     // Return epoch seconds so that the service can compare durations in real time units.
@@ -184,6 +196,50 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
       case (None, None) =>
         val q = sql"$baseFragment $charFragment".query(onlineSegmentDecoder)
         prepareToList(session)(q, cl)
+    }
+  }
+
+  // Returns the in-progress session for each of the given characters that is currently
+  // recorded in currently_online (i.e. the character has not yet logged off).
+  // The effective logout time is the latest world_save_time for the character's world,
+  // which is the last moment the tracker confirmed they were still online.
+  private def fetchCurrentlyOnlineSessions(
+      session: Session[IO],
+      characterNames: List[String],
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime]
+  ): IO[List[OnlineSegment]] = {
+    if (characterNames.isEmpty) IO.pure(Nil)
+    else {
+      val cl = characterNames.map(_.toLowerCase)
+      val baseQ = sql"""
+          SELECT co.character_id,
+                 EXTRACT(EPOCH FROM w_login.time)::bigint,
+                 EXTRACT(EPOCH FROM latest_wst.time)::bigint
+          FROM currently_online co
+          JOIN character c ON co.character_id = c.id
+          JOIN world_save_time w_login ON co.login_time = w_login.id
+          JOIN (
+            SELECT world_id, MAX(time) AS time
+            FROM world_save_time
+            GROUP BY world_id
+          ) latest_wst ON latest_wst.world_id = co.world_id
+          WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})
+        """
+      val fromToFilter = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
+      val fromFilter   = sql"AND w_login.time >= $timestamptz"
+      val toFilter     = sql"AND w_login.time <= $timestamptz"
+
+      (from, to) match {
+        case (Some(f), Some(t)) =>
+          prepareToList(session)(sql"$baseQ $fromToFilter".query(onlineSegmentDecoder), (cl, (f, t)))
+        case (Some(f), None) =>
+          prepareToList(session)(sql"$baseQ $fromFilter".query(onlineSegmentDecoder), cl ~ f)
+        case (None, Some(t)) =>
+          prepareToList(session)(sql"$baseQ $toFilter".query(onlineSegmentDecoder), cl ~ t)
+        case (None, None) =>
+          prepareToList(session)(baseQ.query(onlineSegmentDecoder), cl)
+      }
     }
   }
 
@@ -242,19 +298,73 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     val outerFromFilter   = sql"AND w_login.time >= $timestamptz"
     val outerToFilter     = sql"AND w_login.time <= $timestamptz"
 
+    for {
+      historical <- (from, to) match {
+        case (Some(f), Some(t)) =>
+          val q = sql"$outerBase $innerFromToFilter) $outerFromToFilter".query(onlineSegmentDecoder)
+          prepareToList(session)(q, (cl, (f, t), (f, t)))
+        case (Some(f), None) =>
+          val q = sql"$outerBase $innerFromFilter) $outerFromFilter".query(onlineSegmentDecoder)
+          prepareToList(session)(q, (cl, f, f))
+        case (None, Some(t)) =>
+          val q = sql"$outerBase $innerToFilter) $outerToFilter".query(onlineSegmentDecoder)
+          prepareToList(session)(q, (cl, t, t))
+        case (None, None) =>
+          val q = sql"$outerBase)".query(onlineSegmentDecoder)
+          prepareToList(session)(q, cl)
+      }
+      // Also include sessions for characters adjacent to any currently-online session of
+      // the searched characters. This covers the case where a searched character is still
+      // logged in and their alt logged off right before they logged in.
+      currentSessions <- fetchCurrentlyOnlineSessions(session, characterNames, from, to)
+      adjacent <- if (currentSessions.nonEmpty) {
+        val loginSecs  = currentSessions.map(_.start)
+        val minSec     = loginSecs.min - distanceSecs
+        val maxSec     = loginSecs.max + distanceSecs
+        val excludeIds = currentSessions.map(_.characterId).toSet
+        fetchSessionsAdjacentToEpochWindow(session, minSec, maxSec, from, to)
+          .map(_.filterNot(s => excludeIds.contains(s.characterId)))
+      } else IO.pure(Nil)
+    } yield (historical ++ adjacent).distinct
+  }
+
+  // Returns all sessions of characters who had any session ending within [minSec, maxSec].
+  // Used to surface candidates adjacent to a currently-online searched character's login time.
+  // minSec and maxSec are safely computed epoch-second values from prior DB queries.
+  private def fetchSessionsAdjacentToEpochWindow(
+      session: Session[IO],
+      minSec: Long,
+      maxSec: Long,
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime]
+  ): IO[List[OnlineSegment]] = {
+    val outerBase = sql"""
+        SELECT o.character_id,
+               EXTRACT(EPOCH FROM w_login.time)::bigint,
+               EXTRACT(EPOCH FROM w_logout.time)::bigint
+        FROM online_history o
+        JOIN world_save_time w_login  ON o.login_time  = w_login.id
+        JOIN world_save_time w_logout ON o.logout_time = w_logout.id
+        WHERE o.character_id IN (
+          SELECT DISTINCT oh_inner.character_id
+          FROM online_history oh_inner
+          JOIN world_save_time wl ON oh_inner.logout_time = wl.id
+          WHERE EXTRACT(EPOCH FROM wl.time)::bigint BETWEEN #${minSec.toString} AND #${maxSec.toString}
+        )
+      """
+    val fromToFilter = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
+    val fromFilter   = sql"AND w_login.time >= $timestamptz"
+    val toFilter     = sql"AND w_login.time <= $timestamptz"
+
     (from, to) match {
       case (Some(f), Some(t)) =>
-        val q = sql"$outerBase $innerFromToFilter) $outerFromToFilter".query(onlineSegmentDecoder)
-        prepareToList(session)(q, (cl, (f, t), (f, t)))
+        prepareToList(session)(sql"$outerBase $fromToFilter".query(onlineSegmentDecoder), (f, t))
       case (Some(f), None) =>
-        val q = sql"$outerBase $innerFromFilter) $outerFromFilter".query(onlineSegmentDecoder)
-        prepareToList(session)(q, (cl, f, f))
+        prepareToList(session)(sql"$outerBase $fromFilter".query(onlineSegmentDecoder), f)
       case (None, Some(t)) =>
-        val q = sql"$outerBase $innerToFilter) $outerToFilter".query(onlineSegmentDecoder)
-        prepareToList(session)(q, (cl, t, t))
+        prepareToList(session)(sql"$outerBase $toFilter".query(onlineSegmentDecoder), t)
       case (None, None) =>
-        val q = sql"$outerBase)".query(onlineSegmentDecoder)
-        prepareToList(session)(q, cl)
+        prepareToList(session)(outerBase.query(onlineSegmentDecoder), Void)
     }
   }
 
