@@ -25,6 +25,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import io.circe.Json
 import scala.collection.mutable
+import scala.concurrent.duration.*
 import scala.util.Try
 
 final class AltFinderApi[F[_]: Async](
@@ -252,66 +253,70 @@ final class AltFinderApi[F[_]: Async](
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
         val cacheKey = s"alts|${characters.mkString(",")}|$from|$to|$distanceOpt|$includeClashes|$format"
-        cachedJson(cacheKey) {
-          service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).flatMap { results =>
-          val dateMessage = buildDateRange(results.searchedFrom, results.searchedTo)
-          val tradeSummary = buildTradeSummary(results.sales, from)
-          val formattedMatches = results.adjacencies.take(20).map { adj =>
-            val formatted = if (format == "classic") formatClassic(adj) else formatDetailed(adj)
-            AltMatch(
-              name = adj.characterName.getOrElse("Unknown"),
-              adjacencies = adj.adjacencies,
-              clashes = adj.clashes,
-              logins = adj.logins,
-              sessionSimilarity = adj.sessionSimilarity,
-              confidence = adj.confidence,
-              hiddenScore = adj.hiddenScore,
-              hiddenLikely = adj.hiddenLikely,
-              evidencePassed = adj.evidencePassed,
-              explanation = explainAdj(adj),
-              recentTradeDates = adj.recentTradeDates.map(_.toString),
-              formatted = formatted
-            )
-          }
+        Async[F].timeoutTo(
+          cachedJson(cacheKey) {
+            service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).flatMap { results =>
+            val dateMessage = buildDateRange(results.searchedFrom, results.searchedTo)
+            val tradeSummary = buildTradeSummary(results.sales, from)
+            val formattedMatches = results.adjacencies.take(20).map { adj =>
+              val formatted = if (format == "classic") formatClassic(adj) else formatDetailed(adj)
+              AltMatch(
+                name = adj.characterName.getOrElse("Unknown"),
+                adjacencies = adj.adjacencies,
+                clashes = adj.clashes,
+                logins = adj.logins,
+                sessionSimilarity = adj.sessionSimilarity,
+                confidence = adj.confidence,
+                hiddenScore = adj.hiddenScore,
+                hiddenLikely = adj.hiddenLikely,
+                evidencePassed = adj.evidencePassed,
+                explanation = explainAdj(adj),
+                recentTradeDates = adj.recentTradeDates.map(_.toString),
+                formatted = formatted
+              )
+            }
 
-          val response = AltsResponse(
-            searchedCharacters = results.searchedCharacters,
-            searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
-            searchedTo = results.searchedTo.map(_.toLocalDate.toString),
-            totalLogins = results.mainLogins,
-            dateRange = dateMessage,
-            adjacencyDistanceMinutes = distanceOpt.getOrElse(0),
-            includeClashes = includeClashes,
-            tradeSummary = tradeSummary,
-            candidateTradeErrors = results.candidateTradeErrors,
-            possibleMatches = formattedMatches,
-            formattedText = buildFormattedText(
-              results = results,
-              tradeSummary = tradeSummary,
-              distance = distanceOpt.getOrElse(0),
-              includeClashes = includeClashes,
-              format = format
-            )
-          )
-          val summaryText = response.formattedText.take(4000)
-          repo.saveResearchRun(
-            ResearchRunWrite(
-              runType = "alts",
+            val response = AltsResponse(
               searchedCharacters = results.searchedCharacters,
-              targetCharacters = Nil,
-              from = results.searchedFrom,
-              to = results.searchedTo,
-              distance = distanceOpt.getOrElse(0),
-              includeClashes = includeClashes,
+              searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
+              searchedTo = results.searchedTo.map(_.toLocalDate.toString),
               totalLogins = results.mainLogins,
-              matchCount = formattedMatches.length,
-              summary = summaryText
+              dateRange = dateMessage,
+              adjacencyDistanceMinutes = distanceOpt.getOrElse(0),
+              includeClashes = includeClashes,
+              tradeSummary = tradeSummary,
+              candidateTradeErrors = results.candidateTradeErrors,
+              possibleMatches = formattedMatches,
+              formattedText = buildFormattedText(
+                results = results,
+                tradeSummary = tradeSummary,
+                distance = distanceOpt.getOrElse(0),
+                includeClashes = includeClashes,
+                format = format
+              )
             )
-          ).attempt *> Async[F].pure(response.asJson)
-        }.recoverWith { case ex =>
-          Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
-        }
-        }.flatMap(json => Ok(json)).handleErrorWith { case ex =>
+            val summaryText = response.formattedText.take(4000)
+            repo.saveResearchRun(
+              ResearchRunWrite(
+                runType = "alts",
+                searchedCharacters = results.searchedCharacters,
+                targetCharacters = Nil,
+                from = results.searchedFrom,
+                to = results.searchedTo,
+                distance = distanceOpt.getOrElse(0),
+                includeClashes = includeClashes,
+                totalLogins = results.mainLogins,
+                matchCount = formattedMatches.length,
+                summary = summaryText
+              )
+            ).attempt *> Async[F].pure(response.asJson)
+          }.recoverWith { case ex =>
+            Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
+          }
+          },
+          25.seconds,
+          Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
+        ).flatMap(json => Ok(json)).handleErrorWith { case ex =>
           InternalServerError(ErrorResponse(s"Internal server error: ${ex.getMessage}", Nil).asJson)
         }
       }
@@ -337,22 +342,26 @@ final class AltFinderApi[F[_]: Async](
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
         val cacheKey = s"trades|${characters.mkString(",")}|$lookbackDays"
-        cachedJson(cacheKey) {
-          service.checkTradedCharacters(characters, lookbackDays).map { rows =>
-          val response = TradesResponse(
-            lookbackDays = lookbackDays,
-            results = rows.map { row =>
-              TradeCharacterResult(
-                characterName = row.characterName,
-                checkedNames = row.checkedNames,
-                recentTradeDates = row.recentTradeDates.map(_.toString),
-                hadError = row.hadError
-              )
-            }
-          )
-          response.asJson
-        }
-        }.flatMap(json => Ok(json))
+        Async[F].timeoutTo(
+          cachedJson(cacheKey) {
+            service.checkTradedCharacters(characters, lookbackDays).map { rows =>
+            val response = TradesResponse(
+              lookbackDays = lookbackDays,
+              results = rows.map { row =>
+                TradeCharacterResult(
+                  characterName = row.characterName,
+                  checkedNames = row.checkedNames,
+                  recentTradeDates = row.recentTradeDates.map(_.toString),
+                  hadError = row.hadError
+                )
+              }
+            )
+            response.asJson
+          }
+          },
+          25.seconds,
+          Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
+        ).flatMap(json => Ok(json))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "clashes" =>
@@ -373,56 +382,60 @@ final class AltFinderApi[F[_]: Async](
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
         val cacheKey = s"clashes|${characters.mkString(",")}|${targets.mkString(",")}|$from|$to|$distance"
-        cachedJson(cacheKey) {
-          service.findClashes(characters, targets, from, to, distance).flatMap { results =>
-          val matches = results.clashes.map { c =>
-            val name = c.characterName.getOrElse("Unknown")
-            val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
-            ClashMatch(name, c.adjacencies, c.clashes, c.logins, formatted)
-          }
-          val body =
-            if (matches.isEmpty) "No clashes found."
-            else matches.map(_.formatted).mkString("\n")
-          val formattedText =
-            List(
-              "Searched characters",
-              results.searchedCharacters.mkString(", "),
-              "Checked against",
-              results.checkedCharacters.mkString(", "),
-              "Adjacency distance",
-              appendMinutes(distance),
-              "Total clashes",
-              matches.length.toString,
-              "",
-              "Clash matches",
-              body
-            ).mkString("\n")
-          val response = ClashesResponse(
-              searchedCharacters = results.searchedCharacters,
-              checkedCharacters = results.checkedCharacters,
-              searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
-              searchedTo = results.searchedTo.map(_.toLocalDate.toString),
-              adjacencyDistanceMinutes = distance,
-              totalClashes = matches.length,
-              clashes = matches,
-              formattedText = formattedText
-            )
-          repo.saveResearchRun(
-            ResearchRunWrite(
-              runType = "clashes",
-              searchedCharacters = results.searchedCharacters,
-              targetCharacters = results.checkedCharacters,
-              from = results.searchedFrom,
-              to = results.searchedTo,
-              distance = distance,
-              includeClashes = true,
-              totalLogins = 0,
-              matchCount = matches.length,
-              summary = response.formattedText.take(4000)
-            )
-          ).attempt *> Async[F].pure(response.asJson)
-          }
-        }.flatMap(json => Ok(json))
+        Async[F].timeoutTo(
+          cachedJson(cacheKey) {
+            service.findClashes(characters, targets, from, to, distance).flatMap { results =>
+            val matches = results.clashes.map { c =>
+              val name = c.characterName.getOrElse("Unknown")
+              val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
+              ClashMatch(name, c.adjacencies, c.clashes, c.logins, formatted)
+            }
+            val body =
+              if (matches.isEmpty) "No clashes found."
+              else matches.map(_.formatted).mkString("\n")
+            val formattedText =
+              List(
+                "Searched characters",
+                results.searchedCharacters.mkString(", "),
+                "Checked against",
+                results.checkedCharacters.mkString(", "),
+                "Adjacency distance",
+                appendMinutes(distance),
+                "Total clashes",
+                matches.length.toString,
+                "",
+                "Clash matches",
+                body
+              ).mkString("\n")
+            val response = ClashesResponse(
+                searchedCharacters = results.searchedCharacters,
+                checkedCharacters = results.checkedCharacters,
+                searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
+                searchedTo = results.searchedTo.map(_.toLocalDate.toString),
+                adjacencyDistanceMinutes = distance,
+                totalClashes = matches.length,
+                clashes = matches,
+                formattedText = formattedText
+              )
+            repo.saveResearchRun(
+              ResearchRunWrite(
+                runType = "clashes",
+                searchedCharacters = results.searchedCharacters,
+                targetCharacters = results.checkedCharacters,
+                from = results.searchedFrom,
+                to = results.searchedTo,
+                distance = distance,
+                includeClashes = true,
+                totalLogins = 0,
+                matchCount = matches.length,
+                summary = response.formattedText.take(4000)
+              )
+            ).attempt *> Async[F].pure(response.asJson)
+            }
+          },
+          25.seconds,
+          Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
+        ).flatMap(json => Ok(json))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "guild" =>
