@@ -50,6 +50,7 @@ object Main extends IOApp {
               .getOrElse(List("Nefera"))
           val intervalSeconds = sys.env.get("TRACKER_INTERVAL_SECONDS").flatMap(s => s.toIntOption).getOrElse(15)
 
+          repo.ensureSchema *>
           Stream.fixedRateStartImmediately[IO](intervalSeconds.seconds).evalTap { _ =>
             worlds.traverse_(world =>
               service.updateDataForWorld(world).handleErrorWith { e =>
