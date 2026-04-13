@@ -161,7 +161,47 @@ function clearError(box) {
   box.classList.remove('visible');
 }
 
-// ── API fetch ─────────────────────────────────────────────────────────────────
+// ── Toast notifications ───────────────────────────────────────────────────────
+const TOAST_ICONS = { success: '✓', error: '✕', info: 'ℹ' };
+function showToast(message, type, durationMs) {
+  if (type === undefined) type = 'info';
+  if (durationMs === undefined) durationMs = type === 'error' ? 6000 : 4000;
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.setAttribute('role', 'alert');
+  const icon = document.createElement('em');
+  icon.className = 'toast-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = TOAST_ICONS[type] || TOAST_ICONS.info;
+  const body = document.createElement('span');
+  body.className = 'toast-body';
+  body.textContent = message;
+  const close = document.createElement('button');
+  close.className = 'toast-close';
+  close.setAttribute('aria-label', 'Dismiss notification');
+  close.textContent = '×';
+  toast.appendChild(icon);
+  toast.appendChild(body);
+  toast.appendChild(close);
+  container.appendChild(toast);
+  // Trigger enter animation
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() { toast.classList.add('toast-show'); });
+  });
+  function dismiss() {
+    toast.classList.remove('toast-show');
+    toast.classList.add('toast-hide');
+    toast.addEventListener('transitionend', function() { toast.remove(); }, { once: true });
+  }
+  const timer = setTimeout(dismiss, durationMs);
+  close.addEventListener('click', function() { clearTimeout(timer); dismiss(); });
+  toast.addEventListener('click', function(e) {
+    if (e.target !== close) { clearTimeout(timer); dismiss(); }
+  });
+}
+
+
 async function fetchJson(path, timeoutMs, maxAttempts) {
   if (maxAttempts === undefined) maxAttempts = 2;
   if (timeoutMs === undefined) timeoutMs = 15000;
@@ -194,14 +234,19 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
 }
 
 // ── Health + Status check ─────────────────────────────────────────────────────
+let _lastApiOk = null;
 async function checkHealth() {
   try {
     await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
     el.apiBadge.textContent = 'API: ok';
     el.apiBadge.className = 'api-badge ok';
+    if (_lastApiOk === false) showToast('Backend is back online.', 'success');
+    _lastApiOk = true;
   } catch(_) {
     el.apiBadge.textContent = 'API: unavailable';
     el.apiBadge.className = 'api-badge bad';
+    if (_lastApiOk === true) showToast('Backend is unavailable. Check the Backend URL.', 'error');
+    _lastApiOk = false;
   }
 }
 
@@ -402,8 +447,11 @@ async function runSearch() {
     const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
     renderSummary(data.formattedText || JSON.stringify(data, null, 2));
     renderMatches(data.possibleMatches || []);
+    const count = (data.possibleMatches || []).length;
+    showToast('Alt search complete — ' + count + ' match' + (count !== 1 ? 'es' : '') + ' found.', 'success');
   } catch(err) {
     showError(err.message || String(err));
+    showToast(err.message || String(err), 'error');
     el.summary.innerHTML = 'Search failed.';
     el.matchesArea.innerHTML = '<pre>Search failed.</pre>';
   } finally {
@@ -432,11 +480,12 @@ async function runTrades() {
   try {
     const data = await fetchJson('/api/altfinder/trades?' + params, TIMEOUT_SEARCH, 2);
     const results = data.results || [];
-    if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; return; }
+    if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; showToast('Trade check complete — no results found.', 'info'); return; }
+    const traded = results.filter(function(r){ return (r.recentTradeDates||[]).length > 0; }).length;
     const rows = results.map(function(r) {
-      const traded = (r.recentTradeDates || []).length > 0;
-      const dates = traded ? r.recentTradeDates.join(', ') : 'none';
-      const badge = traded ? '<span class="trade-badge">TRADED</span>' : '';
+      const wasTradeed = (r.recentTradeDates || []).length > 0;
+      const dates = wasTradeed ? r.recentTradeDates.join(', ') : 'none';
+      const badge = wasTradeed ? '<span class="trade-badge">TRADED</span>' : '';
       const error = r.hadError ? ' <span style="color:#f85149;font-size:.72rem">(check error)</span>' : '';
       return '<tr>'
         + '<td style="font-weight:600;color:#79c0ff">' + esc(r.characterName||'') + badge + error + '</td>'
@@ -447,8 +496,10 @@ async function runTrades() {
     el.tradesArea.innerHTML = '<div class="table-wrap"><table>'
       + '<thead><tr><th>Character</th><th>Checked Names</th><th>Trade Dates</th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
+    showToast('Trade check complete — ' + results.length + ' character' + (results.length !== 1 ? 's' : '') + ' checked' + (traded > 0 ? ', ' + traded + ' recently traded.' : '.'), traded > 0 ? 'info' : 'success');
   } catch(err) {
     showError(err.message || String(err), el.tradesErrorBox, el.tradesErrorMsg);
+    showToast(err.message || String(err), 'error');
     el.tradesArea.innerHTML = '<pre>Search failed.</pre>';
   } finally {
     el.tradesRunBtn.disabled = false; el.tradesRunBtn.textContent = 'Check Trades';
@@ -485,7 +536,7 @@ async function runClashes() {
     const data = await fetchJson('/api/altfinder/clashes?' + params, TIMEOUT_SEARCH, 2);
     el.clashesSummary.textContent = data.formattedText || JSON.stringify(data, null, 2);
     const matches = data.clashes || [];
-    if (matches.length === 0) { el.clashesArea.innerHTML = '<pre>No clash matches found.</pre>'; return; }
+    if (matches.length === 0) { el.clashesArea.innerHTML = '<pre>No clash matches found.</pre>'; showToast('Clash search complete — no clashes found.', 'info'); return; }
     const rows = matches.map(function(m) {
       return '<tr>'
         + '<td style="font-weight:600;color:#79c0ff">' + esc(m.name||'Unknown') + '</td>'
@@ -497,8 +548,10 @@ async function runClashes() {
     el.clashesArea.innerHTML = '<div class="table-wrap"><table>'
       + '<thead><tr><th>Name</th><th>Adjacencies</th><th>Clashes</th><th>Logins</th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
+    showToast('Clash search complete — ' + matches.length + ' match' + (matches.length !== 1 ? 'es' : '') + ' found.', 'success');
   } catch(err) {
     showError(err.message || String(err), el.clashesErrorBox, el.clashesErrorMsg);
+    showToast(err.message || String(err), 'error');
     el.clashesSummary.textContent = 'Search failed.';
     el.clashesArea.innerHTML = '<pre>Search failed.</pre>';
   } finally {
@@ -684,8 +737,12 @@ async function addWatch() {
       + '&channelId=' + encodeURIComponent(channelId)
       + '&character=' + encodeURIComponent(charName), TIMEOUT_STATUS, 1);
     el.watchCharInput.value = '';
+    showToast('Watch added for ' + charName + '.', 'success');
     await loadWatchlist();
-  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
+  } catch(err) {
+    el.watchListArea.textContent = 'Error: ' + (err.message || String(err));
+    showToast('Failed to add watch: ' + (err.message || String(err)), 'error');
+  }
 }
 
 el.addWatchBtn.addEventListener('click', addWatch);
