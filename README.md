@@ -148,6 +148,10 @@ If you see `404` at `/api/altfinder/health`, the URL is not pointing to the altf
 - `/guildtrack`
 - `/trades`
 
+## Changelog
+
+- [#19 fix: add server-side timeouts to /alts, /trades, /clashes to prevent Render proxy connection drops](https://github.com/pkaye769/Tibia-Online-Tracker/pull/19)
+
 ## Troubleshooting
 
 - `Address already in use`: free the port or set `ALTFINDER_API_PORT`
