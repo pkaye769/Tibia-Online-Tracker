@@ -89,7 +89,6 @@ services:
     name: tibia-scout-board
     env: static
     staticPublishPath: web
-    plan: starter
 
 databases:
   - name: tibia-tracker-db
