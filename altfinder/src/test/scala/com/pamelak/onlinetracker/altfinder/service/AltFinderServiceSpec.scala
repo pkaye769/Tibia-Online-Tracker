@@ -188,14 +188,10 @@ class AltFinderServiceSpec extends munit.FunSuite {
 
   test("evidence filter: hidden alt found when searching unhidden character") {
     // Searching Delishana (mainLogins=11) should surface Deli Tokes (logins=4 < 8).
-    val adj = serviceStrictEvidence.getAdjacencies(
-      delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
-    assert(adj.nonEmpty, "Deli Tokes must appear as a candidate")
-    val candidate = adj.find(_.characterId == deliTokesId).get
-    assert(candidate.adjacencies >= 2, "should have enough adjacencies")
-
     val mainLogins = delishanaSegments.length  // 11
-    val result = service.getAdjacencies(delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
+    val result = serviceStrictEvidence.getAdjacencies(
+      delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
+    assert(result.nonEmpty, "Deli Tokes must appear as a candidate")
     // Verify filter passes: mainLogins (11) >= minEvidenceLogins (8) even though candidate logins (4) < 8
     val filtered = result.filter(r =>
       r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
@@ -205,8 +201,9 @@ class AltFinderServiceSpec extends munit.FunSuite {
 
   test("evidence filter: unhidden alt found when searching hidden character (existing behaviour preserved)") {
     // Searching Deli Tokes (mainLogins=4) should surface Delishana (logins=11 >= 8).
-    val result = service.getAdjacencies(deliTokesSegments, delishanaSegments, includeClashes = false, distance = 0)
     val mainLogins = deliTokesSegments.length  // 4
+    val result = serviceStrictEvidence.getAdjacencies(
+      deliTokesSegments, delishanaSegments, includeClashes = false, distance = 0)
     val filtered = result.filter(r =>
       r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
     assert(filtered.exists(_.characterId == delishanaSeniaId),
