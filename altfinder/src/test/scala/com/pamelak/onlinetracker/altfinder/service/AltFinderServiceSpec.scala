@@ -160,5 +160,57 @@ class AltFinderServiceSpec extends munit.FunSuite {
     assertEquals(resultNoDistance.head.adjacencies, 0)
     assert(resultWithDistance.head.adjacencies >= 1)
   }
+
+  // ---- hidden alt asymmetry (evidence filter) ----
+  // When searching with the unhidden character (many logins) the hidden character
+  // (few logins) must still surface as a match, even though its own login count
+  // is below minEvidenceLogins.  The reverse direction must continue to work too.
+
+  private val serviceStrictEvidence: AltFinderService[IO] =
+    new AltFinderService(stubRepo, new BazaarScraper[IO](stubScraperClient),
+      minEvidenceLogins    = 8,
+      minEvidenceAdjacencies = 2)
+
+  // Simulate "Delishana Senia" (11 sessions) having Deli Tokes (4 sessions) as a
+  // perfect alt: every Deli Tokes session is adjacent to a Delishana session.
+  private val deliTokesId: Long    = 42L
+  private val delishanaSeniaId: Long = 99L
+
+  // Delishana Senia: 11 sessions spread across time
+  private val delishanaSegments: List[OnlineSegment] = (0 until 11).map { i =>
+    seg(delishanaSeniaId, i * 200L, i * 200L + 100L)
+  }.toList
+
+  // Deli Tokes: 4 sessions, each starting immediately after a Delishana session ends
+  private val deliTokesSegments: List[OnlineSegment] = (0 until 4).map { i =>
+    seg(deliTokesId, i * 200L + 100L, i * 200L + 180L)
+  }.toList
+
+  test("evidence filter: hidden alt found when searching unhidden character") {
+    // Searching Delishana (mainLogins=11) should surface Deli Tokes (logins=4 < 8).
+    val adj = serviceStrictEvidence.getAdjacencies(
+      delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
+    assert(adj.nonEmpty, "Deli Tokes must appear as a candidate")
+    val candidate = adj.find(_.characterId == deliTokesId).get
+    assert(candidate.adjacencies >= 2, "should have enough adjacencies")
+
+    val mainLogins = delishanaSegments.length  // 11
+    val result = service.getAdjacencies(delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
+    // Verify filter passes: mainLogins (11) >= minEvidenceLogins (8) even though candidate logins (4) < 8
+    val filtered = result.filter(r =>
+      r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
+    assert(filtered.exists(_.characterId == deliTokesId),
+      "Deli Tokes must survive the evidence filter when main character has enough logins")
+  }
+
+  test("evidence filter: unhidden alt found when searching hidden character (existing behaviour preserved)") {
+    // Searching Deli Tokes (mainLogins=4) should surface Delishana (logins=11 >= 8).
+    val result = service.getAdjacencies(deliTokesSegments, delishanaSegments, includeClashes = false, distance = 0)
+    val mainLogins = deliTokesSegments.length  // 4
+    val filtered = result.filter(r =>
+      r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
+    assert(filtered.exists(_.characterId == delishanaSeniaId),
+      "Delishana Senia must survive the filter because its own logins (11) >= 8")
+  }
 }
 

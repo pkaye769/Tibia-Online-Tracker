@@ -130,10 +130,11 @@ class AltFinderService[F[_]: Async: Parallel](
       adjWithNames <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       tradeInfo <- enrichWithCandidateTrades(adjWithNames)
-      results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap))
+      mainLogins = mainSegments.length
+      results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap, mainLogins))
       filteredResults =
         if (includeLowEvidenceMatches) results
-        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && r.logins >= minEvidenceLogins)
+        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && (r.logins >= minEvidenceLogins || mainLogins >= minEvidenceLogins))
       altsResults = AltsResults(
         characterNames,
         tradedFrom,
@@ -351,10 +352,14 @@ class AltFinderService[F[_]: Async: Parallel](
 
   private def addTradeAndConfidence(
       adj: CharacterAdjacencies,
-      tradeMap: Map[String, List[LocalDate]]
+      tradeMap: Map[String, List[LocalDate]],
+      mainLogins: Int = 0
   ): CharacterAdjacencies = {
     val trades = adj.characterName.flatMap(name => tradeMap.get(name)).getOrElse(Nil)
-    val evidencePassed = adj.logins >= minEvidenceLogins && adj.adjacencies >= minEvidenceAdjacencies
+    // Evidence passes when either the candidate or the searched character has enough logins.
+    // This ensures hidden characters (few DB records) are not penalised when the searched
+    // character itself provides a sufficient data baseline.
+    val evidencePassed = (adj.logins >= minEvidenceLogins || mainLogins >= minEvidenceLogins) && adj.adjacencies >= minEvidenceAdjacencies
     val confidence = computeConfidence(adj.adjacencies, adj.clashes, adj.logins, adj.sessionSimilarity, trades.nonEmpty)
     val hiddenScore = computeHiddenScore(adj.adjacencies, adj.clashes, adj.logins)
     val clashRatio =
