@@ -47,6 +47,8 @@ CREATE INDEX IF NOT EXISTS online_history_login_time_idx ON online_history(login
 CREATE INDEX IF NOT EXISTS online_history_logout_time_idx ON online_history(logout_time);
 CREATE INDEX IF NOT EXISTS character_name_history_character_id_idx ON character_name_history(character_id);
 CREATE INDEX IF NOT EXISTS world_save_time_world_id_idx ON world_save_time(world_id);
+CREATE INDEX IF NOT EXISTS world_save_time_time_idx ON world_save_time(time);
+CREATE INDEX IF NOT EXISTS character_name_lower_idx ON character(lower(name));
 
 CREATE TABLE IF NOT EXISTS altfinder_last_search (
   id BIGINT PRIMARY KEY CHECK (id = 1),
