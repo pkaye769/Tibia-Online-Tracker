@@ -94,6 +94,14 @@ class OnlineTrackerSkunkRepo(val session: Session[IO])
       CREATE INDEX IF NOT EXISTS world_save_time_world_id_idx ON world_save_time(world_id)
     """.command
 
+    val createWorldSaveTimeTimeIdx = sql"""
+      CREATE INDEX IF NOT EXISTS world_save_time_time_idx ON world_save_time(time)
+    """.command
+
+    val createCharacterNameLowerIdx = sql"""
+      CREATE INDEX IF NOT EXISTS character_name_lower_idx ON character(lower(name))
+    """.command
+
     val seedWorld = sql"""
       INSERT INTO world (name) VALUES ('Nefera') ON CONFLICT (name) DO NOTHING
     """.command
@@ -110,6 +118,8 @@ class OnlineTrackerSkunkRepo(val session: Session[IO])
       _ <- session.execute(createOnlineHistoryLogoutIdx, Void)
       _ <- session.execute(createCharacterNameHistoryIdx, Void)
       _ <- session.execute(createWorldSaveTimeWorldIdx, Void)
+      _ <- session.execute(createWorldSaveTimeTimeIdx, Void)
+      _ <- session.execute(createCharacterNameLowerIdx, Void)
       _ <- session.execute(seedWorld, Void)
     } yield ()
   }
