@@ -188,7 +188,7 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
     throw new Error('Could not reach API at ' + url + ' after ' + maxAttempts + ' attempts. ' + detail);
   }
   const text = await res.text();
-  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try narrowing your search.');
+  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try adding a From/To date range or searching fewer characters at once.');
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) throw new Error('Non-JSON response (HTTP ' + res.status + '): ' + text.slice(0,200));
   const body = JSON.parse(text);

@@ -25,6 +25,7 @@ lazy val altfinder = project.in(file("altfinder")).enablePlugins(JavaAppPackagin
   Compile / mainClass := Some("com.pamelak.onlinetracker.altfinder.BotApp"),
   Compile / run / fork := true,
   Compile / doc / sources := Seq.empty,
+  Compile / unmanagedResourceDirectories += (ThisBuild / baseDirectory).value / "web",
   libraryDependencies ++= altfinderDependencies,
   libraryDependencies += "org.scalameta" %% "munit" % munitVersion % Test,
   dockerExposedPorts += 443
