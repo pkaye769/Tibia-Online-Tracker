@@ -804,7 +804,7 @@ final class AltFinderApi[F[_]: Async](
   private val uiHtml: String = {
     def readRes(name: String): String = {
       val stream = Option(Thread.currentThread.getContextClassLoader.getResourceAsStream(name))
-        .getOrElse(throw new RuntimeException(s"Web resource not found on classpath (expected in web/ directory): $name"))
+        .getOrElse(throw new RuntimeException(s"Web resource not found on classpath (expected in docs/ directory): $name"))
       val source = scala.io.Source.fromInputStream(stream)
       try source.mkString finally { source.close(); stream.close() }
     }
