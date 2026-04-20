@@ -78,7 +78,8 @@ class AltFinderService[F[_]: Async: Parallel](
     hiddenLikelyMaxClashRatio: Double = 0.25,
     minEvidenceLogins: Int = 8,
     minEvidenceAdjacencies: Int = 2,
-    includeLowEvidenceMatches: Boolean = false
+    includeLowEvidenceMatches: Boolean = false,
+    defaultLookbackDays: Int = 90
 ) {
 
   given Logger[F] = Slf4jLogger.getLogger[F]
@@ -118,7 +119,8 @@ class AltFinderService[F[_]: Async: Parallel](
       _ <- Logger[F].info(s"Date range: $from - $to")
       sales <- characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).parSequence
       latestSale = BazaarScraper.latestSale(sales)
-      tradedFrom = from.orElse { latestSale.map(_.toOffsetDateTime()) }
+      defaultFrom = OffsetDateTime.now(ZoneId.of("Europe/Berlin")).minusDays(defaultLookbackDays.toLong)
+      tradedFrom = from.orElse { latestSale.map(_.toOffsetDateTime()) }.orElse(Some(defaultFrom))
       mainSegments <- repo.getOnlineTimes(characterNames, tradedFrom, to)
       _ <- Logger[F].info(s"Got online times for searched characters (${mainSegments.length} rows)")
       _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(mainSegments))
