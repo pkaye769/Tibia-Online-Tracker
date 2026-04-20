@@ -637,6 +637,17 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     })
   }
 
+  override def countTotalLogins(characterNames: List[String]): IO[Int] = withSession { session =>
+    val cl = characterNames.map(_.toLowerCase)
+    val q = sql"""
+      SELECT COUNT(*)::int4
+      FROM online_history o
+      JOIN character c ON o.character_id = c.id
+      WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})
+    """.query(int4)
+    session.unique(q, cl)
+  }
+
   override def countOnlineHistoryRows: IO[Long] = withSession { session =>
     val q = sql"""
       SELECT COUNT(*) FROM online_history
