@@ -195,7 +195,7 @@ object BotApp extends IOApp {
               .getOrElse(8080)
 
             val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
-            val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound
+            val httpApp = CORS.policy.withAllowOriginAll(api.routes.orNotFound)
 
             val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
             val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)

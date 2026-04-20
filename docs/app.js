@@ -198,14 +198,23 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
 
 // ── Health + Status check ─────────────────────────────────────────────────────
 async function checkHealth() {
-  try {
-    await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
-    el.apiBadge.textContent = 'API: ok';
-    el.apiBadge.className = 'api-badge ok';
-  } catch(_) {
-    el.apiBadge.textContent = 'API: unavailable';
-    el.apiBadge.className = 'api-badge bad';
+  const maxRetries = 3;
+  const retryDelay = 5000;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
+      el.apiBadge.textContent = 'API: ok';
+      el.apiBadge.className = 'api-badge ok';
+      return;
+    } catch(_) {}
+    if (i < maxRetries - 1) {
+      el.apiBadge.textContent = 'API: connecting\u2026';
+      el.apiBadge.className = 'api-badge';
+      await sleep(retryDelay);
+    }
   }
+  el.apiBadge.textContent = 'API: unavailable';
+  el.apiBadge.className = 'api-badge bad';
 }
 
 async function refreshStatus() {
