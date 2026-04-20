@@ -206,7 +206,7 @@ async function checkHealth() {
       el.apiBadge.textContent = 'API: ok';
       el.apiBadge.className = 'api-badge ok';
       return;
-    } catch(_) {}
+    } catch(_) { /* retry on any error */ }
     if (i < maxRetries - 1) {
       el.apiBadge.textContent = 'API: connecting\u2026';
       el.apiBadge.className = 'api-badge';
