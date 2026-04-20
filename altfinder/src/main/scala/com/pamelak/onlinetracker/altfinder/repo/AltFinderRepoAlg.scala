@@ -45,4 +45,5 @@ trait AltFinderRepoAlg[F[_]] {
   def listResearchRuns(limit: Int): F[List[ResearchRun]]
   def countOnlineHistoryRows: F[Long]
   def latestWorldSaveTime: F[Option[OffsetDateTime]]
+  def getCurrentlyOnlineNames: F[List[String]]
 }

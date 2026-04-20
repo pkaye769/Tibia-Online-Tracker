@@ -134,6 +134,14 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     ON altfinder_research_run(created_at DESC)
   """.command
 
+  val createWorldSaveTimeTimeIdx = sql"""
+    CREATE INDEX IF NOT EXISTS world_save_time_time_idx ON world_save_time(time)
+  """.command
+
+  val createCharacterNameLowerIdx = sql"""
+    CREATE INDEX IF NOT EXISTS character_name_lower_idx ON character(lower(name))
+  """.command
+
   for {
     _ <- session.execute(createWorldTable, Void)
     _ <- session.execute(createCharacterTable, Void)
@@ -146,6 +154,8 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     _ <- session.execute(createGuildTrackGuildIdx, Void)
     _ <- session.execute(createResearchRunTable, Void)
     _ <- session.execute(createResearchRunCreatedIdx, Void)
+    _ <- session.execute(createWorldSaveTimeTimeIdx, Void)
+    _ <- session.execute(createCharacterNameLowerIdx, Void)
   } yield ()
   }
 
@@ -639,5 +649,15 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
       SELECT MAX(time) FROM world_save_time
     """.query(timestamptz.opt)
     session.unique(q, Void)
+  }
+
+  override def getCurrentlyOnlineNames: IO[List[String]] = withSession { session =>
+    val q = sql"""
+      SELECT c.name
+      FROM currently_online co
+      JOIN character c ON co.character_id = c.id
+      ORDER BY c.name
+    """.query(varchar)
+    session.stream(q, Void, 65536).compile.toList
   }
 }

@@ -32,6 +32,7 @@ class AltFinderServiceSpec extends munit.FunSuite {
     def listResearchRuns(limit: Int) = IO.pure(Nil)
     def countOnlineHistoryRows = IO.pure(0L)
     def latestWorldSaveTime = IO.pure(None)
+    def getCurrentlyOnlineNames = IO.pure(Nil)
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
@@ -177,7 +178,6 @@ class AltFinderServiceSpec extends munit.FunSuite {
   }
 
   test("computeSessionSimilarity returns 0 when durations are maximally different") {
-    // main: 1s each, other: very long → diffRatio approaches 1
     val main  = Array(seg(1, 0, 1))
     val other = Array(seg(2, 0, 100000))
     assert(service.computeSessionSimilarity(main, other) < 10)
@@ -192,8 +192,7 @@ class AltFinderServiceSpec extends munit.FunSuite {
 
   // ---- computeConfidence ----
 
-  test("computeConfidence returns 0 with no adjacencies and clashes") {
-    // adjacencies=0, clashes=0, logins=10, sessionSim=0, no trade
+  test("computeConfidence returns value in [0,100] with zero adjacencies") {
     val c = service.computeConfidence(0, 0, 10, 0, false)
     assert(c >= 0 && c <= 100)
   }
@@ -239,9 +238,52 @@ class AltFinderServiceSpec extends munit.FunSuite {
   }
 
   test("computeHiddenScore is 0 when clashes dominate") {
-    // Many clashes should bring score to 0
     val score = service.computeHiddenScore(1, 50, 5)
     assertEquals(score, 0)
+  }
+
+  // ---- hidden alt asymmetry (evidence filter) ----
+  // When searching with the unhidden character (many logins) the hidden character
+  // (few logins) must still surface as a match, even though its own login count
+  // is below minEvidenceLogins.  The reverse direction must continue to work too.
+
+  private val serviceStrictEvidence: AltFinderService[IO] =
+    new AltFinderService(stubRepo, new BazaarScraper[IO](stubScraperClient),
+      minEvidenceLogins    = 8,
+      minEvidenceAdjacencies = 2)
+
+  private val deliTokesId: Long      = 42L
+  private val delishanaSeniaId: Long = 99L
+
+  // Delishana Senia: 11 sessions spread across time
+  private val delishanaSegments: List[OnlineSegment] = (0 until 11).map { i =>
+    seg(delishanaSeniaId, i * 200L, i * 200L + 100L)
+  }.toList
+
+  // Deli Tokes: 4 sessions, each starting immediately after a Delishana session ends
+  private val deliTokesSegments: List[OnlineSegment] = (0 until 4).map { i =>
+    seg(deliTokesId, i * 200L + 100L, i * 200L + 180L)
+  }.toList
+
+  test("evidence filter: hidden alt found when searching unhidden character") {
+    val mainLogins = delishanaSegments.length  // 11
+    val result = serviceStrictEvidence.getAdjacencies(
+      delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
+    assert(result.nonEmpty, "Deli Tokes must appear as a candidate")
+    val filtered = result.filter(r =>
+      r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
+    assert(filtered.exists(_.characterId == deliTokesId),
+      "Deli Tokes must survive the evidence filter when main character has enough logins")
+  }
+
+  test("evidence filter: unhidden alt found when searching hidden character (existing behaviour preserved)") {
+    val mainLogins = deliTokesSegments.length  // 4
+    val result = serviceStrictEvidence.getAdjacencies(
+      deliTokesSegments, delishanaSegments, includeClashes = false, distance = 0)
+    val filtered = result.filter(r =>
+      r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
+    assert(filtered.exists(_.characterId == delishanaSeniaId),
+      "Delishana Senia must survive the filter because its own logins (11) >= 8")
   }
 }
 

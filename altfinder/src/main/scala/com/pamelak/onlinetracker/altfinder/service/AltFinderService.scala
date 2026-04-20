@@ -17,7 +17,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import java.time.{LocalDate, OffsetDateTime, ZoneId, ZonedDateTime}
 
 object AltFinderService {
-  case class CharacterLoginHistory(characterId: Long, segments: Array[OnlineSegment])
+  case class CharacterLoginHistory(characterId: Long, segments: Array[OnlineSegment], segmentsByEnd: Array[OnlineSegment])
 
   case class CharacterAdjacencies(
       characterId: Long,
@@ -130,10 +130,11 @@ class AltFinderService[F[_]: Async: Parallel](
       adjWithNames <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       tradeInfo <- enrichWithCandidateTrades(adjWithNames)
-      results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap))
+      mainLogins = mainSegments.length
+      results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap, mainLogins))
       filteredResults =
         if (includeLowEvidenceMatches) results
-        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && r.logins >= minEvidenceLogins)
+        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && (r.logins >= minEvidenceLogins || mainLogins >= minEvidenceLogins))
       altsResults = AltsResults(
         characterNames,
         tradedFrom,
@@ -242,7 +243,10 @@ class AltFinderService[F[_]: Async: Parallel](
       distance: Int
   ): List[CharacterAdjacencies] = {
     val characterHistories = others.groupBy(_.characterId).toList
-      .map(i => CharacterLoginHistory(i._1, i._2.toArray.sortBy(_.start)))
+      .map { case (id, segs) =>
+        val arr = segs.toArray
+        CharacterLoginHistory(id, arr.sortBy(_.start), arr.sortBy(_.end))
+      }
     val mhArray = mainHistory.toArray.sortBy(_.start)
 
     characterHistories.flatMap { h =>
@@ -256,7 +260,7 @@ class AltFinderService[F[_]: Async: Parallel](
         Some(CharacterAdjacencies(
           h.characterId,
           None,
-          countAdjacencies(mhArray, h.segments, distance),
+          countAdjacencies(mhArray, h.segments, h.segmentsByEnd, distance),
           clashes,
           h.segments.length,
           computeSessionSimilarity(mhArray, h.segments),
@@ -306,19 +310,41 @@ class AltFinderService[F[_]: Async: Parallel](
 
   // Distance is the acceptable gap in minutes between a logout and a login.
   // start/end in OnlineSegment are epoch seconds, so we multiply by 60 to convert.
-  private def countAdjacencies(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment], distance: Int): Int = {
+  private def countAdjacencies(
+      mainHistory: Array[OnlineSegment],
+      other: Array[OnlineSegment],      // sorted by start
+      otherByEnd: Array[OnlineSegment], // sorted by end
+      distance: Int
+  ): Int = {
     val distanceSecs = distance * 60L
-    mainHistory.count { m =>
-      other.exists { o =>
-        val diff = o.start - m.end
-        diff >= 0 && diff <= distanceSecs
-      }
-    } + mainHistory.count { m =>
-      other.exists { o =>
-        val diff = m.start - o.end
-        diff >= 0 && diff <= distanceSecs
-      }
+    val otherStarts = other.map(_.start)
+    val otherEnds   = otherByEnd.map(_.end)
+
+    // Direction 1: o starts within distanceSecs after m ends (m.end <= o.start <= m.end + distanceSecs)
+    val dir1 = mainHistory.count { m =>
+      val lo = lowerBound(otherStarts, m.end)
+      lo < other.length && otherStarts(lo) <= m.end + distanceSecs
     }
+
+    // Direction 2: o ends within distanceSecs before m starts (m.start - distanceSecs <= o.end <= m.start)
+    val dir2 = mainHistory.count { m =>
+      val lo = lowerBound(otherEnds, m.start - distanceSecs)
+      lo < otherByEnd.length && otherEnds(lo) <= m.start
+    }
+
+    dir1 + dir2
+  }
+
+  // Returns the first index i in arr where arr(i) >= value (lower bound).
+  private def lowerBound(arr: Array[Long], value: Long): Int = {
+    var lo = 0
+    var hi = arr.length
+    while (lo < hi) {
+      val mid = (lo + hi) >>> 1
+      if (arr(mid) < value) lo = mid + 1
+      else hi = mid
+    }
+    lo
   }
 
   private case class CandidateTradeInfo(tradeMap: Map[String, List[LocalDate]], errorCount: Int)
@@ -351,10 +377,14 @@ class AltFinderService[F[_]: Async: Parallel](
 
   private def addTradeAndConfidence(
       adj: CharacterAdjacencies,
-      tradeMap: Map[String, List[LocalDate]]
+      tradeMap: Map[String, List[LocalDate]],
+      mainLogins: Int = 0
   ): CharacterAdjacencies = {
     val trades = adj.characterName.flatMap(name => tradeMap.get(name)).getOrElse(Nil)
-    val evidencePassed = adj.logins >= minEvidenceLogins && adj.adjacencies >= minEvidenceAdjacencies
+    // Evidence passes when either the candidate or the searched character has enough logins.
+    // This ensures hidden characters (few DB records) are not penalised when the searched
+    // character itself provides a sufficient data baseline.
+    val evidencePassed = (adj.logins >= minEvidenceLogins || mainLogins >= minEvidenceLogins) && adj.adjacencies >= minEvidenceAdjacencies
     val confidence = computeConfidence(adj.adjacencies, adj.clashes, adj.logins, adj.sessionSimilarity, trades.nonEmpty)
     val hiddenScore = computeHiddenScore(adj.adjacencies, adj.clashes, adj.logins)
     val clashRatio =

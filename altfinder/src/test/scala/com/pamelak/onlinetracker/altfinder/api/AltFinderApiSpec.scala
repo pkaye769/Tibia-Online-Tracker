@@ -40,6 +40,7 @@ class AltFinderApiSpec extends munit.FunSuite {
     def listResearchRuns(limit: Int)                                                                        = IO.pure(Nil)
     def countOnlineHistoryRows                                                                              = IO.pure(42L)
     def latestWorldSaveTime                                                                                 = IO.pure(None)
+    def getCurrentlyOnlineNames                                                                             = IO.pure(Nil)
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
@@ -300,6 +301,14 @@ class AltFinderApiSpec extends munit.FunSuite {
   }
 
   // ---- Unknown routes ------------------------------------------------------
+
+  test("GET /api/altfinder/online returns 200 with count and names") {
+    val resp = get("/api/altfinder/online")
+    assertEquals(resp.status, Status.Ok)
+    val body = jsonOf(resp)
+    assert(body.hcursor.get[Int]("count").isRight)
+    assert(body.hcursor.get[List[Json]]("names").isRight)
+  }
 
   test("GET /api/altfinder/unknown returns 404") {
     val resp = get("/api/altfinder/unknown")

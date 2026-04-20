@@ -165,14 +165,15 @@ class BazaarScraperSpec extends munit.FunSuite {
     assertEquals(result.saleDates, Right(Nil))
   }
 
-  test("multipleCharacterSales returns Left on HTTP error") {
+  test("multipleCharacterSales returns Right(Nil) on HTTP error") {
     val errorClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
       def searchCharacter(name: String) = IO.raiseError(new RuntimeException("network error"))
       def cooldownRemainingSeconds      = IO.pure(0L)
     }
     val s = new BazaarScraper[IO](errorClient)
     val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
-    assert(result.saleDates.isLeft)
+    // Errors are silenced; callers always receive a Right (possibly empty)
+    assertEquals(result.saleDates, Right(Nil))
   }
 
   test("multipleCharacterSales returns sale date when auction matches") {

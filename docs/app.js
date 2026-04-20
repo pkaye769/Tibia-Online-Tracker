@@ -80,6 +80,9 @@ const el = {
   loadGuildBtn:       document.getElementById('loadGuildBtn'),
   removeGuildBtn:     document.getElementById('removeGuildBtn'),
   savedGuildDisplay:  document.getElementById('savedGuildDisplay'),
+  // Currently online
+  refreshOnlineBtn:   document.getElementById('refreshOnlineBtn'),
+  onlineArea:         document.getElementById('onlineArea'),
   // Watchlist
   watchGuildId:       document.getElementById('watchGuildId'),
   watchChannelId:     document.getElementById('watchChannelId'),
@@ -185,7 +188,7 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
     throw new Error('Could not reach API at ' + url + ' after ' + maxAttempts + ' attempts. ' + detail);
   }
   const text = await res.text();
-  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try narrowing your search.');
+  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try adding a From/To date range or searching fewer characters at once.');
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) throw new Error('Non-JSON response (HTTP ' + res.status + '): ' + text.slice(0,200));
   const body = JSON.parse(text);
@@ -195,14 +198,23 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
 
 // ── Health + Status check ─────────────────────────────────────────────────────
 async function checkHealth() {
-  try {
-    await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
-    el.apiBadge.textContent = 'API: ok';
-    el.apiBadge.className = 'api-badge ok';
-  } catch(_) {
-    el.apiBadge.textContent = 'API: unavailable';
-    el.apiBadge.className = 'api-badge bad';
+  const maxRetries = 3;
+  const retryDelay = 5000;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
+      el.apiBadge.textContent = 'API: ok';
+      el.apiBadge.className = 'api-badge ok';
+      return;
+    } catch(_) { /* retry on any error */ }
+    if (i < maxRetries - 1) {
+      el.apiBadge.textContent = 'API: connecting\u2026';
+      el.apiBadge.className = 'api-badge';
+      await sleep(retryDelay);
+    }
   }
+  el.apiBadge.textContent = 'API: unavailable';
+  el.apiBadge.className = 'api-badge bad';
 }
 
 async function refreshStatus() {
@@ -410,7 +422,7 @@ async function runSearch() {
   el.summary.innerHTML = 'Loading\u2026';
   el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/alts?' + params, TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     renderSummary(data.formattedText || JSON.stringify(data, null, 2));
     renderMatches(data.possibleMatches || []);
   } catch(err) {
@@ -441,7 +453,7 @@ async function runTrades() {
   el.tradesRunBtn.disabled = true; el.tradesRunBtn.textContent = 'Checking\u2026';
   el.tradesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/trades?' + params, TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/trades?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     const results = data.results || [];
     if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; return; }
     const rows = results.map(function(r) {
@@ -493,7 +505,7 @@ async function runClashes() {
   el.clashesSummary.textContent = 'Loading\u2026';
   el.clashesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/clashes?' + params, TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/clashes?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     el.clashesSummary.textContent = data.formattedText || JSON.stringify(data, null, 2);
     const matches = data.clashes || [];
     if (matches.length === 0) { el.clashesArea.innerHTML = '<pre>No clash matches found.</pre>'; return; }
@@ -755,9 +767,26 @@ el.backendUrl.addEventListener('change', function() {
   refreshStatus();
 });
 
+// ── Currently Online ──────────────────────────────────────────────────────────
+async function refreshOnlineNames() {
+  try {
+    const d = await fetchJson('/api/altfinder/online', TIMEOUT_STATUS, 1);
+    const names = d.names || [];
+    el.onlineArea.textContent = names.length === 0
+      ? 'No characters currently online.'
+      : names.length + ' online:\n' + names.join('\n');
+  } catch(_) {
+    el.onlineArea.textContent = 'Could not load.';
+  }
+}
+el.refreshOnlineBtn.addEventListener('click', refreshOnlineNames);
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadStorage();
 checkHealth();
 refreshStatus();
+refreshOnlineNames();
 // Auto-refresh status every 60 seconds
 setInterval(refreshStatus, 60000);
+// Auto-refresh online names every 30 seconds
+setInterval(refreshOnlineNames, 30000);
