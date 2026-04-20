@@ -132,7 +132,8 @@ class AltFinderService[F[_]: Async: Parallel](
       adjWithNames <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       tradeInfo <- enrichWithCandidateTrades(adjWithNames)
-      mainLogins = mainSegments.length
+      mainLogins <- repo.countTotalLogins(characterNames)
+      _ <- Logger[F].info(s"Total all-time logins for searched characters: $mainLogins")
       results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap, mainLogins))
       filteredResults =
         if (includeLowEvidenceMatches) results

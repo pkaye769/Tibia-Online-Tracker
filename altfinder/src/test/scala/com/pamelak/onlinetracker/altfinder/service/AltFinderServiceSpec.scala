@@ -31,6 +31,7 @@ class AltFinderServiceSpec extends munit.FunSuite {
     def saveResearchRun(r: ResearchRunWrite) = IO.unit
     def listResearchRuns(limit: Int) = IO.pure(Nil)
     def countOnlineHistoryRows = IO.pure(0L)
+    def countTotalLogins(names: List[String]) = IO.pure(0)
     def latestWorldSaveTime = IO.pure(None)
     def getCurrentlyOnlineNames = IO.pure(Nil)
   }
