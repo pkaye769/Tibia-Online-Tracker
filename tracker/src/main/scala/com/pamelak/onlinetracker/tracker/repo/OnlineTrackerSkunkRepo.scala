@@ -184,6 +184,7 @@ class OnlineTrackerSkunkRepo(val session: Session[IO])
     val q: Query[WorldSaveTimeRow, Long] = sql"""
         INSERT INTO world_save_time(world_id, sequence_id, time)
         VALUES $worldSaveTimeEncoder
+        ON CONFLICT (world_id, sequence_id) DO UPDATE SET time = EXCLUDED.time
         RETURNING id
       """.query(int8)
     session.unique(q, w)

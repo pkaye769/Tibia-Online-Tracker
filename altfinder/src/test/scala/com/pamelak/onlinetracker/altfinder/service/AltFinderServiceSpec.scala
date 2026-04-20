@@ -161,6 +161,87 @@ class AltFinderServiceSpec extends munit.FunSuite {
     assert(resultWithDistance.head.adjacencies >= 1)
   }
 
+  // ---- computeSessionSimilarity ----
+
+  test("computeSessionSimilarity returns 0 when main history is empty") {
+    assertEquals(service.computeSessionSimilarity(Array.empty, Array(seg(1, 0, 100))), 0)
+  }
+
+  test("computeSessionSimilarity returns 0 when other history is empty") {
+    assertEquals(service.computeSessionSimilarity(Array(seg(1, 0, 100)), Array.empty), 0)
+  }
+
+  test("computeSessionSimilarity returns 100 when average durations are identical") {
+    val main  = Array(seg(1, 0, 60), seg(1, 100, 160))
+    val other = Array(seg(2, 0, 60), seg(2, 100, 160))
+    assertEquals(service.computeSessionSimilarity(main, other), 100)
+  }
+
+  test("computeSessionSimilarity returns 0 when durations are maximally different") {
+    val main  = Array(seg(1, 0, 1))
+    val other = Array(seg(2, 0, 100000))
+    assert(service.computeSessionSimilarity(main, other) < 10)
+  }
+
+  test("computeSessionSimilarity is bounded between 0 and 100") {
+    val main  = Array(seg(1, 0, 30))
+    val other = Array(seg(2, 0, 60))
+    val result = service.computeSessionSimilarity(main, other)
+    assert(result >= 0 && result <= 100)
+  }
+
+  // ---- computeConfidence ----
+
+  test("computeConfidence returns value in [0,100] with zero adjacencies") {
+    val c = service.computeConfidence(0, 0, 10, 0, false)
+    assert(c >= 0 && c <= 100)
+  }
+
+  test("computeConfidence increases with a recent trade bonus") {
+    val withoutTrade = service.computeConfidence(5, 0, 10, 50, false)
+    val withTrade    = service.computeConfidence(5, 0, 10, 50, true)
+    assert(withTrade > withoutTrade)
+  }
+
+  test("computeConfidence decreases with clashes") {
+    val noClashes   = service.computeConfidence(5, 0, 10, 50, false)
+    val withClashes = service.computeConfidence(5, 5, 10, 50, false)
+    assert(withClashes < noClashes)
+  }
+
+  test("computeConfidence is bounded between 0 and 100") {
+    val c1 = service.computeConfidence(100, 0, 10, 100, true)
+    val c2 = service.computeConfidence(0, 100, 1, 0, false)
+    assert(c1 >= 0 && c1 <= 100)
+    assert(c2 >= 0 && c2 <= 100)
+  }
+
+  // ---- computeHiddenScore ----
+
+  test("computeHiddenScore is lower with zero adjacencies than with full adjacencies") {
+    val scoreZeroAdj = service.computeHiddenScore(0, 0, 10)
+    val scoreFullAdj = service.computeHiddenScore(10, 0, 10)
+    assert(scoreFullAdj > scoreZeroAdj)
+  }
+
+  test("computeHiddenScore decreases with clashes") {
+    val noClash   = service.computeHiddenScore(5, 0, 10)
+    val withClash = service.computeHiddenScore(5, 5, 10)
+    assert(withClash < noClash)
+  }
+
+  test("computeHiddenScore is bounded between 0 and 100") {
+    val high = service.computeHiddenScore(100, 0, 100)
+    val low  = service.computeHiddenScore(0, 100, 1)
+    assert(high >= 0 && high <= 100)
+    assert(low >= 0 && low <= 100)
+  }
+
+  test("computeHiddenScore is 0 when clashes dominate") {
+    val score = service.computeHiddenScore(1, 50, 5)
+    assertEquals(score, 0)
+  }
+
   // ---- hidden alt asymmetry (evidence filter) ----
   // When searching with the unhidden character (many logins) the hidden character
   // (few logins) must still surface as a match, even though its own login count
@@ -171,9 +252,7 @@ class AltFinderServiceSpec extends munit.FunSuite {
       minEvidenceLogins    = 8,
       minEvidenceAdjacencies = 2)
 
-  // Simulate "Delishana Senia" (11 sessions) having Deli Tokes (4 sessions) as a
-  // perfect alt: every Deli Tokes session is adjacent to a Delishana session.
-  private val deliTokesId: Long    = 42L
+  private val deliTokesId: Long      = 42L
   private val delishanaSeniaId: Long = 99L
 
   // Delishana Senia: 11 sessions spread across time
@@ -187,12 +266,10 @@ class AltFinderServiceSpec extends munit.FunSuite {
   }.toList
 
   test("evidence filter: hidden alt found when searching unhidden character") {
-    // Searching Delishana (mainLogins=11) should surface Deli Tokes (logins=4 < 8).
     val mainLogins = delishanaSegments.length  // 11
     val result = serviceStrictEvidence.getAdjacencies(
       delishanaSegments, deliTokesSegments, includeClashes = false, distance = 0)
     assert(result.nonEmpty, "Deli Tokes must appear as a candidate")
-    // Verify filter passes: mainLogins (11) >= minEvidenceLogins (8) even though candidate logins (4) < 8
     val filtered = result.filter(r =>
       r.adjacencies >= 2 && (r.logins >= 8 || mainLogins >= 8))
     assert(filtered.exists(_.characterId == deliTokesId),
@@ -200,7 +277,6 @@ class AltFinderServiceSpec extends munit.FunSuite {
   }
 
   test("evidence filter: unhidden alt found when searching hidden character (existing behaviour preserved)") {
-    // Searching Deli Tokes (mainLogins=4) should surface Delishana (logins=11 >= 8).
     val mainLogins = deliTokesSegments.length  // 4
     val result = serviceStrictEvidence.getAdjacencies(
       deliTokesSegments, delishanaSegments, includeClashes = false, distance = 0)

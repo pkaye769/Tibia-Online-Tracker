@@ -405,7 +405,7 @@ class AltFinderService[F[_]: Async: Parallel](
     )
   }
 
-  private def computeConfidence(
+  private[service] def computeConfidence(
       adjacencies: Int,
       clashes: Int,
       logins: Int,
@@ -425,7 +425,7 @@ class AltFinderService[F[_]: Async: Parallel](
     math.max(0, math.min(100, raw)).round.toInt
   }
 
-  private def computeHiddenScore(adjacencies: Int, clashes: Int, logins: Int): Int = {
+  private[service] def computeHiddenScore(adjacencies: Int, clashes: Int, logins: Int): Int = {
     val loginCount = math.max(1, logins)
     val adjacencyRatio = math.min(1.0, adjacencies.toDouble / loginCount.toDouble)
     val volume = math.min(20.0, loginCount.toDouble * 0.8)
@@ -437,7 +437,7 @@ class AltFinderService[F[_]: Async: Parallel](
     math.max(0, math.min(100, raw)).round.toInt
   }
 
-  private def computeSessionSimilarity(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment]): Int = {
+  private[service] def computeSessionSimilarity(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment]): Int = {
     val mainDurations = mainHistory.map(s => math.max(1L, s.end - s.start))
     val otherDurations = other.map(s => math.max(1L, s.end - s.start))
     if (mainDurations.isEmpty || otherDurations.isEmpty) 0
