@@ -88,7 +88,7 @@ services:
   - type: web
     name: tibia-scout-board
     env: static
-    staticPublishPath: docs
+    staticPublishPath: frontend
 
 databases:
   - name: tibia-tracker-db
