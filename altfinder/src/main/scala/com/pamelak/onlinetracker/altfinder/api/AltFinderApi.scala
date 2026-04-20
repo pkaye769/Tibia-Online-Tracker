@@ -299,7 +299,7 @@ final class AltFinderApi[F[_]: Async](
               )
             )
             val summaryText = response.formattedText.take(4000)
-            repo.saveResearchRun(
+            Async[F].start(repo.saveResearchRun(
               ResearchRunWrite(
                 runType = "alts",
                 searchedCharacters = results.searchedCharacters,
@@ -312,12 +312,12 @@ final class AltFinderApi[F[_]: Async](
                 matchCount = formattedMatches.length,
                 summary = summaryText
               )
-            ).attempt *> Async[F].pure(response.asJson)
+            ).attempt).as(response.asJson)
           }.recoverWith { case ex =>
             Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
           }
           },
-          25.seconds,
+          20.seconds,
           Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
         ).flatMap(json => Ok(json)).handleErrorWith { case ex =>
           InternalServerError(ErrorResponse(s"Internal server error: ${ex.getMessage}", Nil).asJson)
@@ -362,7 +362,7 @@ final class AltFinderApi[F[_]: Async](
             response.asJson
           }
           },
-          25.seconds,
+          20.seconds,
           Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
         ).flatMap(json => Ok(json))
       }
@@ -420,7 +420,7 @@ final class AltFinderApi[F[_]: Async](
                 clashes = matches,
                 formattedText = formattedText
               )
-            repo.saveResearchRun(
+            Async[F].start(repo.saveResearchRun(
               ResearchRunWrite(
                 runType = "clashes",
                 searchedCharacters = results.searchedCharacters,
@@ -433,10 +433,10 @@ final class AltFinderApi[F[_]: Async](
                 matchCount = matches.length,
                 summary = response.formattedText.take(4000)
               )
-            ).attempt *> Async[F].pure(response.asJson)
+            ).attempt).as(response.asJson)
             }
           },
-          25.seconds,
+          20.seconds,
           Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
         ).flatMap(json => Ok(json))
       }
