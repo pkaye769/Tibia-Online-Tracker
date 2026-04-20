@@ -1,108 +1,38 @@
 'use strict';
 
-const STORAGE_BACKEND   = 'altfinder_backend_url';
-const STORAGE_DISTANCE  = 'altfinder_distance';
-const STORAGE_CHARS     = 'altfinder_saved_chars';
-const STORAGE_GUILDS    = 'altfinder_saved_guilds';
-const STORAGE_PRESETS   = 'altfinder_presets';
-const STORAGE_IGNORE    = 'altfinder_ignore_list';
-const TIMEOUT_SEARCH    = 90000;
-const TIMEOUT_STATUS    = 10000;
-const TIMEOUT_CHAR      = 20000;
+const STORAGE_BACKEND  = 'altfinder_backend_url';
+const STORAGE_DISTANCE = 'altfinder_distance';
+const TIMEOUT_SEARCH   = 90000;
+const TIMEOUT_STATUS   = 10000;
+const TIMEOUT_CHAR     = 20000;
 
 const el = {
-  backendUrl:         document.getElementById('backendUrl'),
-  distance:           document.getElementById('distance'),
-  includeClashes:     document.getElementById('includeClashes'),
-  altFormat:          document.getElementById('altFormat'),
-  altFrom:            document.getElementById('altFrom'),
-  altTo:              document.getElementById('altTo'),
-  strictMode:         document.getElementById('strictMode'),
-  characters:         document.getElementById('characters'),
-  runBtn:             document.getElementById('runBtn'),
-  clearBtn:           document.getElementById('clearBtn'),
-  errorBox:           document.getElementById('errorBox'),
-  errorMsg:           document.getElementById('errorMsg'),
-  backendLink:        document.getElementById('backendLink'),
-  summary:            document.getElementById('summary'),
-  matchesArea:        document.getElementById('matchesArea'),
-  filterInput:        document.getElementById('filterInput'),
-  csvBtn:             document.getElementById('csvBtn'),
-  apiBadge:           document.getElementById('apiBadge'),
-  statusBar:          document.getElementById('statusBar'),
-  // Trades
-  tradesCharacters:   document.getElementById('tradesCharacters'),
-  lookbackDays:       document.getElementById('lookbackDays'),
-  tradesRunBtn:       document.getElementById('tradesRunBtn'),
-  tradesClearBtn:     document.getElementById('tradesClearBtn'),
-  tradesErrorBox:     document.getElementById('tradesErrorBox'),
-  tradesErrorMsg:     document.getElementById('tradesErrorMsg'),
-  tradesArea:         document.getElementById('tradesArea'),
-  // Clashes
-  clashCharacters:    document.getElementById('clashCharacters'),
-  clashTargets:       document.getElementById('clashTargets'),
-  clashFrom:          document.getElementById('clashFrom'),
-  clashTo:            document.getElementById('clashTo'),
-  clashDistance:      document.getElementById('clashDistance'),
-  clashesRunBtn:      document.getElementById('clashesRunBtn'),
-  clashesClearBtn:    document.getElementById('clashesClearBtn'),
-  clashesErrorBox:    document.getElementById('clashesErrorBox'),
-  clashesErrorMsg:    document.getElementById('clashesErrorMsg'),
-  clashesSummary:     document.getElementById('clashesSummary'),
-  clashesArea:        document.getElementById('clashesArea'),
-  // Research
-  researchLimit:      document.getElementById('researchLimit'),
-  researchLoadBtn:    document.getElementById('researchLoadBtn'),
-  researchArea:       document.getElementById('researchArea'),
-  // Presets
-  presetNameInput:    document.getElementById('presetNameInput'),
-  presetList:         document.getElementById('presetList'),
-  savePresetBtn:      document.getElementById('savePresetBtn'),
-  loadPresetBtn:      document.getElementById('loadPresetBtn'),
-  deletePresetBtn:    document.getElementById('deletePresetBtn'),
-  // Ignore list
-  ignoreInput:        document.getElementById('ignoreInput'),
-  ignoreList:         document.getElementById('ignoreList'),
-  removeIgnoreBtn:    document.getElementById('removeIgnoreBtn'),
-  clearIgnoreBtn:     document.getElementById('clearIgnoreBtn'),
-  showIgnored:        document.getElementById('showIgnored'),
-  // Saved chars
-  savedCharInput:     document.getElementById('savedCharInput'),
-  savedCharList:      document.getElementById('savedCharList'),
-  addCharBtn:         document.getElementById('addCharBtn'),
-  useCharBtn:         document.getElementById('useCharBtn'),
-  removeCharBtn:      document.getElementById('removeCharBtn'),
-  savedCharDisplay:   document.getElementById('savedCharDisplay'),
-  // Saved guilds
-  savedGuildInput:    document.getElementById('savedGuildInput'),
-  savedGuildList:     document.getElementById('savedGuildList'),
-  refreshGuildBtn:    document.getElementById('refreshGuildBtn'),
-  loadGuildBtn:       document.getElementById('loadGuildBtn'),
-  removeGuildBtn:     document.getElementById('removeGuildBtn'),
-  savedGuildDisplay:  document.getElementById('savedGuildDisplay'),
-  // Currently online
-  refreshOnlineBtn:   document.getElementById('refreshOnlineBtn'),
-  onlineArea:         document.getElementById('onlineArea'),
-  // Watchlist
-  watchGuildId:       document.getElementById('watchGuildId'),
-  watchChannelId:     document.getElementById('watchChannelId'),
-  watchCharInput:     document.getElementById('watchCharInput'),
-  addWatchBtn:        document.getElementById('addWatchBtn'),
-  loadWatchBtn:       document.getElementById('loadWatchBtn'),
-  watchListArea:      document.getElementById('watchListArea'),
-  // Character panel
-  charPanel:          document.getElementById('charPanel'),
-  charPanelName:      document.getElementById('charPanelName'),
-  charPanelContent:   document.getElementById('charPanelContent'),
-  charPanelClose:     document.getElementById('charPanelClose'),
+  backendUrl:      document.getElementById('backendUrl'),
+  distance:        document.getElementById('distance'),
+  includeClashes:  document.getElementById('includeClashes'),
+  altFormat:       document.getElementById('altFormat'),
+  altFrom:         document.getElementById('altFrom'),
+  altTo:           document.getElementById('altTo'),
+  strictMode:      document.getElementById('strictMode'),
+  characters:      document.getElementById('characters'),
+  runBtn:          document.getElementById('runBtn'),
+  clearBtn:        document.getElementById('clearBtn'),
+  errorBox:        document.getElementById('errorBox'),
+  errorMsg:        document.getElementById('errorMsg'),
+  backendLink:     document.getElementById('backendLink'),
+  summary:         document.getElementById('summary'),
+  matchesArea:     document.getElementById('matchesArea'),
+  filterInput:     document.getElementById('filterInput'),
+  csvBtn:          document.getElementById('csvBtn'),
+  apiBadge:        document.getElementById('apiBadge'),
+  statusBar:       document.getElementById('statusBar'),
+  charPanel:       document.getElementById('charPanel'),
+  charPanelName:   document.getElementById('charPanelName'),
+  charPanelContent:document.getElementById('charPanelContent'),
+  charPanelClose:  document.getElementById('charPanelClose'),
 };
 
-let savedChars   = [];
-let savedGuilds  = [];
-let savedPresets = {};
-let ignoreList   = [];
-let guildOnlineMap = {};
-let lastMatches  = [];
+let lastMatches = [];
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 function loadStorage() {
@@ -110,23 +40,11 @@ function loadStorage() {
   if (url) el.backendUrl.value = url;
   const dist = localStorage.getItem(STORAGE_DISTANCE);
   if (dist !== null) el.distance.value = dist;
-  try { savedChars   = JSON.parse(localStorage.getItem(STORAGE_CHARS)    || '[]'); } catch(_) {}
-  try { savedGuilds  = JSON.parse(localStorage.getItem(STORAGE_GUILDS)   || '[]'); } catch(_) {}
-  try { savedPresets = JSON.parse(localStorage.getItem(STORAGE_PRESETS)  || '{}'); } catch(_) {}
-  try { ignoreList   = JSON.parse(localStorage.getItem(STORAGE_IGNORE)   || '[]'); } catch(_) {}
-  renderSavedChars();
-  renderSavedGuilds();
-  renderPresetList();
-  renderIgnoreList();
 }
 
 function persist() {
   localStorage.setItem(STORAGE_BACKEND,  el.backendUrl.value.trim());
   localStorage.setItem(STORAGE_DISTANCE, el.distance.value);
-  localStorage.setItem(STORAGE_CHARS,    JSON.stringify(savedChars));
-  localStorage.setItem(STORAGE_GUILDS,   JSON.stringify(savedGuilds));
-  localStorage.setItem(STORAGE_PRESETS,  JSON.stringify(savedPresets));
-  localStorage.setItem(STORAGE_IGNORE,   JSON.stringify(ignoreList));
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -153,16 +71,12 @@ function fmtSeconds(sec) {
 }
 
 // ── Error ─────────────────────────────────────────────────────────────────────
-function showError(msg, box, msgEl) {
-  if (!box) { box = el.errorBox; msgEl = el.errorMsg; }
-  if (msgEl) msgEl.textContent = msg || '';
-  box.classList.toggle('visible', !!msg);
-  if (box === el.errorBox) el.backendLink.href = safeBoardUrl();
+function showError(msg) {
+  el.errorMsg.textContent = msg || '';
+  el.errorBox.classList.toggle('visible', !!msg);
+  el.backendLink.href = safeBoardUrl();
 }
-function clearError(box) {
-  if (!box) box = el.errorBox;
-  box.classList.remove('visible');
-}
+function clearError() { el.errorBox.classList.remove('visible'); }
 
 // ── API fetch ─────────────────────────────────────────────────────────────────
 async function fetchJson(path, timeoutMs, maxAttempts) {
@@ -179,7 +93,7 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
       if (res.status < 500) break;
       lastErr = new Error('HTTP ' + res.status);
     } catch(e) { clearTimeout(t); lastErr = e; }
-    if (i < maxAttempts) await sleep(3000);
+    if (i < maxAttempts) await sleep(1200);
   }
   if (!res) {
     const detail = lastErr && lastErr.name === 'AbortError'
@@ -188,7 +102,7 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
     throw new Error('Could not reach API at ' + url + ' after ' + maxAttempts + ' attempts. ' + detail);
   }
   const text = await res.text();
-  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try adding a From/To date range or searching fewer characters at once.');
+  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try narrowing your search.');
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) throw new Error('Non-JSON response (HTTP ' + res.status + '): ' + text.slice(0,200));
   const body = JSON.parse(text);
@@ -198,23 +112,14 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
 
 // ── Health + Status check ─────────────────────────────────────────────────────
 async function checkHealth() {
-  const maxRetries = 3;
-  const retryDelay = 5000;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
-      el.apiBadge.textContent = 'API: ok';
-      el.apiBadge.className = 'api-badge ok';
-      return;
-    } catch(_) { /* retry on any error */ }
-    if (i < maxRetries - 1) {
-      el.apiBadge.textContent = 'API: connecting\u2026';
-      el.apiBadge.className = 'api-badge';
-      await sleep(retryDelay);
-    }
+  try {
+    await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
+    el.apiBadge.textContent = 'API: ok';
+    el.apiBadge.className = 'api-badge ok';
+  } catch(_) {
+    el.apiBadge.textContent = 'API: unavailable';
+    el.apiBadge.className = 'api-badge bad';
   }
-  el.apiBadge.textContent = 'API: unavailable';
-  el.apiBadge.className = 'api-badge bad';
 }
 
 async function refreshStatus() {
@@ -245,17 +150,6 @@ async function refreshStatus() {
   }
 }
 
-// ── Tab navigation ────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(function(tab) {
-  tab.addEventListener('click', function() {
-    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.add('hidden'); });
-    tab.classList.add('active');
-    const panel = document.getElementById('tab-' + tab.dataset.tab);
-    if (panel) panel.classList.remove('hidden');
-  });
-});
-
 // ── Strict mode ───────────────────────────────────────────────────────────────
 el.strictMode.addEventListener('change', function() {
   if (this.checked) {
@@ -266,49 +160,15 @@ el.strictMode.addEventListener('change', function() {
   }
 });
 
-// ── Ignore list ───────────────────────────────────────────────────────────────
-function renderIgnoreList() {
-  el.ignoreList.innerHTML = ignoreList.length === 0
-    ? '<option value="">No ignored names</option>'
-    : ignoreList.map(function(n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
-}
-
-el.ignoreInput.addEventListener('keydown', function(e) {
-  if (e.key !== 'Enter') return;
-  const name = el.ignoreInput.value.trim();
-  if (!name || ignoreList.includes(name)) return;
-  ignoreList.push(name); persist(); renderIgnoreList(); el.ignoreInput.value = '';
-  applyFilter();
-});
-el.removeIgnoreBtn.addEventListener('click', function() {
-  const sel = el.ignoreList.value;
-  if (!sel) return;
-  ignoreList = ignoreList.filter(function(n) { return n !== sel; });
-  persist(); renderIgnoreList(); applyFilter();
-});
-el.clearIgnoreBtn.addEventListener('click', function() {
-  ignoreList = []; persist(); renderIgnoreList(); applyFilter();
-});
-el.showIgnored.addEventListener('change', applyFilter);
-
-// ── Filter + ignore ───────────────────────────────────────────────────────────
+// ── Filter ────────────────────────────────────────────────────────────────────
 function applyFilter() {
   const filterText = el.filterInput.value.trim().toLowerCase();
-  const showIgnored = el.showIgnored.checked;
   const wrap = el.matchesArea.querySelector('.table-wrap');
   if (!wrap) return;
-  const rows = wrap.querySelectorAll('tbody tr');
-  rows.forEach(function(row) {
+  wrap.querySelectorAll('tbody tr').forEach(function(row) {
     const nameTd = row.querySelector('[data-name]');
-    const name = nameTd ? nameTd.dataset.name : '';
-    const isIgnored = ignoreList.some(function(n) { return n.toLowerCase() === name.toLowerCase(); });
-    if (isIgnored && !showIgnored) { row.style.display = 'none'; return; }
-    if (isIgnored) { row.classList.add('row-ignored'); } else { row.classList.remove('row-ignored'); }
-    if (filterText && !name.toLowerCase().includes(filterText)) {
-      row.style.display = 'none';
-    } else {
-      row.style.display = '';
-    }
+    const name = nameTd ? nameTd.dataset.name.toLowerCase() : '';
+    row.style.display = (filterText && !name.includes(filterText)) ? 'none' : '';
   });
 }
 
@@ -329,10 +189,8 @@ function renderMatches(matches) {
     const tradeCell = traded
       ? esc(m.recentTradeDates[0]) + '<span class="trade-badge">TRADED</span>'
       : '<span style="color:#8b949e">none</span>';
-    const isIgnored = ignoreList.some(function(n) { return n.toLowerCase() === (m.name||'').toLowerCase(); });
-    const ignoredBadge = isIgnored ? '<span class="ignored-badge">IGNORED</span>' : '';
     return '<tr>'
-      + '<td class="name-cell" data-name="' + esc(m.name||'') + '">' + esc(m.name||'Unknown') + ignoredBadge + '</td>'
+      + '<td class="name-cell" data-name="' + esc(m.name||'') + '">' + esc(m.name||'Unknown') + '</td>'
       + '<td><span class="conf-pill ' + cls + '">' + conf + '</span></td>'
       + '<td>' + esc(String(m.adjacencies != null ? m.adjacencies : '-')) + '</td>'
       + '<td>' + esc(String(m.clashes != null ? m.clashes : '-')) + '</td>'
@@ -374,9 +232,7 @@ el.csvBtn.addEventListener('click', function() {
 
 // ── Summary renderer ──────────────────────────────────────────────────────────
 function renderSummary(text) {
-  // Lines after these labels get the bright "chars" highlight (names).
   const NAME_AFTER = new Set(['Searched characters', 'Checked against']);
-  // These lines are section labels – keep them in the muted grey colour.
   const LABEL_LINES = new Set([
     'Searched characters', 'Checked against',
     'Total logins', 'Date range', 'Adjacency distance', 'Include clashes',
@@ -406,9 +262,9 @@ async function runSearch() {
   hideCharPanel();
   const chars = el.characters.value.trim();
   if (!chars) { showError('Enter at least one character name.'); return; }
-  const distance  = Number(el.distance.value || 0);
-  const clashes   = el.includeClashes.value;
-  const format    = el.altFormat.value;
+  const distance = Number(el.distance.value || 0);
+  const clashes  = el.includeClashes.value;
+  const format   = el.altFormat.value;
   const params = new URLSearchParams({
     characters: chars, distance: String(distance),
     includeClashes: clashes, format: format,
@@ -422,7 +278,7 @@ async function runSearch() {
   el.summary.innerHTML = 'Loading\u2026';
   el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
+    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
     renderSummary(data.formattedText || JSON.stringify(data, null, 2));
     renderMatches(data.possibleMatches || []);
   } catch(err) {
@@ -442,278 +298,6 @@ function clearAll() {
   el.matchesArea.innerHTML = '<pre>No search yet.</pre>';
   lastMatches = [];
 }
-
-// ── Trades ────────────────────────────────────────────────────────────────────
-async function runTrades() {
-  clearError(el.tradesErrorBox);
-  const chars = el.tradesCharacters.value.trim();
-  if (!chars) { showError('Enter at least one character name.', el.tradesErrorBox, el.tradesErrorMsg); return; }
-  const days = parseInt(el.lookbackDays.value || '30', 10);
-  const params = new URLSearchParams({ characters: chars, lookbackDays: String(days) });
-  el.tradesRunBtn.disabled = true; el.tradesRunBtn.textContent = 'Checking\u2026';
-  el.tradesArea.innerHTML = '<pre>Loading\u2026</pre>';
-  try {
-    const data = await fetchJson('/api/altfinder/trades?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
-    const results = data.results || [];
-    if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; return; }
-    const rows = results.map(function(r) {
-      const traded = (r.recentTradeDates || []).length > 0;
-      const dates = traded ? r.recentTradeDates.join(', ') : 'none';
-      const badge = traded ? '<span class="trade-badge">TRADED</span>' : '';
-      const error = r.hadError ? ' <span style="color:#f85149;font-size:.72rem">(check error)</span>' : '';
-      return '<tr>'
-        + '<td style="font-weight:600;color:#79c0ff">' + esc(r.characterName||'') + badge + error + '</td>'
-        + '<td>' + esc(String(r.checkedNames ? r.checkedNames.join(', ') : '-')) + '</td>'
-        + '<td>' + esc(dates) + '</td>'
-        + '</tr>';
-    }).join('');
-    el.tradesArea.innerHTML = '<div class="table-wrap"><table>'
-      + '<thead><tr><th>Character</th><th>Checked Names</th><th>Trade Dates</th></tr></thead>'
-      + '<tbody>' + rows + '</tbody></table></div>';
-  } catch(err) {
-    showError(err.message || String(err), el.tradesErrorBox, el.tradesErrorMsg);
-    el.tradesArea.innerHTML = '<pre>Search failed.</pre>';
-  } finally {
-    el.tradesRunBtn.disabled = false; el.tradesRunBtn.textContent = 'Check Trades';
-  }
-}
-
-el.tradesRunBtn.addEventListener('click', runTrades);
-el.tradesClearBtn.addEventListener('click', function() {
-  clearError(el.tradesErrorBox);
-  el.tradesCharacters.value = '';
-  el.tradesArea.innerHTML = '<pre>No search yet.</pre>';
-});
-el.tradesCharacters.addEventListener('keydown', function(e) { if (e.key === 'Enter') runTrades(); });
-
-// ── Clashes ───────────────────────────────────────────────────────────────────
-async function runClashes() {
-  clearError(el.clashesErrorBox);
-  const chars   = el.clashCharacters.value.trim();
-  const targets = el.clashTargets.value.trim();
-  if (!chars)   { showError('Enter at least one character name.', el.clashesErrorBox, el.clashesErrorMsg); return; }
-  if (!targets) { showError('Enter at least one target name.', el.clashesErrorBox, el.clashesErrorMsg); return; }
-  const params = new URLSearchParams({
-    characters: chars, targets: targets,
-    distance: String(parseInt(el.clashDistance.value || '0', 10)),
-  });
-  const from = el.clashFrom.value.trim();
-  const to   = el.clashTo.value.trim();
-  if (from) params.set('from', from);
-  if (to)   params.set('to', to);
-  el.clashesRunBtn.disabled = true; el.clashesRunBtn.textContent = 'Searching\u2026';
-  el.clashesSummary.textContent = 'Loading\u2026';
-  el.clashesArea.innerHTML = '<pre>Loading\u2026</pre>';
-  try {
-    const data = await fetchJson('/api/altfinder/clashes?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
-    el.clashesSummary.textContent = data.formattedText || JSON.stringify(data, null, 2);
-    const matches = data.clashes || [];
-    if (matches.length === 0) { el.clashesArea.innerHTML = '<pre>No clash matches found.</pre>'; return; }
-    const rows = matches.map(function(m) {
-      return '<tr>'
-        + '<td style="font-weight:600;color:#79c0ff">' + esc(m.name||'Unknown') + '</td>'
-        + '<td>' + esc(String(m.adjacencies != null ? m.adjacencies : '-')) + '</td>'
-        + '<td>' + esc(String(m.clashes != null ? m.clashes : '-')) + '</td>'
-        + '<td>' + esc(String(m.logins != null ? m.logins : '-')) + '</td>'
-        + '</tr>';
-    }).join('');
-    el.clashesArea.innerHTML = '<div class="table-wrap"><table>'
-      + '<thead><tr><th>Name</th><th>Adjacencies</th><th>Clashes</th><th>Logins</th></tr></thead>'
-      + '<tbody>' + rows + '</tbody></table></div>';
-  } catch(err) {
-    showError(err.message || String(err), el.clashesErrorBox, el.clashesErrorMsg);
-    el.clashesSummary.textContent = 'Search failed.';
-    el.clashesArea.innerHTML = '<pre>Search failed.</pre>';
-  } finally {
-    el.clashesRunBtn.disabled = false; el.clashesRunBtn.textContent = 'Find Clashes';
-  }
-}
-
-el.clashesRunBtn.addEventListener('click', runClashes);
-el.clashesClearBtn.addEventListener('click', function() {
-  clearError(el.clashesErrorBox);
-  el.clashCharacters.value = ''; el.clashTargets.value = '';
-  el.clashFrom.value = ''; el.clashTo.value = '';
-  el.clashesSummary.textContent = 'No search yet.';
-  el.clashesArea.innerHTML = '<pre>No search yet.</pre>';
-});
-
-// ── Research History ──────────────────────────────────────────────────────────
-el.researchLoadBtn.addEventListener('click', async function() {
-  const limit = parseInt(el.researchLimit.value || '50', 10);
-  el.researchLoadBtn.disabled = true; el.researchLoadBtn.textContent = 'Loading\u2026';
-  el.researchArea.innerHTML = '<pre>Loading\u2026</pre>';
-  try {
-    const rows = await fetchJson('/api/altfinder/research?limit=' + limit, TIMEOUT_STATUS, 1);
-    if (!rows || rows.length === 0) { el.researchArea.innerHTML = '<pre>No research runs found.</pre>'; return; }
-    const tableRows = rows.map(function(r) {
-      const chars = (r.searchedCharacters || []).join(', ') || '-';
-      const date  = (r.createdAt || '').slice(0, 16).replace('T', ' ');
-      return '<tr>'
-        + '<td style="color:#8b949e;font-size:.72rem">' + esc(date) + '</td>'
-        + '<td><span class="conf-pill ' + (r.runType === 'alts' ? 'conf-mid' : 'conf-lo') + '">' + esc(r.runType||'?') + '</span></td>'
-        + '<td style="color:#79c0ff;max-width:220px;overflow:hidden;text-overflow:ellipsis">' + esc(chars) + '</td>'
-        + '<td>' + esc(String(r.matchCount != null ? r.matchCount : '-')) + '</td>'
-        + '<td>' + esc(String(r.totalLogins != null ? r.totalLogins : '-')) + '</td>'
-        + '<td style="color:#8b949e">' + esc(r.distanceMinutes != null ? r.distanceMinutes + 'm' : '-') + '</td>'
-        + '</tr>';
-    }).join('');
-    el.researchArea.innerHTML = '<div class="research-table-wrap"><table>'
-      + '<thead><tr><th>Date</th><th>Type</th><th>Characters</th><th>Matches</th><th>Logins</th><th>Dist</th></tr></thead>'
-      + '<tbody>' + tableRows + '</tbody></table></div>';
-  } catch(err) {
-    el.researchArea.innerHTML = '<pre>Error: ' + esc(err.message || String(err)) + '</pre>';
-  } finally {
-    el.researchLoadBtn.disabled = false; el.researchLoadBtn.textContent = 'Load History';
-  }
-});
-
-// ── Presets ───────────────────────────────────────────────────────────────────
-function renderPresetList() {
-  const keys = Object.keys(savedPresets);
-  el.presetList.innerHTML = keys.length === 0
-    ? '<option value="">No saved presets</option>'
-    : keys.map(function(k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
-}
-
-el.savePresetBtn.addEventListener('click', function() {
-  const name = el.presetNameInput.value.trim();
-  if (!name) return;
-  savedPresets[name] = {
-    characters:     el.characters.value.trim(),
-    distance:       el.distance.value,
-    includeClashes: el.includeClashes.value,
-    altFormat:      el.altFormat.value,
-    altFrom:        el.altFrom.value,
-    altTo:          el.altTo.value,
-    strictMode:     el.strictMode.checked,
-  };
-  persist(); renderPresetList(); el.presetNameInput.value = '';
-  // select the newly saved preset
-  el.presetList.value = name;
-});
-
-el.loadPresetBtn.addEventListener('click', function() {
-  const name = el.presetList.value;
-  const p = savedPresets[name];
-  if (!p) return;
-  el.characters.value     = p.characters || '';
-  el.distance.value       = p.distance != null ? p.distance : '0';
-  el.includeClashes.value = p.includeClashes || 'false';
-  el.altFormat.value      = p.altFormat || 'detailed';
-  el.altFrom.value        = p.altFrom || '';
-  el.altTo.value          = p.altTo || '';
-  el.strictMode.checked   = !!p.strictMode;
-  el.strictMode.dispatchEvent(new Event('change'));
-  // switch to alt finder tab
-  document.querySelector('.tab[data-tab="alts"]').click();
-});
-
-el.deletePresetBtn.addEventListener('click', function() {
-  const name = el.presetList.value;
-  if (!name || !savedPresets[name]) return;
-  delete savedPresets[name];
-  persist(); renderPresetList();
-});
-
-// ── Saved Characters ──────────────────────────────────────────────────────────
-function renderSavedChars() {
-  el.savedCharList.innerHTML = savedChars.length === 0
-    ? '<option value="">No saved characters</option>'
-    : savedChars.map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
-  el.savedCharDisplay.textContent = savedChars.length === 0 ? 'No saved characters yet.' : savedChars.join('\n');
-}
-
-el.addCharBtn.addEventListener('click', function() {
-  const name = el.savedCharInput.value.trim();
-  if (!name || savedChars.includes(name)) return;
-  savedChars.push(name); persist(); renderSavedChars(); el.savedCharInput.value = '';
-});
-el.savedCharInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') el.addCharBtn.click(); });
-el.useCharBtn.addEventListener('click', function() {
-  const sel = el.savedCharList.value; if (sel) el.characters.value = sel;
-  document.querySelector('.tab[data-tab="alts"]').click();
-});
-el.removeCharBtn.addEventListener('click', function() {
-  const sel = el.savedCharList.value;
-  savedChars = savedChars.filter(function(c){ return c !== sel; });
-  persist(); renderSavedChars();
-});
-
-// ── Saved Guilds ──────────────────────────────────────────────────────────────
-function renderSavedGuilds() {
-  el.savedGuildList.innerHTML = savedGuilds.length === 0
-    ? '<option value="">No saved guilds</option>'
-    : savedGuilds.map(function(g){ return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('');
-  el.savedGuildDisplay.textContent = savedGuilds.length === 0 ? 'No saved guilds yet.' : savedGuilds.join('\n');
-}
-
-el.savedGuildInput.addEventListener('keydown', function(e) {
-  if (e.key !== 'Enter') return;
-  const name = el.savedGuildInput.value.trim();
-  if (!name || savedGuilds.includes(name)) return;
-  savedGuilds.push(name); persist(); renderSavedGuilds(); el.savedGuildInput.value = '';
-});
-el.refreshGuildBtn.addEventListener('click', async function() {
-  const sel = el.savedGuildList.value;
-  if (!sel) { el.savedGuildDisplay.textContent = 'Select a guild first.'; return; }
-  el.savedGuildDisplay.textContent = 'Refreshing\u2026';
-  try {
-    const data = await fetchJson('/api/altfinder/guild?name=' + encodeURIComponent(sel), TIMEOUT_STATUS, 1);
-    const online = data.onlineCharacters || [];
-    guildOnlineMap[sel] = online;
-    el.savedGuildDisplay.textContent = (data.name || sel) + ' (' + (data.world||'?') + ') \u2014 '
-      + (data.online||0) + '/' + (data.members||0) + ' online\n'
-      + (online.length ? online.join(', ') : 'No one online');
-  } catch(err) { el.savedGuildDisplay.textContent = 'Error: ' + (err.message || String(err)); }
-});
-el.loadGuildBtn.addEventListener('click', function() {
-  const sel = el.savedGuildList.value;
-  const online = guildOnlineMap[sel];
-  if (!online || online.length === 0) { el.savedGuildDisplay.textContent = 'Refresh the guild first to get online members.'; return; }
-  el.characters.value = online.join(', ');
-  document.querySelector('.tab[data-tab="alts"]').click();
-});
-el.removeGuildBtn.addEventListener('click', function() {
-  const sel = el.savedGuildList.value;
-  savedGuilds = savedGuilds.filter(function(g){ return g !== sel; });
-  delete guildOnlineMap[sel]; persist(); renderSavedGuilds();
-});
-
-// ── Watchlist ─────────────────────────────────────────────────────────────────
-async function loadWatchlist() {
-  const guildId = el.watchGuildId.value.trim();
-  if (!guildId) { el.watchListArea.textContent = 'Enter a Discord Guild ID.'; return; }
-  el.watchListArea.textContent = 'Loading\u2026';
-  try {
-    const data = await fetchJson('/api/altfinder/watchlist?guildId=' + encodeURIComponent(guildId), TIMEOUT_STATUS, 1);
-    const watches = data.watches || [];
-    el.watchListArea.textContent = watches.length === 0
-      ? 'No watches configured for this guild.'
-      : watches.map(function(w){ return w.characterName + ' (dist ' + w.distance + ', threshold ' + w.confidenceThreshold + '%)'; }).join('\n');
-  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
-}
-
-async function addWatch() {
-  const guildId   = el.watchGuildId.value.trim();
-  const channelId = el.watchChannelId.value.trim();
-  const charName  = el.watchCharInput.value.trim();
-  if (!guildId || !channelId || !charName) {
-    el.watchListArea.textContent = 'Guild ID, Channel ID and character name are all required.'; return;
-  }
-  el.watchListArea.textContent = 'Adding\u2026';
-  try {
-    await fetchJson('/api/altfinder/watchlist/add?guildId=' + encodeURIComponent(guildId)
-      + '&channelId=' + encodeURIComponent(channelId)
-      + '&character=' + encodeURIComponent(charName), TIMEOUT_STATUS, 1);
-    el.watchCharInput.value = '';
-    await loadWatchlist();
-  } catch(err) { el.watchListArea.textContent = 'Error: ' + (err.message || String(err)); }
-}
-
-el.addWatchBtn.addEventListener('click', addWatch);
-el.loadWatchBtn.addEventListener('click', loadWatchlist);
-el.watchGuildId.addEventListener('keydown', function(e){ if (e.key === 'Enter') loadWatchlist(); });
 
 // ── Character detail panel ────────────────────────────────────────────────────
 function hideCharPanel() { el.charPanel.classList.remove('open'); }
@@ -760,33 +344,15 @@ async function openCharPanel(name) {
 // ── Event wiring ──────────────────────────────────────────────────────────────
 el.runBtn.addEventListener('click', runSearch);
 el.clearBtn.addEventListener('click', clearAll);
-el.characters.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
+el.characters.addEventListener('keydown', function(e) { if (e.key === 'Enter') runSearch(); });
 el.backendUrl.addEventListener('change', function() {
   localStorage.setItem(STORAGE_BACKEND, el.backendUrl.value.trim());
   checkHealth();
   refreshStatus();
 });
 
-// ── Currently Online ──────────────────────────────────────────────────────────
-async function refreshOnlineNames() {
-  try {
-    const d = await fetchJson('/api/altfinder/online', TIMEOUT_STATUS, 1);
-    const names = d.names || [];
-    el.onlineArea.textContent = names.length === 0
-      ? 'No characters currently online.'
-      : names.length + ' online:\n' + names.join('\n');
-  } catch(_) {
-    el.onlineArea.textContent = 'Could not load.';
-  }
-}
-el.refreshOnlineBtn.addEventListener('click', refreshOnlineNames);
-
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadStorage();
 checkHealth();
 refreshStatus();
-refreshOnlineNames();
-// Auto-refresh status every 60 seconds
 setInterval(refreshStatus, 60000);
-// Auto-refresh online names every 30 seconds
-setInterval(refreshOnlineNames, 30000);
