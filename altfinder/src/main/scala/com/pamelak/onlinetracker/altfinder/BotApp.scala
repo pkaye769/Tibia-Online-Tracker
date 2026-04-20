@@ -149,6 +149,7 @@ object BotApp extends IOApp {
             val minEvidenceAdjacencies = sys.env.get("MIN_EVIDENCE_ADJACENCIES").flatMap(_.toIntOption).getOrElse(2)
             val includeLowEvidenceMatches =
               sys.env.get("INCLUDE_LOW_EVIDENCE_MATCHES").exists(_.trim.equalsIgnoreCase("true"))
+            val defaultLookbackDays = sys.env.get("DEFAULT_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(90)
 
             val service = new AltFinderService(
               repo,
@@ -160,7 +161,8 @@ object BotApp extends IOApp {
               hiddenLikelyMaxClashRatio,
               minEvidenceLogins,
               minEvidenceAdjacencies,
-              includeLowEvidenceMatches
+              includeLowEvidenceMatches,
+              defaultLookbackDays
             )
 
             val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
