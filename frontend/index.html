@@ -128,14 +128,18 @@
     <!-- ── Trades tab ───────────────────────────────────────────────────── -->
     <div id="tab-trades" class="tab-panel hidden">
       <div class="card">
-        <p class="tab-desc">Check whether characters have been recently traded on the Tibia Bazaar.</p>
+        <p class="tab-desc">Check whether characters have been recently traded on the Tibia Bazaar. Leave characters empty to search all traded characters on the world.</p>
         <div class="form-group">
-          <label for="tradesCharacters">Characters (comma separated)</label>
-          <input id="tradesCharacters" type="text" placeholder="Deli Tokes, Another Name"/>
+          <label for="tradesWorld">World</label>
+          <input id="tradesWorld" type="text" placeholder="Nefera" value="Nefera"/>
+        </div>
+        <div class="form-group">
+          <label for="tradesCharacters">Characters (comma separated, optional)</label>
+          <input id="tradesCharacters" type="text" placeholder="Leave empty to search whole world"/>
         </div>
         <div class="form-group">
           <label for="lookbackDays">Lookback days (1–365)</label>
-          <input id="lookbackDays" type="number" value="30" min="1" max="365"/>
+          <input id="lookbackDays" type="number" value="7" min="1" max="365"/>
         </div>
         <div class="actions">
           <button id="tradesRunBtn" class="btn-green">Check Trades</button>
