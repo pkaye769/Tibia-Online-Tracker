@@ -274,7 +274,7 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
   }
 
   // Fast path for distance = 0: use FK equality joins (login_time_idx / logout_time_idx)
-  // instead of computing EXTRACT(EPOCH) on every row in the table.  A CTE collects the
+  // instead of computing EXTRACT(EPOCH) on every row in the table. A CTE collects the
   // searched character's sessions once; two indexed FK joins then find adjacent characters
   // in O(sessions × adjacent_count) instead of O(sessions × all_history_rows).
   private def getPossibleMatchesFastPath(
