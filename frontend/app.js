@@ -179,7 +179,7 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
       if (res.status < 500) break;
       lastErr = new Error('HTTP ' + res.status);
     } catch(e) { clearTimeout(t); lastErr = e; }
-    if (i < maxAttempts) await sleep(1200);
+    if (i < maxAttempts) await sleep(3000);
   }
   if (!res) {
     const detail = lastErr && lastErr.name === 'AbortError'
@@ -198,14 +198,23 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
 
 // ── Health + Status check ─────────────────────────────────────────────────────
 async function checkHealth() {
-  try {
-    await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
-    el.apiBadge.textContent = 'API: ok';
-    el.apiBadge.className = 'api-badge ok';
-  } catch(_) {
-    el.apiBadge.textContent = 'API: unavailable';
-    el.apiBadge.className = 'api-badge bad';
+  const maxRetries = 3;
+  const retryDelay = 5000;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await fetchJson('/api/altfinder/health', TIMEOUT_STATUS, 1);
+      el.apiBadge.textContent = 'API: ok';
+      el.apiBadge.className = 'api-badge ok';
+      return;
+    } catch(_) { /* retry on any error */ }
+    if (i < maxRetries - 1) {
+      el.apiBadge.textContent = 'API: connecting\u2026';
+      el.apiBadge.className = 'api-badge';
+      await sleep(retryDelay);
+    }
   }
+  el.apiBadge.textContent = 'API: unavailable';
+  el.apiBadge.className = 'api-badge bad';
 }
 
 async function refreshStatus() {
@@ -413,7 +422,7 @@ async function runSearch() {
   el.summary.innerHTML = 'Loading\u2026';
   el.matchesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/alts?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
     renderSummary(data.formattedText || JSON.stringify(data, null, 2));
     renderMatches(data.possibleMatches || []);
   } catch(err) {
@@ -444,7 +453,7 @@ async function runTrades() {
   el.tradesRunBtn.disabled = true; el.tradesRunBtn.textContent = 'Checking\u2026';
   el.tradesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/trades?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/trades?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
     const results = data.results || [];
     if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; return; }
     const rows = results.map(function(r) {
@@ -496,7 +505,7 @@ async function runClashes() {
   el.clashesSummary.textContent = 'Loading\u2026';
   el.clashesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
-    const data = await fetchJson('/api/altfinder/clashes?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 2);
+    const data = await fetchJson('/api/altfinder/clashes?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
     el.clashesSummary.textContent = data.formattedText || JSON.stringify(data, null, 2);
     const matches = data.clashes || [];
     if (matches.length === 0) { el.clashesArea.innerHTML = '<pre>No clash matches found.</pre>'; return; }
