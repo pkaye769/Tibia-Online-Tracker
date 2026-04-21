@@ -130,7 +130,7 @@ class AltFinderService[F[_]: Async: Parallel](
       _ <- Logger[F].info(s"${matchesToCheck.length} rows to analyse")
       adj <- Async[F].blocking(getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20))
       adjWithNames <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
-        .sequence
+        .parSequence
       tradeInfo <- enrichWithCandidateTrades(adjWithNames)
       mainLogins <- repo.countTotalLogins(characterNames)
       _ <- Logger[F].info(s"Total all-time logins for searched characters: $mainLogins")
