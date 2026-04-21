@@ -317,7 +317,7 @@ final class AltFinderApi[F[_]: Async](
             Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
           }
           },
-          20.seconds,
+          45.seconds,
           Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
         ).flatMap(json => Ok(json)).handleErrorWith { case ex =>
           InternalServerError(ErrorResponse(s"Internal server error: ${ex.getMessage}", Nil).asJson)
@@ -362,7 +362,7 @@ final class AltFinderApi[F[_]: Async](
             response.asJson
           }
           },
-          20.seconds,
+          45.seconds,
           Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
         ).flatMap(json => Ok(json))
       }
@@ -436,7 +436,7 @@ final class AltFinderApi[F[_]: Async](
             ).attempt).as(response.asJson)
             }
           },
-          20.seconds,
+          45.seconds,
           Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
         ).flatMap(json => Ok(json))
       }

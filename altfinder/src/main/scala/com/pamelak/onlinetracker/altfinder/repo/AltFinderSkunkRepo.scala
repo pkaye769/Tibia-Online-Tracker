@@ -134,6 +134,22 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     ON altfinder_research_run(created_at DESC)
   """.command
 
+  val createOnlineHistoryCharacterIdx = sql"""
+    CREATE INDEX IF NOT EXISTS online_history_character_id_idx ON online_history(character_id)
+  """.command
+
+  val createOnlineHistoryLoginIdx = sql"""
+    CREATE INDEX IF NOT EXISTS online_history_login_time_idx ON online_history(login_time)
+  """.command
+
+  val createOnlineHistoryLogoutIdx = sql"""
+    CREATE INDEX IF NOT EXISTS online_history_logout_time_idx ON online_history(logout_time)
+  """.command
+
+  val createWorldSaveTimeWorldIdx = sql"""
+    CREATE INDEX IF NOT EXISTS world_save_time_world_id_idx ON world_save_time(world_id)
+  """.command
+
   val createWorldSaveTimeTimeIdx = sql"""
     CREATE INDEX IF NOT EXISTS world_save_time_time_idx ON world_save_time(time)
   """.command
@@ -154,6 +170,10 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     _ <- session.execute(createGuildTrackGuildIdx, Void)
     _ <- session.execute(createResearchRunTable, Void)
     _ <- session.execute(createResearchRunCreatedIdx, Void)
+    _ <- session.execute(createOnlineHistoryCharacterIdx, Void)
+    _ <- session.execute(createOnlineHistoryLoginIdx, Void)
+    _ <- session.execute(createOnlineHistoryLogoutIdx, Void)
+    _ <- session.execute(createWorldSaveTimeWorldIdx, Void)
     _ <- session.execute(createWorldSaveTimeTimeIdx, Void)
     _ <- session.execute(createCharacterNameLowerIdx, Void)
   } yield ()
