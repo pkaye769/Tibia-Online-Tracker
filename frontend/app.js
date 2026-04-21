@@ -31,6 +31,7 @@ const el = {
   apiBadge:           document.getElementById('apiBadge'),
   statusBar:          document.getElementById('statusBar'),
   // Trades
+  tradesWorld:        document.getElementById('tradesWorld'),
   tradesCharacters:   document.getElementById('tradesCharacters'),
   lookbackDays:       document.getElementById('lookbackDays'),
   tradesRunBtn:       document.getElementById('tradesRunBtn'),
@@ -497,15 +498,16 @@ function clearAll() {
 async function runTrades() {
   clearError(el.tradesErrorBox);
   const chars = el.tradesCharacters.value.trim();
-  if (!chars) { showError('Enter at least one character name.', el.tradesErrorBox, el.tradesErrorMsg); return; }
-  const days = parseInt(el.lookbackDays.value || '30', 10);
-  const params = new URLSearchParams({ characters: chars, lookbackDays: String(days) });
+  const world = (el.tradesWorld.value || '').trim() || 'Nefera';
+  const days = parseInt(el.lookbackDays.value || '7', 10);
+  const params = new URLSearchParams({ world, lookbackDays: String(days) });
+  if (chars) params.set('characters', chars);
   el.tradesRunBtn.disabled = true; el.tradesRunBtn.textContent = 'Checking\u2026';
   el.tradesArea.innerHTML = '<pre>Loading\u2026</pre>';
   try {
     const data = await fetchJson('/api/altfinder/trades?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
     const results = data.results || [];
-    if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No results.</pre>'; return; }
+    if (results.length === 0) { el.tradesArea.innerHTML = '<pre>No traded characters found.</pre>'; return; }
     const rows = results.map(function(r) {
       const traded = (r.recentTradeDates || []).length > 0;
       const dates = traded ? r.recentTradeDates.join(', ') : 'none';

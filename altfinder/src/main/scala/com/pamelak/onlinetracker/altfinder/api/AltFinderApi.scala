@@ -38,6 +38,7 @@ final class AltFinderApi[F[_]: Async](
   import dsl.*
 
   private val berlinZone = ZoneId.of("Europe/Berlin")
+  private val defaultBazaarWorld = sys.env.get("BAZAAR_WORLD").orElse(sys.env.get("WORLD")).getOrElse("Nefera")
 
   final case class Health(status: String)
   final case class TrackerStatusResponse(
@@ -73,7 +74,8 @@ final class AltFinderApi[F[_]: Async](
   )
   final case class TradesResponse(
       lookbackDays: Int,
-      results: List[TradeCharacterResult]
+      results: List[TradeCharacterResult],
+      world: Option[String]
   )
   final case class ClashMatch(
       name: String,
@@ -330,7 +332,9 @@ final class AltFinderApi[F[_]: Async](
 
       val characterRaw = params.get("characters").map(_.trim).filter(_.nonEmpty)
       val characters = characterRaw.map(_.split(",").map(_.trim).filter(_.nonEmpty).toList).getOrElse(Nil)
-      if (characters.isEmpty) errors += "Missing required query param: characters"
+      val worldParam = params.get("world").map(_.trim).filter(_.nonEmpty)
+      val world = worldParam.getOrElse(defaultBazaarWorld).trim
+      if (characters.isEmpty && world.isEmpty) errors += "Missing required query param: characters or world"
 
       val lookbackDays = params.get("lookbackDays").map(_.trim).filter(_.nonEmpty) match
         case None => 30
@@ -344,27 +348,48 @@ final class AltFinderApi[F[_]: Async](
       if (errors.nonEmpty) {
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
-        val cacheKey = s"trades|${characters.mkString(",")}|$lookbackDays"
-        Async[F].timeoutTo(
-          cachedJson(cacheKey) {
+        val cacheKey =
+          if (characters.nonEmpty) s"trades|${characters.mkString(",")}|$lookbackDays"
+          else s"trades|world|$world|$lookbackDays"
+        cachedJson(cacheKey) {
+          if (characters.nonEmpty) {
             service.checkTradedCharacters(characters, lookbackDays).map { rows =>
-            val response = TradesResponse(
-              lookbackDays = lookbackDays,
-              results = rows.map { row =>
-                TradeCharacterResult(
-                  characterName = row.characterName,
-                  checkedNames = row.checkedNames,
-                  recentTradeDates = row.recentTradeDates.map(_.toString),
-                  hadError = row.hadError
+              val response = TradesResponse(
+                lookbackDays = lookbackDays,
+                results = rows.map { row =>
+                  TradeCharacterResult(
+                    characterName = row.characterName,
+                    checkedNames = row.checkedNames,
+                    recentTradeDates = row.recentTradeDates.map(_.toString),
+                    hadError = row.hadError
+                  )
+                },
+                world = None
+              )
+              response.asJson
+            }
+          } else {
+            service.checkWorldTrades(world, lookbackDays).flatMap {
+              case Left(err) => Async[F].raiseError(new RuntimeException(err.message))
+              case Right(rows) =>
+                val response = TradesResponse(
+                  lookbackDays = lookbackDays,
+                  results = rows.map { row =>
+                    TradeCharacterResult(
+                      characterName = row.characterName,
+                      checkedNames = row.checkedNames,
+                      recentTradeDates = row.recentTradeDates.map(_.toString),
+                      hadError = row.hadError
+                    )
+                  },
+                  world = Some(world)
                 )
-              }
-            )
-            response.asJson
+                Async[F].pure(response.asJson)
+            }
           }
-          },
-          45.seconds,
-          Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
-        ).flatMap(json => Ok(json))
+        }.flatMap(json => Ok(json)).handleErrorWith { err =>
+          BadRequest(ErrorResponse("Trade lookup failed", List(err.getMessage)).asJson)
+        }
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "clashes" =>
@@ -775,11 +800,6 @@ final class AltFinderApi[F[_]: Async](
       case None => Nil
       case Some(summary) => List(summary.title, summary.message)
 
-    val candidateWarning =
-      if (results.candidateTradeErrors > 0)
-        List("Candidate trade checks", s"Errors checking ${results.candidateTradeErrors} candidate(s).")
-      else Nil
-
     val body = List(
       "Total logins",
       results.mainLogins.toString,
@@ -798,7 +818,7 @@ final class AltFinderApi[F[_]: Async](
       if (format == "classic") formatClassic(adj) else formatDetailed(adj)
     }
 
-    (header ++ tradeLines ++ candidateWarning ++ body ++ matchLines).mkString("\n")
+    (header ++ tradeLines ++ body ++ matchLines).mkString("\n")
   }
 
   private val uiHtml: String = {
@@ -816,5 +836,3 @@ final class AltFinderApi[F[_]: Async](
       .replace("<script src=\"./app.js\"></script>", s"<script>\n$js\n</script>")
   }
 }
-
-

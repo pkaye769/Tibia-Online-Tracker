@@ -51,16 +51,8 @@ class LastAltsCommand[F[_]: Async](service: AltFinderService[F]) extends Command
               val message = s"The following characters have been traded:\n${salesList.mkString("\n")}\n$dateMessage"
               Some(new Field("Traded character detected", message, false))
 
-          val tradeWarning =
-            if (results.candidateTradeErrors > 0) Some(new Field(
-              "Candidate trade checks",
-              s"Errors checking ${results.candidateTradeErrors} candidate(s).",
-              false
-            )) else None
-
           embedBuilder.addField("Searched characters", results.searchedCharacters.mkString(", "), false)
             .addFieldOption(tradedField)
-            .addFieldOption(tradeWarning)
             .addField("Total logins", results.mainLogins.toString(), true)
             .addField("Date range", dateMessage, true).addField("\u200b", "\u200b", true)
             .addField("Adjacency distance", appendMinutes(last.distance.getOrElse(0)), true)
