@@ -283,17 +283,6 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     // Convert distance from minutes to seconds for real-time comparison.
     val distanceSecs = distance.map(_ * 60L).getOrElse(0L)
 
-    // Pre-compute epoch seconds and login timestamp for every online_history row.
-    val innerSubquery = sql"""
-        SELECT oh.character_id,
-               EXTRACT(EPOCH FROM ws_login.time)::bigint  AS login_sec,
-               EXTRACT(EPOCH FROM ws_logout.time)::bigint AS logout_sec,
-               ws_login.time                              AS login_ts
-        FROM online_history oh
-        JOIN world_save_time ws_login  ON oh.login_time  = ws_login.id
-        JOIN world_save_time ws_logout ON oh.logout_time = ws_logout.id
-      """
-
     // Adjacency: session of o1 ends within distanceSecs before oh_epoch starts, or vice-versa.
     // distanceSecs is a safely computed Long (distance minutes × 60) – not raw user input,
     // so literal interpolation with #${} cannot cause SQL injection.
@@ -302,9 +291,10 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
          OR oh_epoch.login_sec - EXTRACT(EPOCH FROM ws1_logout.time)::bigint BETWEEN 0 AND #${distanceSecs.toString})
       """
 
-    // Outer query: return epoch seconds for the matched characters' sessions.
-    // The inner SELECT finds all character IDs adjacent to the searched characters.
-    val outerBase = sql"""
+    // Opening portion of the outer SELECT, up through and including the inner derived table's
+    // FROM clause. The date filter (WHERE ws_login.time …) is injected immediately after this
+    // so Postgres can apply world_save_time_time_idx before computing EXTRACT on every row.
+    val outerSelectOpen = sql"""
         SELECT o.character_id,
                EXTRACT(EPOCH FROM w_login.time)::bigint,
                EXTRACT(EPOCH FROM w_logout.time)::bigint
@@ -317,13 +307,30 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
           JOIN world_save_time ws1_login  ON o1.login_time  = ws1_login.id
           JOIN world_save_time ws1_logout ON o1.logout_time = ws1_logout.id
           JOIN character c ON o1.character_id = c.id
-          JOIN ($innerSubquery) oh_epoch ON $adjacencyFragment
-          WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})
+          JOIN (
+            SELECT oh.character_id,
+                   EXTRACT(EPOCH FROM ws_login.time)::bigint  AS login_sec,
+                   EXTRACT(EPOCH FROM ws_logout.time)::bigint AS logout_sec,
+                   ws_login.time                              AS login_ts
+            FROM online_history oh
+            JOIN world_save_time ws_login  ON oh.login_time  = ws_login.id
+            JOIN world_save_time ws_logout ON oh.logout_time = ws_logout.id
       """
 
-    val innerFromToFilter = sql"AND oh_epoch.login_ts >= $timestamptz AND oh_epoch.login_ts <= $timestamptz"
-    val innerFromFilter   = sql"AND oh_epoch.login_ts >= $timestamptz"
-    val innerToFilter     = sql"AND oh_epoch.login_ts <= $timestamptz"
+    // Date filters embedded inside the inner derived table so Postgres can push them down
+    // through the EXTRACT and use time-based indexes on world_save_time.
+    val innerFromToWhere = sql"WHERE ws_login.time >= $timestamptz AND ws_login.time <= $timestamptz"
+    val innerFromWhere   = sql"WHERE ws_login.time >= $timestamptz"
+    val innerToWhere     = sql"WHERE ws_login.time <= $timestamptz"
+
+    // Closes the derived table, applies the adjacency join condition and character filter,
+    // and closes the WHERE IN subquery.
+    val innerJoinClose = sql"""
+          ) oh_epoch ON $adjacencyFragment
+          WHERE LOWER(c.name) IN (${varchar.values.list(characterNames.length)})
+        )
+      """
+
     val outerFromToFilter = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
     val outerFromFilter   = sql"AND w_login.time >= $timestamptz"
     val outerToFilter     = sql"AND w_login.time <= $timestamptz"
@@ -331,16 +338,16 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     for {
       historical <- (from, to) match {
         case (Some(f), Some(t)) =>
-          val q = sql"$outerBase $innerFromToFilter) $outerFromToFilter".query(onlineSegmentDecoder)
-          prepareToList(session)(q, (cl, (f, t), (f, t)))
+          val q = sql"$outerSelectOpen $innerFromToWhere $innerJoinClose $outerFromToFilter".query(onlineSegmentDecoder)
+          prepareToList(session)(q, ((f, t), cl, (f, t)))
         case (Some(f), None) =>
-          val q = sql"$outerBase $innerFromFilter) $outerFromFilter".query(onlineSegmentDecoder)
-          prepareToList(session)(q, (cl, f, f))
+          val q = sql"$outerSelectOpen $innerFromWhere $innerJoinClose $outerFromFilter".query(onlineSegmentDecoder)
+          prepareToList(session)(q, (f, cl, f))
         case (None, Some(t)) =>
-          val q = sql"$outerBase $innerToFilter) $outerToFilter".query(onlineSegmentDecoder)
-          prepareToList(session)(q, (cl, t, t))
+          val q = sql"$outerSelectOpen $innerToWhere $innerJoinClose $outerToFilter".query(onlineSegmentDecoder)
+          prepareToList(session)(q, (t, cl, t))
         case (None, None) =>
-          val q = sql"$outerBase)".query(onlineSegmentDecoder)
+          val q = sql"$outerSelectOpen $innerJoinClose".query(onlineSegmentDecoder)
           prepareToList(session)(q, cl)
       }
       // Also include sessions for characters adjacent to any currently-online session of
