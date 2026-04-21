@@ -86,6 +86,7 @@ start-all.bat
 - `GET /api/altfinder/status`
 - `GET /api/altfinder/alts?characters=name1,name2&distance=0&includeClashes=false`
 - `GET /api/altfinder/trades?characters=name1,name2&lookbackDays=30`
+- `GET /api/altfinder/trades?world=Nefera&lookbackDays=7` (list recent trades for a world; characters param optional)
 - `GET /api/altfinder/clashes?characters=name1,name2&targets=name3,name4&distance=0`
 - `GET /api/altfinder/research?limit=25`
 - `GET /api/altfinder/guild?name=<guild>` (includes online member names)
@@ -160,4 +161,3 @@ If you see `404` at `/api/altfinder/health`, the URL is not pointing to the altf
 - `Address already in use`: free the port or set `ALTFINDER_API_PORT`
 - No slash commands: ensure bot invite includes `applications.commands`, restart bot
 - `Total logins: 0`: tracker has not captured history for that character yet
-

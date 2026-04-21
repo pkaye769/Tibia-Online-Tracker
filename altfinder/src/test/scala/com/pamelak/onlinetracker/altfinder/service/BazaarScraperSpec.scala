@@ -13,12 +13,14 @@ class BazaarScraperSpec extends munit.FunSuite {
   private def clientAlwaysReturns(response: IO[String]): BazaarScraperClientAlg[IO] =
     new BazaarScraperClientAlg[IO] {
       def searchCharacter(name: String): IO[String] = response
+      def searchWorld(world: String, pageSize: Int): IO[String] = IO.pure("""{"page":[]}""")
       def cooldownRemainingSeconds: IO[Long]         = IO.pure(0L)
     }
 
   private def clientPerName(f: String => IO[String]): BazaarScraperClientAlg[IO] =
     new BazaarScraperClientAlg[IO] {
       def searchCharacter(name: String): IO[String] = f(name)
+      def searchWorld(world: String, pageSize: Int): IO[String] = IO.pure("""{"page":[]}""")
       def cooldownRemainingSeconds: IO[Long]         = IO.pure(0L)
     }
 

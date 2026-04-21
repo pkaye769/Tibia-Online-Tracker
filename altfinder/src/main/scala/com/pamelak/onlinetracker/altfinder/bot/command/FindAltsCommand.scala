@@ -111,20 +111,13 @@ class FindAltsCommand[F[_]: Async](
                   s"The following characters have been traded:\n${salesList.mkString("\n")}\n$tradeDateMessage"
                 Some(new Field("Traded character detected", message, false))
 
-            val tradeWarning =
-              if (results.candidateTradeErrors > 0)
-                Some(new Field("Candidate trade checks", s"Errors checking ${results.candidateTradeErrors} candidate(s).", false))
-              else None
-
-            val matchesText = results.adjacencies.take(20).map(formatMatch).mkString("\n")
             embedBuilder.addField("Searched characters", results.searchedCharacters.mkString(", "), false)
               .addFieldOption(tradedField)
-              .addFieldOption(tradeWarning)
               .addField("Total logins", results.mainLogins.toString(), false)
               .addField("Date range", dateMessage, false)
               .addField("Adjacency distance", appendMinutes(distance.getOrElse(0)), false)
               .addField("Include clashes", includeClashes.toString, false)
-              .addField("Possible matches", if (matchesText.nonEmpty) matchesText else "No matches found.", false)
+              .addField("Possible matches", results.adjacencies.take(20).map(formatMatch).mkString("\n"), false)
               .build()
           }
         case _ =>
@@ -155,6 +148,4 @@ class FindAltsCommand[F[_]: Async](
   }
 
 }
-
-
 
