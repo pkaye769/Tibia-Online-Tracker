@@ -90,8 +90,8 @@ class BazaarScraper[F[_]: Sync: Parallel](client: BazaarScraperClientAlg[F], tib
     ssDay.minusDays(1) // workaround for exevo pan bug https://github.com/xandjiji/exevo-pan/issues/241
   }
 
-  private def parseJson(jsonString: String, name: String): Either[BazaarScraperError, List[BazaarAuction]] = {
-    parseAuctions(jsonString).map(_.filter(_.name == name))
+  private[bazaarscraper] def parseJson(jsonString: String, name: String): Either[BazaarScraperError, List[BazaarAuction]] = {
+    parseAuctions(jsonString).map(_.filter(_.name.equalsIgnoreCase(name)))
   }
 
   private def parseAuctions(jsonString: String): Either[BazaarScraperError, List[BazaarAuction]] = {

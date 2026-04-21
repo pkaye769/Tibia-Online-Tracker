@@ -117,7 +117,7 @@ class FindAltsCommand[F[_]: Async](
               .addField("Date range", dateMessage, false)
               .addField("Adjacency distance", appendMinutes(distance.getOrElse(0)), false)
               .addField("Include clashes", includeClashes.toString, false)
-              .addField("Possible matches", if (matchesText.nonEmpty) matchesText else "No matches found.", false)
+              .addField("Possible matches", results.adjacencies.take(20).map(formatMatch).mkString("\n") match { case "" => "No matches found." case s => s }, false)
               .build()
           }
         case _ =>
