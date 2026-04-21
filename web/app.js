@@ -118,8 +118,16 @@ function setError(text, showDirectBoardLink = false) {
   ui.error.appendChild(message);
 
   if (showDirectBoardLink) {
+    const rawUrl = `${baseUrl()}/altfinder`;
+    let safeUrl = "#";
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+        safeUrl = parsed.href;
+      }
+    } catch (_) { /* invalid URL — leave safeUrl as "#" */ }
     const link = document.createElement("a");
-    link.href = `${baseUrl()}/altfinder`;
+    link.href = safeUrl;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.textContent = "Open backend-hosted board";
