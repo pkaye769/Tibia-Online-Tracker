@@ -138,6 +138,10 @@ class AltFinderService[F[_]: Async: Parallel](
               Async[F].pure(a)
           }
       ).parSequence
+      // Cap trade-enrichment at 10 s so that slow or unreachable bazaar/tibia.com
+      // calls do not push the total request time past the 45 s backend timeout or
+      // Render's 60 s HTTP timeout.  On timeout we fall back to empty trade data
+      // (no trade dates shown) but still return the adjacency results.
       tradeInfo <- Async[F].timeoutTo(
         enrichWithCandidateTrades(adjWithNames),
         10.seconds,
