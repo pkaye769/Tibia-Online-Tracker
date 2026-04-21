@@ -51,19 +51,10 @@ class BazaarScraperHttp4sClient[F[_]: Async](client: Client[F]) extends BazaarSc
   override def cooldownRemainingSeconds: F[Long] =
     Async[F].pure(math.max(0L, rateLimitedUntilEpochSec - nowEpochSec))
 
-  def searchCharacter(name: String): F[String] = {
+  private def execute(target: org.http4s.Uri): F[String] = {
     if (nowEpochSec < rateLimitedUntilEpochSec) {
       Async[F].pure(emptyResultJson)
     } else {
-    // nicknameFilter for exevopan is a "contains" rather than exact match, so here we grab a lot of results to be safe
-    // and handling pagination is too much effort
-    val target = (apiRoot / "api/auctions").withQueryParams(Map(
-      ("nicknameFilter", name),
-      ("serverSet", bazaarWorld),
-      ("descending", "true"),
-      ("history", "true"),
-      ("pageSize", "100")
-    ))
       val req = Request[F](Method.GET, target)
       client.run(req).use { res =>
         res.as[String].flatMap { body =>
@@ -88,4 +79,27 @@ class BazaarScraperHttp4sClient[F[_]: Async](client: Client[F]) extends BazaarSc
     }
   }
 
+  def searchCharacter(name: String): F[String] = {
+    // nicknameFilter for exevopan is a "contains" rather than exact match, so here we grab a lot of results to be safe
+    // and handling pagination is too much effort
+    val target = (apiRoot / "api/auctions").withQueryParams(Map(
+      ("nicknameFilter", name),
+      ("serverSet", bazaarWorld),
+      ("descending", "true"),
+      ("history", "true"),
+      ("pageSize", "100")
+    ))
+    execute(target)
+  }
+
+  def searchWorld(world: String, pageSize: Int): F[String] = {
+    val serverSet = Option(world).map(_.trim).filter(_.nonEmpty).getOrElse(bazaarWorld)
+    val target = (apiRoot / "api/auctions").withQueryParams(Map(
+      ("serverSet", serverSet),
+      ("descending", "true"),
+      ("history", "true"),
+      ("pageSize", pageSize.toString)
+    ))
+    execute(target)
+  }
 }

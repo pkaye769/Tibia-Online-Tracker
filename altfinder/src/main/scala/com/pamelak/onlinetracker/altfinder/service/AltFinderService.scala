@@ -218,6 +218,21 @@ class AltFinderService[F[_]: Async](
     }.sequence
   }
 
+  def checkWorldTrades(world: String, lookbackDays: Int): F[Either[BazaarScraperError, List[CharacterTradeStatus]]] = {
+    bazaarScraper.recentWorldSales(world, lookbackDays).map {
+      case Left(err) => Left(err)
+      case Right(list) =>
+        val statuses = list.characterSales.map {
+          case CharacterSales(name, Left(_)) =>
+            CharacterTradeStatus(name, List(name), Nil, hadError = true)
+          case CharacterSales(name, Right(dates)) =>
+            val filtered = dates.map(_.toLocalDate).distinct.sorted(Ordering[LocalDate].reverse)
+            CharacterTradeStatus(name, List(name), filtered, hadError = false)
+        }
+        Right(statuses)
+    }
+  }
+
   def saveLastSearch(
       characters: List[String],
       from: Option[OffsetDateTime],
@@ -416,4 +431,3 @@ class AltFinderService[F[_]: Async](
   }
 
 }
-

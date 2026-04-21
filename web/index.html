@@ -70,6 +70,22 @@
         </section>
 
         <section class="card">
+          <h2>Traded Characters</h2>
+          <label for="tradeWorld">World</label>
+          <input id="tradeWorld" placeholder="Nefera" />
+          <label for="tradeLookback">Lookback days</label>
+          <input id="tradeLookback" type="number" min="1" max="365" value="7" />
+          <label for="tradeCharacters">Characters (optional)</label>
+          <input id="tradeCharacters" placeholder="Leave empty to search whole world" />
+          <div class="actions">
+            <button id="tradeSearchBtn">Search</button>
+            <button id="tradeClearBtn" class="ghost">Clear</button>
+            <span id="tradeStatus"></span>
+          </div>
+          <pre id="tradeResults">No trade search yet.</pre>
+        </section>
+
+        <section class="card">
           <h2>Guild Search</h2>
           <label for="guildName">Guild name</label>
           <input id="guildName" placeholder="Guild name" />
