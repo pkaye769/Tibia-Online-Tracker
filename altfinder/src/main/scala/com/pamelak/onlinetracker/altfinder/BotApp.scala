@@ -253,7 +253,7 @@ object BotApp extends IOApp {
         }
       }
 
-      acquireWithRetry(1)
+        acquireWithRetry(1)
     }
   }
 }
