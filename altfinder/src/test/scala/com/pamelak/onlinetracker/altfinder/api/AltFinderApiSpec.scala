@@ -45,8 +45,9 @@ class AltFinderApiSpec extends munit.FunSuite {
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
-    def searchCharacter(name: String)  = IO.pure("""{"page":[]}""")
-    def cooldownRemainingSeconds       = IO.pure(0L)
+    def searchCharacter(name: String)             = IO.pure("""{"page":[]}""")
+    def searchWorld(world: String, pageSize: Int) = IO.pure("""{"page":[]}""")
+    def cooldownRemainingSeconds                  = IO.pure(0L)
   }
 
   private val stubTibiaClient: TibiaDataClientAlg[IO] = new TibiaDataClientAlg[IO] {
@@ -169,9 +170,10 @@ class AltFinderApiSpec extends munit.FunSuite {
 
   // ---- GET /api/altfinder/trades -------------------------------------------
 
-  test("GET /api/altfinder/trades without characters returns 400") {
+  test("GET /api/altfinder/trades without characters returns 200 using default world") {
     val resp = get("/api/altfinder/trades")
-    assertEquals(resp.status, Status.BadRequest)
+    assertEquals(resp.status, Status.Ok)
+    assert(jsonOf(resp).hcursor.get[List[Json]]("results").isRight)
   }
 
   test("GET /api/altfinder/trades with valid params returns 200") {

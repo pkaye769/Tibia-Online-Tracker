@@ -37,8 +37,9 @@ class AltFinderServiceSpec extends munit.FunSuite {
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
-    def searchCharacter(name: String) = IO.pure("{\"page\":[]}")
-    def cooldownRemainingSeconds = IO.pure(0L)
+    def searchCharacter(name: String)             = IO.pure("{\"page\":[]}")
+    def searchWorld(world: String, pageSize: Int) = IO.pure("{\"page\":[]}")
+    def cooldownRemainingSeconds                  = IO.pure(0L)
   }
 
   private val service: AltFinderService[IO] =

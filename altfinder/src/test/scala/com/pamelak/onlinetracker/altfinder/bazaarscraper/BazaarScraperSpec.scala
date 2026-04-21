@@ -9,13 +9,15 @@ import java.time.{Instant, ZonedDateTime, ZoneId}
 class BazaarScraperSpec extends munit.FunSuite {
 
   private val noopClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
-    def searchCharacter(name: String) = IO.pure("""{"page":[]}""")
-    def cooldownRemainingSeconds      = IO.pure(0L)
+    def searchCharacter(name: String)                = IO.pure("""{"page":[]}""")
+    def searchWorld(world: String, pageSize: Int)    = IO.pure("""{"page":[]}""")
+    def cooldownRemainingSeconds                     = IO.pure(0L)
   }
 
   private def clientReturning(json: String): BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
-    def searchCharacter(name: String) = IO.pure(json)
-    def cooldownRemainingSeconds      = IO.pure(0L)
+    def searchCharacter(name: String)                = IO.pure(json)
+    def searchWorld(world: String, pageSize: Int)    = IO.pure(json)
+    def cooldownRemainingSeconds                     = IO.pure(0L)
   }
 
   private val scraper = new BazaarScraper[IO](noopClient)
@@ -167,8 +169,9 @@ class BazaarScraperSpec extends munit.FunSuite {
 
   test("multipleCharacterSales returns Right(Nil) on HTTP error") {
     val errorClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
-      def searchCharacter(name: String) = IO.raiseError(new RuntimeException("network error"))
-      def cooldownRemainingSeconds      = IO.pure(0L)
+      def searchCharacter(name: String)                = IO.raiseError(new RuntimeException("network error"))
+      def searchWorld(world: String, pageSize: Int)    = IO.raiseError(new RuntimeException("network error"))
+      def cooldownRemainingSeconds                     = IO.pure(0L)
     }
     val s = new BazaarScraper[IO](errorClient)
     val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
