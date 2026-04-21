@@ -16,7 +16,8 @@ if not "%ALTFINDER_API_BASE%"=="" set "BACKEND_PARAM=%ALTFINDER_API_BASE%"
 if "%BACKEND_PARAM%"=="" if not "%BACKEND_URL%"=="" set "BACKEND_PARAM=%BACKEND_URL%"
 
 if not "%BACKEND_PARAM%"=="" (
-  set "UI_URL=%UI_URL%/?api=%BACKEND_PARAM%"
+  rem Open the backend-hosted board directly to avoid HTTPS/HTTP mixed-content issues
+  set "UI_URL=%BACKEND_PARAM%/altfinder"
 )
 
 echo Opening %UI_URL%

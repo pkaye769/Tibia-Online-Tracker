@@ -10,11 +10,9 @@ import fs2.Stream
 import org.typelevel.otel4s.trace.Tracer
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import skunk.SSL
 import skunk.Session
 
 import scala.concurrent.duration.*
-import cats.effect.std.Dispatcher
 
 object Main extends IOApp {
 
@@ -23,37 +21,55 @@ object Main extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     AppConfig.loadDatabaseConfigIO.flatMap { dbCfg =>
-      val dbSessionResource: Resource[IO, Session[IO]] = Session.single(
-        host = dbCfg.host,
-        port = dbCfg.port,
-        user = dbCfg.user,
-        database = dbCfg.database,
-        password = dbCfg.password.some,
-        ssl = SSL.System
-      )
-      val tibiaDataClientResource = TibiaDataHttp4sClient.clientResource
+      val sslMode = AppConfig.resolveSSL(dbCfg)
 
-      (dbSessionResource, tibiaDataClientResource).tupled.use { case (dbSession, tibiaDataClientSession) =>
-        val repo = new OnlineTrackerSkunkRepo(dbSession)
-        val tibiaDataClient = new TibiaDataHttp4sClient(tibiaDataClientSession)
-        val service = new OnlineTrackerService(repo, tibiaDataClient)
+      val maxRetries = 10
+      val retryDelay = 5.seconds
 
-        val worlds: List[String] =
-          sys.env
-            .get("TRACKER_WORLDS")
-            .orElse(sys.env.get("WORLD"))
-            .map(_.split(",").map(_.trim).filter(_.nonEmpty).toList)
-            .getOrElse(List("Nefera"))
-        val intervalSeconds = sys.env.get("TRACKER_INTERVAL_SECONDS").flatMap(s => s.toIntOption).getOrElse(15)
+      def acquireWithRetry(attempt: Int): IO[ExitCode] = {
+        val dbSessionResource: Resource[IO, Session[IO]] = Session.single(
+          host = dbCfg.host,
+          port = dbCfg.port,
+          user = dbCfg.user,
+          database = dbCfg.database,
+          password = dbCfg.password.some,
+          ssl = sslMode
+        )
+        val tibiaDataClientResource = TibiaDataHttp4sClient.clientResource
 
-        Stream.fixedRateStartImmediately[IO](intervalSeconds.seconds).evalTap { _ =>
-          worlds.traverse_(world =>
-            service.updateDataForWorld(world).handleErrorWith { e =>
-              Logger[IO].warn(e)(s"Recovering from error in stream for $world:${System.lineSeparator}")
-            }
-          )
-        }.compile.drain.as(ExitCode.Success)
+        (dbSessionResource, tibiaDataClientResource).tupled.use { case (dbSession, tibiaDataClientSession) =>
+          val repo = new OnlineTrackerSkunkRepo(dbSession)
+          val tibiaDataClient = new TibiaDataHttp4sClient(tibiaDataClientSession)
+          val service = new OnlineTrackerService(repo, tibiaDataClient)
+
+          val worlds: List[String] =
+            sys.env
+              .get("TRACKER_WORLDS")
+              .orElse(sys.env.get("WORLD"))
+              .map(_.split(",").map(_.trim).filter(_.nonEmpty).toList)
+              .getOrElse(List("Nefera"))
+          val intervalSeconds = sys.env.get("TRACKER_INTERVAL_SECONDS").flatMap(s => s.toIntOption).getOrElse(15)
+
+          repo.ensureSchema *>
+          Stream.fixedRateStartImmediately[IO](intervalSeconds.seconds).evalTap { _ =>
+            worlds.traverse_(world =>
+              service.updateDataForWorld(world).handleErrorWith { e =>
+                Logger[IO].warn(e)(s"Recovering from error in stream for $world:${System.lineSeparator}")
+              }
+            )
+          }.compile.drain.as(ExitCode.Success)
+        }.handleErrorWith { e =>
+          if (attempt < maxRetries)
+            Logger[IO].warn(e)(
+              s"DB connection failed (attempt $attempt/$maxRetries), retrying in ${retryDelay.toSeconds}s..."
+            ) *> IO.sleep(retryDelay) *> acquireWithRetry(attempt + 1)
+          else
+            Logger[IO].error(e)(s"DB connection failed after $maxRetries attempts. Giving up.") *>
+              IO.pure(ExitCode.Error)
+        }
       }
+
+      acquireWithRetry(1)
     }
   }
 

@@ -25,8 +25,9 @@ if not "%MISSING%"=="" (
 )
 
 if "%ALTFINDER_TOKEN%"=="" (
-  echo ERROR: Missing ALTFINDER_TOKEN in .env.
-  exit /b 1
+  echo WARNING: ALTFINDER_TOKEN is not set. Discord bot and watch runner will be disabled.
+  echo The REST API and web board will still be available.
+  echo To enable Discord: set ALTFINDER_TOKEN in .env
 )
 
 cd /d "%SCRIPT_DIR%"

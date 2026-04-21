@@ -43,6 +43,8 @@ trait AltFinderRepoAlg[F[_]] {
   def listTrackedGuilds(guildId: String): F[List[GuildTrackEntry]]
   def saveResearchRun(run: ResearchRunWrite): F[Unit]
   def listResearchRuns(limit: Int): F[List[ResearchRun]]
+  def countTotalLogins(characterNames: List[String]): F[Int]
   def countOnlineHistoryRows: F[Long]
   def latestWorldSaveTime: F[Option[OffsetDateTime]]
+  def getCurrentlyOnlineNames: F[List[String]]
 }

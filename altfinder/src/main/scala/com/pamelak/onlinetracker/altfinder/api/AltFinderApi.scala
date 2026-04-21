@@ -25,6 +25,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import io.circe.Json
 import scala.collection.mutable
+import scala.concurrent.duration.*
 import scala.util.Try
 
 final class AltFinderApi[F[_]: Async](
@@ -122,6 +123,24 @@ final class AltFinderApi[F[_]: Async](
   final case class WatchBatchItem(characterName: String, matches: Int, lines: List[String])
   final case class WatchBatchResponse(guildId: String, total: Int, items: List[WatchBatchItem])
 
+  final case class OnlineNamesResponse(count: Int, names: List[String])
+
+  final case class CharacterInfoResponse(
+      name: String,
+      level: Int,
+      vocation: String,
+      world: String,
+      sex: String,
+      guild: Option[String],
+      guildRank: Option[String],
+      formerNames: List[String],
+      lastLogin: Option[String],
+      recentTradeDates: List[String],
+      tradedCheckError: Boolean,
+      tibiaComUrl: String,
+      exevopanUrl: String
+  )
+
   final case class AltsResponse(
       searchedCharacters: List[String],
       searchedFrom: Option[String],
@@ -153,6 +172,8 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchDeleteResponse] = deriveEncoder
   given Encoder[WatchBatchItem] = deriveEncoder
   given Encoder[WatchBatchResponse] = deriveEncoder
+  given Encoder[CharacterInfoResponse] = deriveEncoder
+  given Encoder[OnlineNamesResponse] = deriveEncoder
 
   private val queryCacheTtlSeconds = sys.env.get("QUERY_CACHE_TTL_SECONDS").flatMap(_.toIntOption).getOrElse(60).max(5)
   private val queryCache = mutable.Map.empty[String, (Long, Json)]
@@ -237,66 +258,70 @@ final class AltFinderApi[F[_]: Async](
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
         val cacheKey = s"alts|${characters.mkString(",")}|$from|$to|$distanceOpt|$includeClashes|$format"
-        cachedJson(cacheKey) {
-          service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).flatMap { results =>
-          val dateMessage = buildDateRange(results.searchedFrom, results.searchedTo)
-          val tradeSummary = buildTradeSummary(results.sales, from)
-          val formattedMatches = results.adjacencies.take(20).map { adj =>
-            val formatted = if (format == "classic") formatClassic(adj) else formatDetailed(adj)
-            AltMatch(
-              name = adj.characterName.getOrElse("Unknown"),
-              adjacencies = adj.adjacencies,
-              clashes = adj.clashes,
-              logins = adj.logins,
-              sessionSimilarity = adj.sessionSimilarity,
-              confidence = adj.confidence,
-              hiddenScore = adj.hiddenScore,
-              hiddenLikely = adj.hiddenLikely,
-              evidencePassed = adj.evidencePassed,
-              explanation = explainAdj(adj),
-              recentTradeDates = adj.recentTradeDates.map(_.toString),
-              formatted = formatted
-            )
-          }
+        Async[F].timeoutTo(
+          cachedJson(cacheKey) {
+            service.findAndPrintAlts(characters, from, to, distanceOpt, includeClashes).flatMap { results =>
+            val dateMessage = buildDateRange(results.searchedFrom, results.searchedTo)
+            val tradeSummary = buildTradeSummary(results.sales, from)
+            val formattedMatches = results.adjacencies.take(20).map { adj =>
+              val formatted = if (format == "classic") formatClassic(adj) else formatDetailed(adj)
+              AltMatch(
+                name = adj.characterName.getOrElse("Unknown"),
+                adjacencies = adj.adjacencies,
+                clashes = adj.clashes,
+                logins = adj.logins,
+                sessionSimilarity = adj.sessionSimilarity,
+                confidence = adj.confidence,
+                hiddenScore = adj.hiddenScore,
+                hiddenLikely = adj.hiddenLikely,
+                evidencePassed = adj.evidencePassed,
+                explanation = explainAdj(adj),
+                recentTradeDates = adj.recentTradeDates.map(_.toString),
+                formatted = formatted
+              )
+            }
 
-          val response = AltsResponse(
-            searchedCharacters = results.searchedCharacters,
-            searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
-            searchedTo = results.searchedTo.map(_.toLocalDate.toString),
-            totalLogins = results.mainLogins,
-            dateRange = dateMessage,
-            adjacencyDistanceMinutes = distanceOpt.getOrElse(0),
-            includeClashes = includeClashes,
-            tradeSummary = tradeSummary,
-            candidateTradeErrors = results.candidateTradeErrors,
-            possibleMatches = formattedMatches,
-            formattedText = buildFormattedText(
-              results = results,
-              tradeSummary = tradeSummary,
-              distance = distanceOpt.getOrElse(0),
-              includeClashes = includeClashes,
-              format = format
-            )
-          )
-          val summaryText = response.formattedText.take(4000)
-          repo.saveResearchRun(
-            ResearchRunWrite(
-              runType = "alts",
+            val response = AltsResponse(
               searchedCharacters = results.searchedCharacters,
-              targetCharacters = Nil,
-              from = results.searchedFrom,
-              to = results.searchedTo,
-              distance = distanceOpt.getOrElse(0),
-              includeClashes = includeClashes,
+              searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
+              searchedTo = results.searchedTo.map(_.toLocalDate.toString),
               totalLogins = results.mainLogins,
-              matchCount = formattedMatches.length,
-              summary = summaryText
+              dateRange = dateMessage,
+              adjacencyDistanceMinutes = distanceOpt.getOrElse(0),
+              includeClashes = includeClashes,
+              tradeSummary = tradeSummary,
+              candidateTradeErrors = results.candidateTradeErrors,
+              possibleMatches = formattedMatches,
+              formattedText = buildFormattedText(
+                results = results,
+                tradeSummary = tradeSummary,
+                distance = distanceOpt.getOrElse(0),
+                includeClashes = includeClashes,
+                format = format
+              )
             )
-          ).attempt *> Async[F].pure(response.asJson)
-        }.recoverWith { case ex =>
-          Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
-        }
-        }.flatMap(json => Ok(json)).handleErrorWith { case ex =>
+            val summaryText = response.formattedText.take(4000)
+            Async[F].start(repo.saveResearchRun(
+              ResearchRunWrite(
+                runType = "alts",
+                searchedCharacters = results.searchedCharacters,
+                targetCharacters = Nil,
+                from = results.searchedFrom,
+                to = results.searchedTo,
+                distance = distanceOpt.getOrElse(0),
+                includeClashes = includeClashes,
+                totalLogins = results.mainLogins,
+                matchCount = formattedMatches.length,
+                summary = summaryText
+              )
+            ).attempt).as(response.asJson)
+          }.recoverWith { case ex =>
+            Async[F].pure(ErrorResponse(s"Search failed: ${ex.getMessage}", Nil).asJson)
+          }
+          },
+          45.seconds,
+          Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
+        ).flatMap(json => Ok(json)).handleErrorWith { case ex =>
           InternalServerError(ErrorResponse(s"Internal server error: ${ex.getMessage}", Nil).asJson)
         }
       }
@@ -385,56 +410,60 @@ final class AltFinderApi[F[_]: Async](
         BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
       } else {
         val cacheKey = s"clashes|${characters.mkString(",")}|${targets.mkString(",")}|$from|$to|$distance"
-        cachedJson(cacheKey) {
-          service.findClashes(characters, targets, from, to, distance).flatMap { results =>
-          val matches = results.clashes.map { c =>
-            val name = c.characterName.getOrElse("Unknown")
-            val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
-            ClashMatch(name, c.adjacencies, c.clashes, c.logins, formatted)
-          }
-          val body =
-            if (matches.isEmpty) "No clashes found."
-            else matches.map(_.formatted).mkString("\n")
-          val formattedText =
-            List(
-              "Searched characters",
-              results.searchedCharacters.mkString(", "),
-              "Checked against",
-              results.checkedCharacters.mkString(", "),
-              "Adjacency distance",
-              appendMinutes(distance),
-              "Total clashes",
-              matches.length.toString,
-              "",
-              "Clash matches",
-              body
-            ).mkString("\n")
-          val response = ClashesResponse(
-              searchedCharacters = results.searchedCharacters,
-              checkedCharacters = results.checkedCharacters,
-              searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
-              searchedTo = results.searchedTo.map(_.toLocalDate.toString),
-              adjacencyDistanceMinutes = distance,
-              totalClashes = matches.length,
-              clashes = matches,
-              formattedText = formattedText
-            )
-          repo.saveResearchRun(
-            ResearchRunWrite(
-              runType = "clashes",
-              searchedCharacters = results.searchedCharacters,
-              targetCharacters = results.checkedCharacters,
-              from = results.searchedFrom,
-              to = results.searchedTo,
-              distance = distance,
-              includeClashes = true,
-              totalLogins = 0,
-              matchCount = matches.length,
-              summary = response.formattedText.take(4000)
-            )
-          ).attempt *> Async[F].pure(response.asJson)
-          }
-        }.flatMap(json => Ok(json))
+        Async[F].timeoutTo(
+          cachedJson(cacheKey) {
+            service.findClashes(characters, targets, from, to, distance).flatMap { results =>
+            val matches = results.clashes.map { c =>
+              val name = c.characterName.getOrElse("Unknown")
+              val formatted = s"$name: ${c.adjacencies} / ${c.clashes} / ${c.logins}"
+              ClashMatch(name, c.adjacencies, c.clashes, c.logins, formatted)
+            }
+            val body =
+              if (matches.isEmpty) "No clashes found."
+              else matches.map(_.formatted).mkString("\n")
+            val formattedText =
+              List(
+                "Searched characters",
+                results.searchedCharacters.mkString(", "),
+                "Checked against",
+                results.checkedCharacters.mkString(", "),
+                "Adjacency distance",
+                appendMinutes(distance),
+                "Total clashes",
+                matches.length.toString,
+                "",
+                "Clash matches",
+                body
+              ).mkString("\n")
+            val response = ClashesResponse(
+                searchedCharacters = results.searchedCharacters,
+                checkedCharacters = results.checkedCharacters,
+                searchedFrom = results.searchedFrom.map(_.toLocalDate.toString),
+                searchedTo = results.searchedTo.map(_.toLocalDate.toString),
+                adjacencyDistanceMinutes = distance,
+                totalClashes = matches.length,
+                clashes = matches,
+                formattedText = formattedText
+              )
+            Async[F].start(repo.saveResearchRun(
+              ResearchRunWrite(
+                runType = "clashes",
+                searchedCharacters = results.searchedCharacters,
+                targetCharacters = results.checkedCharacters,
+                from = results.searchedFrom,
+                to = results.searchedTo,
+                distance = distance,
+                includeClashes = true,
+                totalLogins = 0,
+                matchCount = matches.length,
+                summary = response.formattedText.take(4000)
+              )
+            ).attempt).as(response.asJson)
+            }
+          },
+          45.seconds,
+          Async[F].pure(ErrorResponse("response timed out", Nil).asJson)
+        ).flatMap(json => Ok(json))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "guild" =>
@@ -548,6 +577,76 @@ final class AltFinderApi[F[_]: Async](
         }
       }
 
+    case GET -> Root / "api" / "altfinder" / "online" =>
+      val cacheKey = "online"
+      cachedJson(cacheKey) {
+        repo.getCurrentlyOnlineNames.map { names =>
+          OnlineNamesResponse(count = names.length, names = names).asJson
+        }
+      }.flatMap(json => Ok(json)).handleErrorWith { e =>
+        InternalServerError(ErrorResponse("Could not fetch online names", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
+      }
+
+    case req @ GET -> Root / "api" / "altfinder" / "character" =>
+      val params = req.uri.query.params
+      params.get("name").map(_.trim).filter(_.nonEmpty) match
+        case None =>
+          BadRequest(ErrorResponse("Invalid request", List("Missing required query param: name")).asJson)
+        case Some(name) =>
+          val cacheKey = s"char|$name"
+          cachedJson(cacheKey) {
+            // trade lookback window matches the default used by the alts search
+            val tradeLookbackDays = 30
+            val tibiaDataF = tibiaDataClient.getCharacter(name).map(Right(_)).handleError(e => Left(e.getMessage))
+            val tradesF = service.checkTradedCharacters(List(name), tradeLookbackDays)
+              .map(Right(_)).handleError(e => Left(e.getMessage))
+            (tibiaDataF, tradesF).mapN { case (tibiaResult, tradesResult) =>
+              val charJson = tibiaResult.toOption
+              val charCursor = charJson.map(_.hcursor.downField("character").downField("character"))
+              val charName = charCursor.flatMap(_.get[String]("name").toOption).getOrElse(name)
+              val level = charCursor.flatMap(_.get[Double]("level").toOption).map(_.toInt).getOrElse(0)
+              val vocation = charCursor.flatMap(_.get[String]("vocation").toOption).getOrElse("-")
+              val world = charCursor.flatMap(_.get[String]("world").toOption).getOrElse("-")
+              val sex = charCursor.flatMap(_.get[String]("sex").toOption).getOrElse("-")
+              val guildName = charCursor.flatMap(
+                _.downField("guild").get[String]("name").toOption
+              )
+              val guildRank = charCursor.flatMap(
+                _.downField("guild").get[String]("rank").toOption
+              )
+              val formerNames = charCursor.flatMap(
+                _.get[List[String]]("former_names").toOption
+              ).getOrElse(Nil)
+              val lastLogin = charCursor.flatMap(_.get[String]("last_login").toOption)
+              val trades = tradesResult.toOption.getOrElse(Nil)
+              val tradeStatus = trades.headOption
+              val recentTradeDates = tradeStatus.map(_.recentTradeDates.map(_.toString)).getOrElse(Nil)
+              val tradedCheckError = tradeStatus.exists(_.hadError)
+              // URLEncoder uses '+' for spaces; replace with %20 for query-param-safe URLs.
+              // StandardCharsets.UTF_8 avoids the deprecated String charset overload.
+              val encodedName = java.net.URLEncoder.encode(charName, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20")
+              val tibiaComUrl = s"https://www.tibia.com/community/?subtopic=characters&name=$encodedName"
+              val exevopanUrl = s"https://www.exevopan.com/?name=$encodedName"
+              CharacterInfoResponse(
+                name = charName,
+                level = level,
+                vocation = vocation,
+                world = world,
+                sex = sex,
+                guild = guildName,
+                guildRank = guildRank,
+                formerNames = formerNames,
+                lastLogin = lastLogin,
+                recentTradeDates = recentTradeDates,
+                tradedCheckError = tradedCheckError,
+                tibiaComUrl = tibiaComUrl,
+                exevopanUrl = exevopanUrl
+              ).asJson
+            }
+          }.flatMap(json => Ok(json)).handleErrorWith { e =>
+            BadRequest(ErrorResponse("Character lookup failed", List(Option(e.getMessage).getOrElse("unknown error"))).asJson)
+          }
+
   }
 
   private def parseDateParam(
@@ -565,7 +664,7 @@ final class AltFinderApi[F[_]: Async](
           case Right(value) => Some(value)
   }
 
-  private def parseDate(raw: String): Either[String, OffsetDateTime] = {
+  private[api] def parseDate(raw: String): Either[String, OffsetDateTime] = {
     Try(LocalDate.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE)).toEither.left
       .map(_ => s"Date needs to be in YYYY-MM-DD format. Could not parse date: $raw")
       .map(d => ZonedDateTime.of(d, LocalTime.of(10, 0), berlinZone).toOffsetDateTime)
@@ -602,7 +701,7 @@ final class AltFinderApi[F[_]: Async](
             None
   }
 
-  private def buildDateRange(from: Option[OffsetDateTime], to: Option[OffsetDateTime]): String = {
+  private[api] def buildDateRange(from: Option[OffsetDateTime], to: Option[OffsetDateTime]): String = {
     (from, to) match
       case (None, None) => "Max range"
       case (None, Some(t)) => s"Until ${t.toLocalDate}"
@@ -661,13 +760,13 @@ final class AltFinderApi[F[_]: Async](
     (name, world, total, online, onlineCharacters)
   }
 
-  private def formatClassic(adj: CharacterAdjacencies): String = {
+  private[api] def formatClassic(adj: CharacterAdjacencies): String = {
     val name = adj.characterName.getOrElse("Unknown")
     val clashText = if (adj.clashes < 0) "yes" else adj.clashes.toString
     s"$name: ${adj.adjacencies} / $clashText / ${adj.logins}"
   }
 
-  private def formatDetailed(adj: CharacterAdjacencies): String = {
+  private[api] def formatDetailed(adj: CharacterAdjacencies): String = {
     val name = adj.characterName.getOrElse("Unknown")
     val clashText = if (adj.clashes < 0) "yes" else adj.clashes.toString
     val tradeText =
@@ -683,7 +782,7 @@ final class AltFinderApi[F[_]: Async](
     s"adj=${adj.adjacencies}, $clashText, logins=${adj.logins}, sessionSimilarity=${adj.sessionSimilarity}, $evidenceText"
   }
 
-  private def appendMinutes(i: Int) = if (i == 1) s"$i minute" else s"$i minutes"
+  private[api] def appendMinutes(i: Int) = if (i == 1) s"$i minute" else s"$i minutes"
 
   private def buildFormattedText(
       results: AltFinderService.AltsResults,
@@ -722,447 +821,18 @@ final class AltFinderApi[F[_]: Async](
     (header ++ tradeLines ++ body ++ matchLines).mkString("\n")
   }
 
-  private val uiHtml: String =
-    """<!doctype html>
-      |<html lang="en">
-      |<head>
-      |  <meta charset="utf-8" />
-      |  <meta name="viewport" content="width=device-width, initial-scale=1" />
-      |  <title>Alt Finder Console</title>
-      |  <style>
-      |    :root {
-      |      --bg: #f4efe4;
-      |      --ink: #101417;
-      |      --muted: #55646f;
-      |      --card: #fff9eecc;
-      |      --line: #dbcaa6;
-      |      --accent: #d95d39;
-      |      --accent-2: #2f6e69;
-      |      --ok: #1f7a42;
-      |      --warn: #8c2f39;
-      |      --shadow: 0 20px 45px #7f735840;
-      |    }
-      |    * { box-sizing: border-box; }
-      |    body {
-      |      margin: 0;
-      |      font-family: "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
-      |      color: var(--ink);
-      |      background:
-      |        radial-gradient(circle at 14% 8%, #f7d58a 0%, transparent 35%),
-      |        radial-gradient(circle at 92% 22%, #9dd6d0 0%, transparent 33%),
-      |        linear-gradient(165deg, #efe5d0 0%, #f6f1e8 45%, #ecdfc5 100%);
-      |      min-height: 100vh;
-      |    }
-      |    .noise {
-      |      position: fixed;
-      |      inset: 0;
-      |      pointer-events: none;
-      |      opacity: 0.15;
-      |      background-image: radial-gradient(#6f5f44 0.4px, transparent 0.4px);
-      |      background-size: 4px 4px;
-      |    }
-      |    .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 18px 34px; }
-      |    .hero {
-      |      margin-bottom: 18px;
-      |      display: flex;
-      |      align-items: end;
-      |      justify-content: space-between;
-      |      gap: 12px;
-      |      opacity: 0;
-      |      transform: translateY(12px);
-      |      animation: rise 0.55s ease forwards;
-      |    }
-      |    h1 {
-      |      margin: 0;
-      |      font-size: clamp(1.6rem, 1.9vw + 1rem, 2.4rem);
-      |      letter-spacing: 0.03em;
-      |      text-transform: uppercase;
-      |    }
-      |    .sub {
-      |      margin-top: 6px;
-      |      color: var(--muted);
-      |      max-width: 760px;
-      |      font-size: 0.98rem;
-      |    }
-      |    .badge {
-      |      border: 1px solid var(--line);
-      |      background: #ffffffa0;
-      |      border-radius: 999px;
-      |      padding: 7px 12px;
-      |      font-size: 0.82rem;
-      |      font-weight: 700;
-      |      white-space: nowrap;
-      |    }
-      |    .grid {
-      |      display: grid;
-      |      gap: 14px;
-      |      grid-template-columns: 1.1fr 1fr;
-      |      align-items: start;
-      |    }
-      |    .card {
-      |      border: 1px solid var(--line);
-      |      background: var(--card);
-      |      border-radius: 16px;
-      |      padding: 16px;
-      |      box-shadow: var(--shadow);
-      |      backdrop-filter: blur(5px);
-      |      opacity: 0;
-      |      transform: translateY(14px);
-      |      animation: rise 0.6s ease forwards;
-      |    }
-      |    .card:nth-child(2) { animation-delay: 0.08s; }
-      |    .card:nth-child(3) { animation-delay: 0.14s; }
-      |    .stack { display: grid; gap: 12px; }
-      |    h2 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: 0.04em; text-transform: uppercase; }
-      |    .form-grid { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      |    .full { grid-column: 1 / -1; }
-      |    label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 4px; letter-spacing: 0.03em; }
-      |    input, select {
-      |      width: 100%;
-      |      padding: 10px 11px;
-      |      border-radius: 10px;
-      |      border: 1px solid #c8b890;
-      |      background: #fffef9;
-      |      color: var(--ink);
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-size: 0.95rem;
-      |    }
-      |    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-      |    button {
-      |      border: 1px solid transparent;
-      |      border-radius: 11px;
-      |      padding: 10px 14px;
-      |      cursor: pointer;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-weight: 700;
-      |      transition: transform 0.15s ease, filter 0.15s ease;
-      |    }
-      |    button:hover { transform: translateY(-1px); filter: brightness(0.98); }
-      |    .btn-primary {
-      |      color: #fff;
-      |      background: linear-gradient(105deg, var(--accent), #c6512f);
-      |    }
-      |    .btn-ghost {
-      |      color: var(--accent-2);
-      |      border-color: #9ec5bd;
-      |      background: #edf7f5;
-      |    }
-      |    .meta {
-      |      color: var(--muted);
-      |      font-size: 0.84rem;
-      |      min-height: 20px;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |    }
-      |    .error {
-      |      color: var(--warn);
-      |      min-height: 20px;
-      |      font-weight: 700;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-size: 0.9rem;
-      |    }
-      |    .kpis {
-      |      display: grid;
-      |      gap: 8px;
-      |      grid-template-columns: repeat(2, minmax(0, 1fr));
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |    }
-      |    .kpi {
-      |      border: 1px dashed #ccb788;
-      |      border-radius: 10px;
-      |      padding: 9px 10px;
-      |      background: #fffefbcc;
-      |    }
-      |    .kpi b { display: block; font-size: 0.76rem; color: var(--muted); font-weight: 600; letter-spacing: 0.03em; }
-      |    .kpi span { font-size: 1.08rem; font-weight: 700; }
-      |    .status-ok { color: var(--ok); }
-      |    .table-wrap {
-      |      margin-top: 8px;
-      |      overflow: auto;
-      |      border: 1px solid #d9c8a2;
-      |      border-radius: 12px;
-      |      background: #fffdf7;
-      |      max-height: 460px;
-      |    }
-      |    table {
-      |      width: 100%;
-      |      border-collapse: collapse;
-      |      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-      |      font-size: 0.9rem;
-      |    }
-      |    th, td { padding: 9px 10px; border-bottom: 1px solid #ebdec4; text-align: left; white-space: nowrap; }
-      |    th { position: sticky; top: 0; background: #f7ecd4; font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; }
-      |    tr:nth-child(even) td { background: #fff9eb; }
-      |    .muted { color: var(--muted); }
-      |    .score-pill {
-      |      display: inline-block;
-      |      border-radius: 999px;
-      |      padding: 3px 8px;
-      |      background: #efe5cc;
-      |      border: 1px solid #d3bf90;
-      |      font-weight: 700;
-      |    }
-      |    pre {
-      |      margin: 0;
-      |      white-space: pre-wrap;
-      |      border: 1px solid #d3c39d;
-      |      border-radius: 12px;
-      |      background: #fffdf8;
-      |      padding: 12px;
-      |      font-family: "Consolas", "Courier New", monospace;
-      |      font-size: 0.82rem;
-      |      max-height: 280px;
-      |      overflow: auto;
-      |    }
-      |    @keyframes rise {
-      |      to { opacity: 1; transform: translateY(0); }
-      |    }
-      |    @media (max-width: 950px) {
-      |      .grid { grid-template-columns: 1fr; }
-      |      .hero { align-items: start; flex-direction: column; }
-      |    }
-      |    @media (max-width: 760px) {
-      |      .form-grid { grid-template-columns: 1fr 1fr; }
-      |    }
-      |    @media (max-width: 520px) {
-      |      .form-grid { grid-template-columns: 1fr; }
-      |      .kpis { grid-template-columns: 1fr; }
-      |    }
-      |  </style>
-      |</head>
-      |<body>
-      |  <div class="noise"></div>
-      |  <div class="wrap">
-      |    <div class="hero">
-      |      <div>
-      |        <h1>Tibia Alt Finder Console</h1>
-      |        <div class="sub">Search suspected alt networks from tracked login and logout adjacency data.</div>
-      |      </div>
-      |      <div class="badge" id="healthBadge">API health: ...</div>
-      |    </div>
-      |    <div class="grid">
-      |      <section class="card">
-      |        <h2>Search</h2>
-      |        <div class="form-grid">
-      |          <div class="full">
-      |            <label for="characters">Characters (comma separated)</label>
-      |            <input id="characters" placeholder="Deli Tokes, Another Name" />
-      |          </div>
-      |          <div>
-      |            <label for="distance">Distance minutes</label>
-      |            <input id="distance" type="number" min="0" value="0" />
-      |          </div>
-      |          <div>
-      |            <label for="clashes">Include clashes</label>
-      |            <select id="clashes">
-      |              <option value="false" selected>false</option>
-      |              <option value="true">true</option>
-      |            </select>
-      |          </div>
-      |        </div>
-      |        <div class="actions">
-      |          <button class="btn-primary" id="runBtn">Run Search</button>
-      |          <button class="btn-ghost" id="clearBtn">Clear</button>
-      |          <span class="meta" id="status"></span>
-      |        </div>
-      |        <div class="error" id="error"></div>
-      |        <div class="kpis">
-      |          <div class="kpi"><b>Total Logins</b><span id="kpiLogins">-</span></div>
-      |          <div class="kpi"><b>Matches</b><span id="kpiMatches">-</span></div>
-      |          <div class="kpi"><b>Date Range</b><span id="kpiRange">-</span></div>
-      |          <div class="kpi"><b>Last World Save</b><span id="kpiSave">-</span></div>
-      |        </div>
-      |      </section>
-      |      <section class="stack">
-      |        <div class="card">
-      |          <h2>Possible Matches</h2>
-      |          <div class="table-wrap">
-      |            <table>
-      |              <thead>
-      |                <tr>
-      |                  <th>Name</th>
-      |                  <th>Confidence</th>
-      |                  <th>Adj</th>
-      |                  <th>Clashes</th>
-      |                  <th>Logins</th>
-      |                  <th>Hidden</th>
-      |                  <th>Trades</th>
-      |                </tr>
-      |              </thead>
-      |              <tbody id="resultsBody">
-      |                <tr><td colspan="7" class="muted">No search yet.</td></tr>
-      |              </tbody>
-      |            </table>
-      |          </div>
-      |        </div>
-      |        <div class="card">
-      |          <h2>Raw Summary</h2>
-      |          <pre id="output">No search yet.</pre>
-      |        </div>
-      |      </section>
-      |    </div>
-      |  </div>
-      |  <script>
-      |    const $ = (id) => document.getElementById(id);
-      |    const ui = {
-      |      status: $("status"),
-      |      error: $("error"),
-      |      output: $("output"),
-      |      healthBadge: $("healthBadge"),
-      |      resultsBody: $("resultsBody"),
-      |      kpiLogins: $("kpiLogins"),
-      |      kpiMatches: $("kpiMatches"),
-      |      kpiRange: $("kpiRange"),
-      |      kpiSave: $("kpiSave")
-      |    };
-      |
-      |    function setStatus(message) {
-      |      ui.status.textContent = message || "";
-      |    }
-      |
-      |    function setError(message) {
-      |      ui.error.textContent = message || "";
-      |    }
-      |
-      |    function fillKpis(data, trackerStatus) {
-      |      ui.kpiLogins.textContent = String(data.totalLogins ?? "-");
-      |      ui.kpiMatches.textContent = String((data.possibleMatches || []).length);
-      |      ui.kpiRange.textContent = data.dateRange || "-";
-      |      ui.kpiSave.textContent = trackerStatus && trackerStatus.latestWorldSave ? trackerStatus.latestWorldSave : "-";
-      |    }
-      |
-      |    function renderRows(matches) {
-      |      if (!matches || matches.length === 0) {
-      |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No matches found.</td></tr>';
-      |        return;
-      |      }
-      |      const rows = matches.map((m) => {
-      |        const tradeDates = (m.recentTradeDates || []).length > 0 ? m.recentTradeDates.join(", ") : "none";
-      |        const hidden = m.hiddenLikely ? ("yes (" + m.hiddenScore + ")") : ("no (" + m.hiddenScore + ")");
-      |        return (
-      |          "<tr>" +
-      |            "<td>" + escapeHtml(m.name || "Unknown") + "</td>" +
-      |            "<td><span class=\"score-pill\">" + escapeHtml(String(m.confidence ?? "-")) + "</span></td>" +
-      |            "<td>" + escapeHtml(String(m.adjacencies ?? "-")) + "</td>" +
-      |            "<td>" + escapeHtml(String(m.clashes ?? "-")) + "</td>" +
-      |            "<td>" + escapeHtml(String(m.logins ?? "-")) + "</td>" +
-      |            "<td>" + escapeHtml(hidden) + "</td>" +
-      |            "<td>" + escapeHtml(tradeDates) + "</td>" +
-      |          "</tr>"
-      |        );
-      |      }).join("");
-      |      ui.resultsBody.innerHTML = rows;
-      |    }
-      |
-      |    function escapeHtml(value) {
-      |      return String(value)
-      |        .replaceAll("&", "&amp;")
-      |        .replaceAll("<", "&lt;")
-      |        .replaceAll(">", "&gt;")
-      |        .replaceAll("\"", "&quot;")
-      |        .replaceAll("'", "&#39;");
-      |    }
-      |
-      |    async function loadStatus() {
-      |      try {
-      |        const healthRes = await fetch("/api/altfinder/health");
-      |        const health = await healthRes.json();
-      |        ui.healthBadge.textContent = "API health: " + (health.status || "unknown");
-      |        if (health.status === "ok") ui.healthBadge.classList.add("status-ok");
-      |      } catch (_) {
-      |        ui.healthBadge.textContent = "API health: unavailable";
-      |      }
-      |      try {
-      |        const statusRes = await fetch("/api/altfinder/status");
-      |        if (statusRes.ok) {
-      |          const trackerStatus = await statusRes.json();
-      |          if (!ui.kpiSave.textContent || ui.kpiSave.textContent === "-") {
-      |            ui.kpiSave.textContent = trackerStatus.latestWorldSave || "-";
-      |          }
-      |        }
-      |      } catch (_) {}
-      |    }
-      |
-      |    async function runSearch() {
-      |      setError("");
-      |      setStatus("Searching...");
-      |      ui.output.textContent = "Loading...";
-      |      const timeoutMs = 60000;
-      |
-      |      const q = new URLSearchParams();
-      |      const chars = $("characters").value.trim();
-      |      const distance = $("distance").value.trim();
-      |      const includeClashes = $("clashes").value;
-      |
-      |      if (!chars) {
-      |        setError("Characters is required.");
-      |        setStatus("");
-      |        ui.output.textContent = "No search yet.";
-      |        return;
-      |      }
-      |
-      |      q.set("characters", chars);
-      |      if (distance) q.set("distance", distance);
-      |      q.set("includeClashes", includeClashes);
-      |      q.set("format", "detailed");
-      |
-      |      try {
-      |        const controller = new AbortController();
-      |        const timer = setTimeout(() => controller.abort(), timeoutMs);
-      |        const res = await fetch("/api/altfinder/alts?" + q.toString(), { signal: controller.signal });
-      |        clearTimeout(timer);
-      |        const raw = await res.text();
-      |        let data;
-      |        try {
-      |          data = raw ? JSON.parse(raw) : {};
-      |        } catch (_) {
-      |          if (/response timed out/i.test(raw)) {
-      |            throw new Error("Backend timed out. Narrow date range, reduce characters, or retry.");
-      |          }
-      |          throw new Error("Non-JSON response from backend: " + String(raw).slice(0, 200));
-      |        }
-      |        let trackerStatus = {};
-      |        try {
-      |          const trackerRes = await fetch("/api/altfinder/status");
-      |          if (trackerRes.ok) trackerStatus = await trackerRes.json();
-      |        } catch (_) {}
-      |        if (!res.ok) {
-      |          throw new Error(data.error ? (data.error + " | " + (data.details || []).join("; ")) : "Request failed");
-      |        }
-      |        fillKpis(data, trackerStatus);
-      |        renderRows(data.possibleMatches || []);
-      |        ui.output.textContent = data.formattedText || JSON.stringify(data, null, 2);
-      |        setStatus("Done.");
-      |      } catch (e) {
-      |        if (e && e.name === "AbortError") {
-      |          setError("Backend timed out. Narrow date range, reduce characters, or retry.");
-      |        } else {
-      |          setError(e.message || String(e));
-      |        }
-      |        ui.output.textContent = "Search failed.";
-      |        ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">Search failed.</td></tr>';
-      |        setStatus("");
-      |      }
-      |    }
-      |
-      |    $("runBtn").addEventListener("click", runSearch);
-      |    $("clearBtn").addEventListener("click", () => {
-      |      $("characters").value = "";
-      |      $("distance").value = "0";
-      |      $("clashes").value = "false";
-      |      setStatus("");
-      |      setError("");
-      |      ui.output.textContent = "No search yet.";
-      |      ui.resultsBody.innerHTML = '<tr><td colspan="7" class="muted">No search yet.</td></tr>';
-      |      ui.kpiLogins.textContent = "-";
-      |      ui.kpiMatches.textContent = "-";
-      |      ui.kpiRange.textContent = "-";
-      |    });
-      |    $("characters").addEventListener("keydown", (e) => {
-      |      if (e.key === "Enter") runSearch();
-      |    });
-      |    loadStatus();
-      |  </script>
-      |</body>
-      |</html>
-      |""".stripMargin
+  private val uiHtml: String = {
+    def readRes(name: String): String = {
+      val stream = Option(Thread.currentThread.getContextClassLoader.getResourceAsStream(name))
+        .getOrElse(throw new RuntimeException(s"Web resource not found on classpath (expected in frontend/ directory): $name"))
+      val source = scala.io.Source.fromInputStream(stream)
+      try source.mkString finally { source.close(); stream.close() }
+    }
+    val html = readRes("index.html")
+    val js   = readRes("app.js")
+    val css  = readRes("styles.css")
+    html
+      .replace("<link rel=\"stylesheet\" href=\"./styles.css\"/>", s"<style>\n$css\n</style>")
+      .replace("<script src=\"./app.js\"></script>", s"<script>\n$js\n</script>")
+  }
 }

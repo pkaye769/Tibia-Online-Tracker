@@ -73,10 +73,9 @@ exit /b 0
 
 :check_token
 if "%ALTFINDER_TOKEN%"=="" (
-  echo ERROR: Missing ALTFINDER_TOKEN for altfinder bot.
-  echo Example in PowerShell:
-  echo   $env:ALTFINDER_TOKEN="your-altfinder-bot-token"
-  exit /b 1
+  echo WARNING: ALTFINDER_TOKEN is not set. Discord bot and watch runner will be disabled.
+  echo The REST API and web board will still be available.
+  echo To enable Discord: set ALTFINDER_TOKEN in .env
 )
 set "TOKEN=%ALTFINDER_TOKEN%"
 exit /b 0

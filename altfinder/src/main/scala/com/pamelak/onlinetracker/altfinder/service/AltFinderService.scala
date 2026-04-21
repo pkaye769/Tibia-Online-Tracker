@@ -1,8 +1,8 @@
 package com.pamelak.onlinetracker.altfinder.service
 
+import cats.Parallel
 import cats.effect.kernel.Async
 import cats.implicits.*
-import com.carrotsearch.sizeof.RamUsageEstimator
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper.*
 import com.pamelak.onlinetracker.altfinder.repo.AltFinderRepoAlg
@@ -14,9 +14,10 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.time.{LocalDate, OffsetDateTime, ZoneId, ZonedDateTime}
+import scala.concurrent.duration.*
 
 object AltFinderService {
-  case class CharacterLoginHistory(characterId: Long, segments: Array[OnlineSegment])
+  case class CharacterLoginHistory(characterId: Long, segments: Array[OnlineSegment], segmentsByEnd: Array[OnlineSegment])
 
   case class CharacterAdjacencies(
       characterId: Long,
@@ -32,7 +33,7 @@ object AltFinderService {
       recentTradeDates: List[LocalDate]
   ) {
     override def toString: String = {
-      s"${characterName.getOrElse("")}: $adjacencies / $clashes / $logins"
+      s"${characterName.getOrElse("Unknown")}: $adjacencies / $clashes / $logins"
     }
   }
 
@@ -67,7 +68,7 @@ object AltFinderService {
 
 }
 
-class AltFinderService[F[_]: Async](
+class AltFinderService[F[_]: Async: Parallel](
     repo: AltFinderRepoAlg[F],
     bazaarScraper: BazaarScraper[F],
     tradeLookbackDays: Int = 30,
@@ -77,7 +78,8 @@ class AltFinderService[F[_]: Async](
     hiddenLikelyMaxClashRatio: Double = 0.25,
     minEvidenceLogins: Int = 8,
     minEvidenceAdjacencies: Int = 2,
-    includeLowEvidenceMatches: Boolean = false
+    includeLowEvidenceMatches: Boolean = false,
+    defaultLookbackDays: Int = 90
 ) {
 
   given Logger[F] = Slf4jLogger.getLogger[F]
@@ -115,22 +117,64 @@ class AltFinderService[F[_]: Async](
     for
       _ <- Logger[F].info(s"Searching for: ${characterNames.mkString(", ")}")
       _ <- Logger[F].info(s"Date range: $from - $to")
-      sales <- characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).sequence
+      // Bound the bazaar pre-check to 5 s.  Each individual HTTP call already has a
+      // 5 s request timeout, but with retries on 5xx the per-character cost can reach
+      // ~11 s.  Capping the whole parallel batch here prevents the bazaar check from
+      // consuming most of the 45 s API budget before the DB queries even start.
+      // On timeout we fall back to empty sales so tradedFrom falls back to defaultFrom.
+      sales <- Async[F].timeoutTo(
+        characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).parSequence,
+        5.seconds,
+        Async[F].pure(characterNames.map(n => CharacterSales(n, Right(Nil))))
+      )
       latestSale = BazaarScraper.latestSale(sales)
-      tradedFrom = from.orElse { latestSale.map(_.toOffsetDateTime()) }
-      mainSegments <- repo.getOnlineTimes(characterNames, tradedFrom, to)
-      _ <- Logger[F].info(s"Got online times for searched characters (${mainSegments.length} rows)")
-      _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(mainSegments))
-      matchesToCheck <- repo.getPossibleMatches(characterNames, tradedFrom, to, distance)
-      _ <- Logger[F].info("Got online times for possible matched characters")
-      _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(matchesToCheck))
-      _ <- Logger[F].info(s"${matchesToCheck.length} rows to analyse")
-      adj = getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20)
-      results <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
-        .sequence
+      defaultFrom = OffsetDateTime.now(ZoneId.of("Europe/Berlin")).minusDays(defaultLookbackDays.toLong)
+      // Cap tradedFrom at defaultFrom.  If latestSale is older than defaultFrom (e.g. a
+      // character was sold a year ago and the default lookback is 90 days) the uncapped
+      // value would silently expand the DB scan window well beyond what the user expects
+      // and what the database can serve quickly.  The user can always pass an explicit
+      // `from` date to override this.  When `from` is set by the caller it takes precedence.
+      tradedFrom = from.orElse {
+        latestSale.map { s =>
+          val saleDate = s.toOffsetDateTime()
+          if (saleDate.isAfter(defaultFrom)) saleDate else defaultFrom
+        }
+      }.orElse(Some(defaultFrom))
+      // Run the two independent DB read queries in parallel so that the faster one
+      // (getOnlineTimes) completes "for free" while getPossibleMatches is running.
+      dbPair <- (
+        repo.getOnlineTimes(characterNames, tradedFrom, to),
+        repo.getPossibleMatches(characterNames, tradedFrom, to, distance)
+      ).parTupled
+      (mainSegments, matchesToCheck) = dbPair
+      _ <- Logger[F].info(s"DB queries complete — main segments: ${mainSegments.length} rows, candidates: ${matchesToCheck.length} rows to analyse")
+      adj <- Async[F].blocking(getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20))
+      adjWithNames <- adj.map(a =>
+        repo.getCharacterName(a.characterId)
+          .map { i => a.copy(characterName = Some(i)) }
+          .handleErrorWith { e =>
+            Logger[F].warn(s"Could not fetch name for character ID ${a.characterId}: ${e.getMessage}") *>
+              Async[F].pure(a)
+          }
+      ).parSequence
+      // Run trade-enrichment (capped at 10 s) and countTotalLogins in parallel.
+      // countTotalLogins is a fast indexed COUNT query; running it alongside the
+      // (potentially slow) trade HTTP calls means it completes "for free" and does
+      // not add to the critical path at all.
+      tradePair <- (
+        Async[F].timeoutTo(
+          enrichWithCandidateTrades(adjWithNames),
+          10.seconds,
+          Async[F].pure(CandidateTradeInfo(Map.empty, adjWithNames.length))
+        ),
+        repo.countTotalLogins(characterNames)
+      ).parTupled
+      (tradeInfo, mainLogins) = tradePair
+      _ <- Logger[F].info(s"Total all-time logins for searched characters: $mainLogins")
+      results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap, mainLogins))
       filteredResults =
         if (includeLowEvidenceMatches) results
-        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && r.logins >= minEvidenceLogins)
+        else results.filter(r => r.adjacencies >= minEvidenceAdjacencies && (r.logins >= minEvidenceLogins || mainLogins >= minEvidenceLogins))
       altsResults = AltsResults(
         characterNames,
         tradedFrom,
@@ -138,7 +182,7 @@ class AltFinderService[F[_]: Async](
         mainSegments.length,
         filteredResults,
         CharacterSalesList(sales),
-        0
+        tradeInfo.errorCount
       )
       _ <- results.map(i => Logger[F].info(i.toString)).sequence
     yield altsResults
@@ -157,7 +201,7 @@ class AltFinderService[F[_]: Async](
       mainSegments <- repo.getOnlineTimes(characterNames, from, to)
       toCheckSegments <- repo.getOnlineTimes(toCheck, from, to)
       _ <- Logger[F].info(s"${toCheckSegments.length} rows to analyse from ${mainSegments.length} segments")
-      adj = getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance = 0)
+      adj <- Async[F].blocking(getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance = 0))
       results <- adj.map(a => repo.getCharacterName(a.characterId).map { i => a.copy(characterName = Some(i)) })
         .sequence
       _ <- results.map(i => Logger[F].info(i.toString)).sequence
@@ -174,10 +218,12 @@ class AltFinderService[F[_]: Async](
     for
       mainSegments <- repo.getOnlineTimes(characterNames, from, to)
       toCheckSegments <- repo.getOnlineTimes(toCheck, from, to)
-      adj = getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance)
-        .filter(_.clashes > 0)
-        .sortBy(a => (-a.clashes, -a.adjacencies))
-        .take(30)
+      adj <- Async[F].blocking {
+        getAdjacencies(mainSegments, toCheckSegments, includeClashes = true, distance)
+          .filter(_.clashes > 0)
+          .sortBy(a => (-a.clashes, -a.adjacencies))
+          .take(30)
+      }
       clashes <- adj.map(a => repo.getCharacterName(a.characterId).map(n => a.copy(characterName = Some(n)))).sequence
     yield ClashResults(characterNames, toCheck, from, to, clashes)
   }
@@ -192,10 +238,10 @@ class AltFinderService[F[_]: Async](
     for
       aSegments <- repo.getOnlineTimes(List(characterA), from, to)
       bSegments <- repo.getOnlineTimes(List(characterB), from, to)
-      aToBAdj = getAdjacencies(aSegments, bSegments, includeClashes = true, distance)
-        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterB), 0, 0, bSegments.length, 0, 0, 0, false, false, Nil))
-      bToAAdj = getAdjacencies(bSegments, aSegments, includeClashes = true, distance)
-        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, 0, false, false, Nil))
+      aToBAdj <- Async[F].blocking(getAdjacencies(aSegments, bSegments, includeClashes = true, distance)
+        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterB), 0, 0, bSegments.length, 0, 0, 0, false, false, Nil)))
+      bToAAdj <- Async[F].blocking(getAdjacencies(bSegments, aSegments, includeClashes = true, distance)
+        .headOption.getOrElse(CharacterAdjacencies(-1, Some(characterA), 0, 0, aSegments.length, 0, 0, 0, false, false, Nil)))
     yield CompareResults(aToBAdj, bToAAdj)
   }
 
@@ -215,7 +261,7 @@ class AltFinderService[F[_]: Async](
             CharacterTradeStatus(name, allNames, filtered, hadError = false)
         }
       }
-    }.sequence
+    }.parSequence
   }
 
   def checkWorldTrades(world: String, lookbackDays: Int): F[Either[BazaarScraperError, List[CharacterTradeStatus]]] = {
@@ -245,14 +291,17 @@ class AltFinderService[F[_]: Async](
 
   def getLastSearch: F[Option[LastSearch]] = repo.getLastSearch
 
-  private def getAdjacencies(
+  private[service] def getAdjacencies(
       mainHistory: List[OnlineSegment],
       others: List[OnlineSegment],
       includeClashes: Boolean,
       distance: Int
   ): List[CharacterAdjacencies] = {
     val characterHistories = others.groupBy(_.characterId).toList
-      .map(i => CharacterLoginHistory(i._1, i._2.toArray.sortBy(_.start)))
+      .map { case (id, segs) =>
+        val arr = segs.toArray
+        CharacterLoginHistory(id, arr.sortBy(_.start), arr.sortBy(_.end))
+      }
     val mhArray = mainHistory.toArray.sortBy(_.start)
 
     characterHistories.flatMap { h =>
@@ -266,7 +315,7 @@ class AltFinderService[F[_]: Async](
         Some(CharacterAdjacencies(
           h.characterId,
           None,
-          countAdjacencies(mhArray, h.segments, distance),
+          countAdjacencies(mhArray, h.segments, h.segmentsByEnd, distance),
           clashes,
           h.segments.length,
           computeSessionSimilarity(mhArray, h.segments),
@@ -314,20 +363,43 @@ class AltFinderService[F[_]: Async](
     count
   }
 
-  // Distance is the acceptable distance between logouts and logins.
-  // No point optimising this one until the database query is optimised (it takes like 50x longer than this method)
-  private def countAdjacencies(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment], distance: Int): Int = {
-    mainHistory.count { m =>
-      other.exists { o =>
-        val diff = o.start - m.end
-        diff >= 0 && diff <= distance
-      }
-    } + mainHistory.count { m =>
-      other.exists { o =>
-        val diff = m.start - o.end
-        diff >= 0 && diff <= distance
-      }
+  // Distance is the acceptable gap in minutes between a logout and a login.
+  // start/end in OnlineSegment are epoch seconds, so we multiply by 60 to convert.
+  private def countAdjacencies(
+      mainHistory: Array[OnlineSegment],
+      other: Array[OnlineSegment],      // sorted by start
+      otherByEnd: Array[OnlineSegment], // sorted by end
+      distance: Int
+  ): Int = {
+    val distanceSecs = distance * 60L
+    val otherStarts = other.map(_.start)
+    val otherEnds   = otherByEnd.map(_.end)
+
+    // Direction 1: o starts within distanceSecs after m ends (m.end <= o.start <= m.end + distanceSecs)
+    val dir1 = mainHistory.count { m =>
+      val lo = lowerBound(otherStarts, m.end)
+      lo < other.length && otherStarts(lo) <= m.end + distanceSecs
     }
+
+    // Direction 2: o ends within distanceSecs before m starts (m.start - distanceSecs <= o.end <= m.start)
+    val dir2 = mainHistory.count { m =>
+      val lo = lowerBound(otherEnds, m.start - distanceSecs)
+      lo < otherByEnd.length && otherEnds(lo) <= m.start
+    }
+
+    dir1 + dir2
+  }
+
+  // Returns the first index i in arr where arr(i) >= value (lower bound).
+  private def lowerBound(arr: Array[Long], value: Long): Int = {
+    var lo = 0
+    var hi = arr.length
+    while (lo < hi) {
+      val mid = (lo + hi) >>> 1
+      if (arr(mid) < value) lo = mid + 1
+      else hi = mid
+    }
+    lo
   }
 
   private case class CandidateTradeInfo(tradeMap: Map[String, List[LocalDate]], errorCount: Int)
@@ -350,7 +422,7 @@ class AltFinderService[F[_]: Async](
                 (name, Right(filtered))
           }
         }
-      }.sequence.map { results =>
+      }.parSequence.map { results =>
         val errors = results.count(_._2.isLeft)
         val tradeMap = results.collect { case (name, Right(dates)) if dates.nonEmpty => name -> dates }.toMap
         CandidateTradeInfo(tradeMap, errors)
@@ -360,10 +432,14 @@ class AltFinderService[F[_]: Async](
 
   private def addTradeAndConfidence(
       adj: CharacterAdjacencies,
-      tradeMap: Map[String, List[LocalDate]]
+      tradeMap: Map[String, List[LocalDate]],
+      mainLogins: Int = 0
   ): CharacterAdjacencies = {
     val trades = adj.characterName.flatMap(name => tradeMap.get(name)).getOrElse(Nil)
-    val evidencePassed = adj.logins >= minEvidenceLogins && adj.adjacencies >= minEvidenceAdjacencies
+    // Evidence passes when either the candidate or the searched character has enough logins.
+    // This ensures hidden characters (few DB records) are not penalised when the searched
+    // character itself provides a sufficient data baseline.
+    val evidencePassed = (adj.logins >= minEvidenceLogins || mainLogins >= minEvidenceLogins) && adj.adjacencies >= minEvidenceAdjacencies
     val confidence = computeConfidence(adj.adjacencies, adj.clashes, adj.logins, adj.sessionSimilarity, trades.nonEmpty)
     val hiddenScore = computeHiddenScore(adj.adjacencies, adj.clashes, adj.logins)
     val clashRatio =
@@ -384,7 +460,7 @@ class AltFinderService[F[_]: Async](
     )
   }
 
-  private def computeConfidence(
+  private[service] def computeConfidence(
       adjacencies: Int,
       clashes: Int,
       logins: Int,
@@ -404,7 +480,7 @@ class AltFinderService[F[_]: Async](
     math.max(0, math.min(100, raw)).round.toInt
   }
 
-  private def computeHiddenScore(adjacencies: Int, clashes: Int, logins: Int): Int = {
+  private[service] def computeHiddenScore(adjacencies: Int, clashes: Int, logins: Int): Int = {
     val loginCount = math.max(1, logins)
     val adjacencyRatio = math.min(1.0, adjacencies.toDouble / loginCount.toDouble)
     val volume = math.min(20.0, loginCount.toDouble * 0.8)
@@ -416,7 +492,7 @@ class AltFinderService[F[_]: Async](
     math.max(0, math.min(100, raw)).round.toInt
   }
 
-  private def computeSessionSimilarity(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment]): Int = {
+  private[service] def computeSessionSimilarity(mainHistory: Array[OnlineSegment], other: Array[OnlineSegment]): Int = {
     val mainDurations = mainHistory.map(s => math.max(1L, s.end - s.start))
     val otherDurations = other.map(s => math.max(1L, s.end - s.start))
     if (mainDurations.isEmpty || otherDurations.isEmpty) 0

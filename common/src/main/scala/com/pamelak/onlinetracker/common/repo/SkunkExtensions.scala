@@ -5,8 +5,6 @@ import cats.syntax.all.*
 import skunk.Query
 import skunk.Session
 
-import java.util.concurrent.Executors
-
 trait SkunkExtensions {
   val session: Session[IO]
 

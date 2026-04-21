@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tibia Alt Finder</title>
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Main column ─────────────────────────────────────────────────── -->
+  <div class="main-col">
+    <header>
+      <h1>Tibia Alt Finder</h1>
+      <p class="subtitle">Fast scan for likely alts using adjacent logins, clashes, and login counts.</p>
+      <div class="header-badges">
+        <div id="apiBadge" class="api-badge">API: checking&#8230;</div>
+        <div id="statusBar" class="status-bar"></div>
+      </div>
+    </header>
+
+    <!-- Backend URL -->
+    <div class="card">
+      <div class="form-group" style="margin-bottom:0">
+        <label for="backendUrl">Backend URL</label>
+        <input id="backendUrl" type="text" value="https://tibia-alt-finder-api.onrender.com"/>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab active" data-tab="alts">Alt Finder</button>
+      <button class="tab" data-tab="trades">Trades</button>
+      <button class="tab" data-tab="clashes">Clashes</button>
+      <button class="tab" data-tab="research">Research History</button>
+    </div>
+
+    <!-- ── Alt Finder tab ──────────────────────────────────────────────── -->
+    <div id="tab-alts" class="tab-panel">
+      <div class="card">
+        <div class="row-3">
+          <div>
+            <label for="distance">Adjacency (minutes)</label>
+            <input id="distance" type="number" value="0" min="0"/>
+          </div>
+          <div>
+            <label for="includeClashes">Include clashes</label>
+            <select id="includeClashes">
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </div>
+          <div>
+            <label for="altFormat">Format</label>
+            <select id="altFormat">
+              <option value="detailed">detailed</option>
+              <option value="classic">classic</option>
+            </select>
+          </div>
+        </div>
+        <div class="row-2" style="margin-bottom:12px">
+          <div>
+            <label for="altFrom">From date (optional)</label>
+            <input id="altFrom" type="date"/>
+          </div>
+          <div>
+            <label for="altTo">To date (optional)</label>
+            <input id="altTo" type="date"/>
+          </div>
+        </div>
+        <label class="check-row" for="strictMode">
+          <input id="strictMode" type="checkbox"/>
+          <span>Strict mode (distance 0, clashes excluded)</span>
+        </label>
+        <div class="form-group">
+          <label for="characters">Characters (comma separated)</label>
+          <input id="characters" type="text" placeholder="Deli Tokes, Another Name"/>
+        </div>
+        <div class="actions">
+          <button id="runBtn" class="btn-green">Run</button>
+          <button id="clearBtn" class="btn-ghost">Clear</button>
+        </div>
+        <div id="errorBox" class="error-box">
+          <span id="errorMsg"></span>
+          <a id="backendLink" href="#" target="_blank" rel="noopener">Open backend-hosted board</a>
+        </div>
+      </div>
+
+      <!-- Searched Character Info -->
+      <div id="searchedCharInfo" style="display:none">
+        <div class="card">
+          <div class="card-title">Searched Characters</div>
+          <div id="searchedCharCards" class="searched-char-cards"></div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="card">
+        <div class="card-title">Summary</div>
+        <pre id="summary">No search yet.</pre>
+      </div>
+
+      <!-- Possible Matches -->
+      <div class="card">
+        <div class="card-header-row">
+          <div class="card-title">Possible Matches</div>
+          <div class="card-header-actions">
+            <div class="filter-wrap">
+              <input id="filterInput" type="text" placeholder="Filter by name&#8230;" class="filter-input"/>
+            </div>
+            <button id="csvBtn" class="btn-ghost btn-sm" title="Export results to CSV">&#8595; CSV</button>
+          </div>
+        </div>
+        <div id="matchesArea"><pre>No search yet.</pre></div>
+        <div id="charPanel" class="char-panel">
+          <div class="char-panel-inner">
+            <div class="char-panel-header">
+              <h4 id="charPanelName"></h4>
+              <button id="charPanelClose" class="char-panel-close">&#x2715;</button>
+            </div>
+            <div id="charPanelContent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Trades tab ───────────────────────────────────────────────────── -->
+    <div id="tab-trades" class="tab-panel hidden">
+      <div class="card">
+        <p class="tab-desc">Check whether characters have been recently traded on the Tibia Bazaar. Leave characters empty to search all traded characters on the world.</p>
+        <div class="form-group">
+          <label for="tradesWorld">World</label>
+          <input id="tradesWorld" type="text" placeholder="Nefera" value="Nefera"/>
+        </div>
+        <div class="form-group">
+          <label for="tradesCharacters">Characters (comma separated, optional)</label>
+          <input id="tradesCharacters" type="text" placeholder="Leave empty to search whole world"/>
+        </div>
+        <div class="form-group">
+          <label for="lookbackDays">Lookback days (1–365)</label>
+          <input id="lookbackDays" type="number" value="7" min="1" max="365"/>
+        </div>
+        <div class="actions">
+          <button id="tradesRunBtn" class="btn-green">Check Trades</button>
+          <button id="tradesClearBtn" class="btn-ghost">Clear</button>
+        </div>
+        <div id="tradesErrorBox" class="error-box">
+          <span id="tradesErrorMsg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Trade Results</div>
+        <div id="tradesArea"><pre>No search yet.</pre></div>
+      </div>
+    </div>
+
+    <!-- ── Clashes tab ──────────────────────────────────────────────────── -->
+    <div id="tab-clashes" class="tab-panel hidden">
+      <div class="card">
+        <p class="tab-desc">Find sessions where your characters and target characters were online at the same time.</p>
+        <div class="form-group">
+          <label for="clashCharacters">Your characters (comma separated)</label>
+          <input id="clashCharacters" type="text" placeholder="Deli Tokes"/>
+        </div>
+        <div class="form-group">
+          <label for="clashTargets">Target characters (comma separated)</label>
+          <input id="clashTargets" type="text" placeholder="Enemy Player"/>
+        </div>
+        <div class="row-2" style="margin-bottom:12px">
+          <div>
+            <label for="clashFrom">From date (optional)</label>
+            <input id="clashFrom" type="date"/>
+          </div>
+          <div>
+            <label for="clashTo">To date (optional)</label>
+            <input id="clashTo" type="date"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="clashDistance">Adjacency distance (minutes)</label>
+          <input id="clashDistance" type="number" value="0" min="0"/>
+        </div>
+        <div class="actions">
+          <button id="clashesRunBtn" class="btn-green">Find Clashes</button>
+          <button id="clashesClearBtn" class="btn-ghost">Clear</button>
+        </div>
+        <div id="clashesErrorBox" class="error-box">
+          <span id="clashesErrorMsg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Clash Summary</div>
+        <pre id="clashesSummary">No search yet.</pre>
+      </div>
+      <div class="card">
+        <div class="card-title">Clash Matches</div>
+        <div id="clashesArea"><pre>No search yet.</pre></div>
+      </div>
+    </div>
+
+    <!-- ── Research History tab ─────────────────────────────────────────── -->
+    <div id="tab-research" class="tab-panel hidden">
+      <div class="card">
+        <p class="tab-desc">Browse recent searches run through this board or the Discord bot.</p>
+        <div class="row-2" style="margin-bottom:0">
+          <div>
+            <label for="researchLimit">Max rows</label>
+            <input id="researchLimit" type="number" value="50" min="1" max="200"/>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button id="researchLoadBtn" class="btn-green" style="width:100%">Load History</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Research Runs</div>
+        <div id="researchArea"><pre>Click "Load History" to fetch recent runs.</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+  <div class="side-col">
+
+    <!-- Presets -->
+    <div class="card">
+      <div class="card-title">Presets</div>
+      <div class="form-group">
+        <label for="presetNameInput">Preset name</label>
+        <input id="presetNameInput" type="text" placeholder="My Guild Scan"/>
+      </div>
+      <div class="form-group">
+        <label for="presetList">Saved presets</label>
+        <select id="presetList"></select>
+      </div>
+      <div class="actions">
+        <button id="savePresetBtn" class="btn-green">Save</button>
+        <button id="loadPresetBtn" class="btn-ghost">Load</button>
+        <button id="deletePresetBtn" class="btn-ghost">Delete</button>
+      </div>
+    </div>
+
+    <!-- Ignore List -->
+    <div class="card">
+      <div class="card-title">Ignore List</div>
+      <p style="font-size:.78rem;color:#8b949e;margin-bottom:8px">Names listed here are hidden from Alt Finder results.</p>
+      <div class="form-group">
+        <label for="ignoreInput">Add name (press Enter)</label>
+        <input id="ignoreInput" type="text" placeholder="Character Name"/>
+      </div>
+      <div class="form-group">
+        <label for="ignoreList">Ignored names</label>
+        <select id="ignoreList" size="4"></select>
+      </div>
+      <div class="actions">
+        <button id="removeIgnoreBtn" class="btn-ghost">Remove</button>
+        <button id="clearIgnoreBtn" class="btn-ghost">Clear All</button>
+      </div>
+      <label class="check-row" for="showIgnored" style="margin-top:8px;margin-bottom:0">
+        <input id="showIgnored" type="checkbox"/>
+        <span>Show ignored (greyed out)</span>
+      </label>
+    </div>
+
+    <!-- Saved Characters -->
+    <div class="card">
+      <div class="card-title">Saved Characters</div>
+      <div class="form-group">
+        <label for="savedCharInput">Character</label>
+        <input id="savedCharInput" type="text" placeholder="Deli Tokes"/>
+      </div>
+      <div class="form-group">
+        <label for="savedCharList">Saved list</label>
+        <select id="savedCharList"></select>
+      </div>
+      <div class="actions">
+        <button id="addCharBtn" class="btn-green">Add</button>
+        <button id="useCharBtn" class="btn-ghost">Use in Search</button>
+        <button id="removeCharBtn" class="btn-ghost">Remove</button>
+      </div>
+      <div id="savedCharDisplay" class="saved-display">No saved characters yet.</div>
+    </div>
+
+    <!-- Saved Guilds -->
+    <div class="card">
+      <div class="card-title">Saved Guilds</div>
+      <div class="form-group">
+        <label for="savedGuildInput">Guild name (press Enter to save)</label>
+        <input id="savedGuildInput" type="text" placeholder="Guild Name"/>
+      </div>
+      <div class="form-group">
+        <label for="savedGuildList">Saved list</label>
+        <select id="savedGuildList"></select>
+      </div>
+      <div class="actions">
+        <button id="refreshGuildBtn" class="btn-green">Refresh</button>
+        <button id="loadGuildBtn" class="btn-ghost">Load</button>
+        <button id="removeGuildBtn" class="btn-ghost">Remove</button>
+      </div>
+      <div id="savedGuildDisplay" class="saved-display">No saved guilds yet.</div>
+    </div>
+
+    <!-- Currently Online -->
+    <div class="card">
+      <div class="card-header-row">
+        <div class="card-title">Currently Online</div>
+        <button id="refreshOnlineBtn" class="btn-ghost btn-sm">&#8635; Refresh</button>
+      </div>
+      <p style="font-size:.78rem;color:#8b949e;margin-bottom:8px">Characters currently logged in (auto-refreshes every 30s).</p>
+      <div id="onlineArea" class="saved-display">Loading&#8230;</div>
+    </div>
+
+    <!-- Watched Characters -->
+    <div class="card">
+      <div class="card-title">Watched Characters</div>
+      <div class="row-2" style="margin-bottom:10px">
+        <div>
+          <label for="watchGuildId">Guild ID</label>
+          <input id="watchGuildId" type="text" placeholder="Discord Guild ID"/>
+        </div>
+        <div>
+          <label for="watchChannelId">Channel ID</label>
+          <input id="watchChannelId" type="text" placeholder="Discord Channel ID"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="watchCharInput">Character to watch</label>
+        <input id="watchCharInput" type="text" placeholder="Character name"/>
+      </div>
+      <div class="actions">
+        <button id="addWatchBtn" class="btn-green">Add Watch</button>
+        <button id="loadWatchBtn" class="btn-ghost">Load List</button>
+      </div>
+      <div id="watchListArea" class="saved-display">Enter Guild ID and click Load List.</div>
+    </div>
+
+  </div>
+</div>
+<script src="./app.js"></script>
+</body>
+</html>

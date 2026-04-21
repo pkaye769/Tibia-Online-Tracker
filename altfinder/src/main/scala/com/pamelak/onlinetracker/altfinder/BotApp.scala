@@ -33,7 +33,6 @@ import org.http4s.server.middleware.CORS
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import org.typelevel.otel4s.trace.Tracer
-import skunk.SSL
 import skunk.Session
 
 import java.net.InetSocketAddress
@@ -53,7 +52,13 @@ object BotApp extends IOApp {
   ): IO[Unit] = {
     val commandData = commands.map(_.command).asJava
     val allGuilds = jda.getGuilds.asScala.toList
-    val targetGuilds = allGuilds
+    val targetGuilds = guildIdOverride match {
+      case Some(gid) => allGuilds.filter(_.getId == gid) match {
+        case Nil     => allGuilds // override not found – fall back to all (warning already logged above)
+        case specific => specific
+      }
+      case None => allGuilds
+    }
 
     for {
       _ <- Logger[IO].info(s"Registering ${commands.length} commands: ${commands.map(_.command.getName).mkString(", ")}")
@@ -110,131 +115,146 @@ object BotApp extends IOApp {
     Dispatcher[IO].use { dispatcher =>
       AppConfig.loadConfigIO.flatMap { cfg =>
         val dbCfg = cfg.database
-        val sslMode = sys.env.get("DB_SSL").map(_.trim.toLowerCase) match {
-          case Some("false") | Some("0") | Some("no") => SSL.None
-          case Some("true") | Some("1") | Some("yes") => SSL.System
-          case _ if dbCfg.host == "localhost" || dbCfg.host == "127.0.0.1" => SSL.None
-          case _ => SSL.System
-        }
+        val sslMode = AppConfig.resolveSSL(dbCfg)
 
-        val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pool(
-          host = dbCfg.host,
-          port = dbCfg.port,
-          user = dbCfg.user,
-          database = dbCfg.database,
-          password = dbCfg.password.some,
-          ssl = sslMode,
-          max = 4
-        )
-        val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
+        val maxRetries = 10
+        val retryDelay = 5.seconds
 
-        (dbPoolResource, httpClientResource).tupled.use { case (sessionPool, httpClient) =>
-          val bazaarScraperClient = new BazaarScraperHttp4sClient(httpClient)
-          val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
-          val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
-          val repo = new AltFinderSkunkRepo(sessionPool)
-
-          val tradeLookbackDays = sys.env.get("TRADE_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(30)
-          val candidateTradeLimit = sys.env.get("CANDIDATE_TRADE_CHECK_LIMIT").flatMap(_.toIntOption).getOrElse(20)
-          val hiddenLikelyMinScore = sys.env.get("HIDDEN_LIKELY_MIN_SCORE").flatMap(_.toIntOption).getOrElse(70)
-          val hiddenLikelyMinAdjacencies =
-            sys.env.get("HIDDEN_LIKELY_MIN_ADJACENCIES").flatMap(_.toIntOption).getOrElse(3)
-          val hiddenLikelyMaxClashRatio =
-            sys.env.get("HIDDEN_LIKELY_MAX_CLASH_RATIO").flatMap(_.toDoubleOption).getOrElse(0.25)
-          val minEvidenceLogins = sys.env.get("MIN_EVIDENCE_LOGINS").flatMap(_.toIntOption).getOrElse(8)
-          val minEvidenceAdjacencies = sys.env.get("MIN_EVIDENCE_ADJACENCIES").flatMap(_.toIntOption).getOrElse(2)
-          val includeLowEvidenceMatches =
-            sys.env.get("INCLUDE_LOW_EVIDENCE_MATCHES").exists(_.trim.equalsIgnoreCase("true"))
-
-          val service = new AltFinderService(
-            repo,
-            bazaarScraper,
-            tradeLookbackDays,
-            candidateTradeLimit,
-            hiddenLikelyMinScore,
-            hiddenLikelyMinAdjacencies,
-            hiddenLikelyMaxClashRatio,
-            minEvidenceLogins,
-            minEvidenceAdjacencies,
-            includeLowEvidenceMatches
+        def acquireWithRetry(attempt: Int): IO[ExitCode] = {
+          val dbPoolResource: Resource[IO, Resource[IO, Session[IO]]] = Session.pooled(
+            host = dbCfg.host,
+            port = dbCfg.port,
+            user = dbCfg.user,
+            database = dbCfg.database,
+            password = dbCfg.password.some,
+            ssl = sslMode,
+            max = 4
           )
+          val httpClientResource: Resource[IO, Client[IO]] = BazaarScraperHttp4sClient.clientResource
 
-          val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
+          (dbPoolResource, httpClientResource).tupled.use { case (sessionPool, httpClient) =>
+            val bazaarScraperClient = new BazaarScraperHttp4sClient(httpClient)
+            val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
+            val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
+            val repo = new AltFinderSkunkRepo(sessionPool)
 
-          val commands = List[Command[IO]](
-            new FindAltsCommand[IO](service),
-            new LastAltsCommand[IO](service),
-            new HistoryCommand[IO](service),
-            new CompareCommand[IO](service),
-            new ClashesCommand[IO](service),
-            new WorldCommand[IO](tibiaDataClient),
-            new GuildCommand[IO](tibiaDataClient),
-            new WatchCommand[IO](service, repo),
-            new GuildTrackCommand[IO](tibiaDataClient, repo),
-            new TradesCommand[IO](service)
-          )
+            val tradeLookbackDays = sys.env.get("TRADE_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(30)
+            val candidateTradeLimit = sys.env.get("CANDIDATE_TRADE_CHECK_LIMIT").flatMap(_.toIntOption).getOrElse(20)
+            val hiddenLikelyMinScore = sys.env.get("HIDDEN_LIKELY_MIN_SCORE").flatMap(_.toIntOption).getOrElse(70)
+            val hiddenLikelyMinAdjacencies =
+              sys.env.get("HIDDEN_LIKELY_MIN_ADJACENCIES").flatMap(_.toIntOption).getOrElse(3)
+            val hiddenLikelyMaxClashRatio =
+              sys.env.get("HIDDEN_LIKELY_MAX_CLASH_RATIO").flatMap(_.toDoubleOption).getOrElse(0.25)
+            val minEvidenceLogins = sys.env.get("MIN_EVIDENCE_LOGINS").flatMap(_.toIntOption).getOrElse(8)
+            val minEvidenceAdjacencies = sys.env.get("MIN_EVIDENCE_ADJACENCIES").flatMap(_.toIntOption).getOrElse(2)
+            val includeLowEvidenceMatches =
+              sys.env.get("INCLUDE_LOW_EVIDENCE_MATCHES").exists(_.trim.equalsIgnoreCase("true"))
+            val defaultLookbackDays = sys.env.get("DEFAULT_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(90)
 
-          val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
-            .map(_.trim)
-            .map(_.replaceAll("[^0-9]", ""))
-            .filter(_.nonEmpty)
+            val service = new AltFinderService(
+              repo,
+              bazaarScraper,
+              tradeLookbackDays,
+              candidateTradeLimit,
+              hiddenLikelyMinScore,
+              hiddenLikelyMinAdjacencies,
+              hiddenLikelyMaxClashRatio,
+              minEvidenceLogins,
+              minEvidenceAdjacencies,
+              includeLowEvidenceMatches,
+              defaultLookbackDays
+            )
 
-          val maybeToken = List(
-            Option(cfg.bot.token),
-            sys.env.get("ALTFINDER_TOKEN")
-          ).flatten.map(_.trim).find(_.nonEmpty)
+            val tibiaDataClient = new TibiaDataHttp4sClient[IO](httpClient)
 
-          val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
-          val requestedApiPort = sys.env.get("ALTFINDER_API_PORT").flatMap(_.toIntOption).getOrElse(8080)
+            val commands = List[Command[IO]](
+              new FindAltsCommand[IO](service),
+              new LastAltsCommand[IO](service),
+              new HistoryCommand[IO](service),
+              new CompareCommand[IO](service),
+              new ClashesCommand[IO](service),
+              new WorldCommand[IO](tibiaDataClient),
+              new GuildCommand[IO](tibiaDataClient),
+              new WatchCommand[IO](service, repo),
+              new GuildTrackCommand[IO](tibiaDataClient, repo),
+              new TradesCommand[IO](service)
+            )
 
-          val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
-          val httpApp = CORS.policy.withAllowOriginAll(api.routes).orNotFound
+            val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
+              .map(_.trim)
+              .map(_.replaceAll("[^0-9]", ""))
+              .filter(_.nonEmpty)
 
-          val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
-          val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)
+            val maybeToken = List(
+              Option(cfg.bot.token),
+              sys.env.get("ALTFINDER_TOKEN")
+            ).flatten.map(_.trim).find(_.nonEmpty)
 
-          def startDiscordIfConfigured: IO[Unit] =
-            maybeToken match {
-              case None =>
-                Logger[IO].warn("TOKEN/ALTFINDER_TOKEN is empty. Discord bot and watch runner are disabled.")
-              case Some(token) =>
-                IO.delay(JDABuilder.createDefault(token).build()).flatMap { jda =>
-                  val botListener = new BotListener[IO](commands, dispatcher)
-                  val watchRunner = new WatchRunner[IO](
-                    repo,
-                    service,
-                    jda,
-                    watchIntervalSeconds.seconds,
-                    watchCooldownMinutes.minutes
-                  )
+            val apiHost = sys.env.getOrElse("ALTFINDER_API_HOST", "0.0.0.0")
+            val requestedApiPort = sys.env.get("PORT")
+              .orElse(sys.env.get("ALTFINDER_API_PORT"))
+              .flatMap(_.toIntOption)
+              .getOrElse(8080)
 
-                  (IO.delay(jda.awaitReady()) *>
-                    IO.delay(jda.addEventListener(botListener)) *>
-                    registerCommands(jda, commands, guildIdOverride) *>
-                    watchRunner.run.start.void)
-                }.handleErrorWith(e => Logger[IO].warn(e)("Discord setup failed; API will keep running"))
+            val api = new AltFinderApi[IO](service, repo, tibiaDataClient, bazaarScraperClient)
+            val httpApp = CORS.policy.withAllowOriginAll(api.routes.orNotFound)
+
+            val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
+            val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)
+
+            def startDiscordIfConfigured: IO[Unit] =
+              maybeToken match {
+                case None =>
+                  Logger[IO].warn("TOKEN/ALTFINDER_TOKEN is empty. Discord bot and watch runner are disabled.")
+                case Some(token) =>
+                  IO.delay(JDABuilder.createDefault(token).build()).flatMap { jda =>
+                    val botListener = new BotListener[IO](commands, dispatcher)
+                    val watchRunner = new WatchRunner[IO](
+                      repo,
+                      service,
+                      jda,
+                      watchIntervalSeconds.seconds,
+                      watchCooldownMinutes.minutes
+                    )
+
+                    (IO.delay(jda.awaitReady()) *>
+                      IO.delay(jda.addEventListener(botListener)) *>
+                      registerCommands(jda, commands, guildIdOverride) *>
+                      watchRunner.run.start.void)
+                  }.handleErrorWith(e => Logger[IO].warn(e)("Discord setup failed; API will keep running"))
+              }
+
+            repo.ensureSchema *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
+              val serverResource = BlazeServerBuilder[IO]
+                .bindHttp(apiPort, apiHost)
+                .withHttpApp(httpApp)
+                .resource
+
+              val portLog =
+                if (apiPort == requestedApiPort) Logger[IO].info(s"AltFinder API listening on http://$apiHost:$apiPort")
+                else Logger[IO].warn(
+                  s"Requested API port $requestedApiPort is busy. Using port $apiPort instead: http://$apiHost:$apiPort"
+                )
+
+              serverResource.use { _ =>
+                portLog *>
+                  startDiscordIfConfigured.start *>
+                  IO.never
+              }
             }
-
-          repo.ensureSchema *> findAvailablePort(requestedApiPort).flatMap { apiPort =>
-            val serverResource = BlazeServerBuilder[IO]
-              .bindHttp(apiPort, apiHost)
-              .withHttpApp(httpApp)
-              .resource
-
-            val portLog =
-              if (apiPort == requestedApiPort) Logger[IO].info(s"AltFinder API listening on http://$apiHost:$apiPort")
-              else Logger[IO].warn(
-                s"Requested API port $requestedApiPort is busy. Using port $apiPort instead: http://$apiHost:$apiPort"
-              )
-
-            serverResource.use { _ =>
-              portLog *>
-                startDiscordIfConfigured.start *>
-                IO.never
-            }
-          }
+        }.handleErrorWith { e =>
+          if (attempt < maxRetries)
+            Logger[IO].warn(e)(
+              s"DB connection failed (attempt $attempt/$maxRetries), retrying in ${retryDelay.toSeconds}s..."
+            ) *> IO.sleep(retryDelay) *> acquireWithRetry(attempt + 1)
+          else
+            Logger[IO].error(e)(s"DB connection failed after $maxRetries attempts. Giving up.") *>
+              IO.pure(ExitCode.Error)
         }
       }
+
+        acquireWithRetry(1)
     }
   }
+}
 }

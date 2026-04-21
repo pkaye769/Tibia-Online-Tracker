@@ -1,5 +1,6 @@
 package com.pamelak.onlinetracker.altfinder.bazaarscraper
 
+import cats.Parallel
 import cats.effect.Sync
 import cats.implicits.*
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper.*
@@ -33,15 +34,18 @@ object BazaarScraper {
     .flatten.maxOption
 }
 
-class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClient: Option[TibiaComAuctionClientAlg[F]] = None) {
+class BazaarScraper[F[_]: Sync: Parallel](client: BazaarScraperClientAlg[F], tibiaComClient: Option[TibiaComAuctionClientAlg[F]] = None) {
   private val zone = ZoneId.of("Europe/Berlin")
 
   def multipleCharacterSales(names: List[String]): F[CharacterSales] = {
-    for
-      allSales <- names.map(singleCharacterSales).sequence
-      dates = allSales.flatMap(_.saleDates.getOrElse(Nil))
-      errored = allSales.map(_.saleDates).find(_.isLeft)
-    yield CharacterSales(allSales.head.name, errored.getOrElse(Right(dates)))
+    names match {
+      case Nil => Sync[F].pure(CharacterSales("", Right(Nil)))
+      case _ =>
+        for
+          allSales <- names.map(singleCharacterSales).sequence
+          dates = allSales.flatMap(_.saleDates.getOrElse(Nil))
+        yield CharacterSales(allSales.head.name, Right(dates))
+    }
   }
 
   def recentWorldSales(world: String, lookbackDays: Int, pageSize: Int = 300): F[Either[BazaarScraperError, CharacterSalesList]] = {
@@ -73,7 +77,7 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
         case Right(list) =>
           tibiaComClient match
             case Some(tc) =>
-              list.traverse(verifyAuction(tc)).map(Right(_))
+              list.parTraverse(verifyAuction(tc)).map(Right(_))
             case None =>
               Sync[F].pure(Right(list))
     yield CharacterSales(name, auctions.map(_.map(_.end).map(instantToSSDay)))
