@@ -273,6 +273,101 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     }
   }
 
+  // Fast path for distance = 0: use FK equality joins (login_time_idx / logout_time_idx)
+  // instead of computing EXTRACT(EPOCH) on every row in the table.  A CTE collects the
+  // searched character's sessions once; two indexed FK joins then find adjacent characters
+  // in O(sessions × adjacent_count) instead of O(sessions × all_history_rows).
+  private def getPossibleMatchesFastPath(
+      session: Session[IO],
+      characterNames: List[String],
+      from: Option[OffsetDateTime],
+      to: Option[OffsetDateTime]
+  ): IO[List[OnlineSegment]] = {
+    val cl = characterNames.map(_.toLowerCase)
+    val n  = cl.length
+
+    // Outer SELECT: return all sessions for the characters found in the CTE adjacency join.
+    // The fragment has no parameters of its own; date-filter suffixes are appended per case.
+    val outerSelect = sql"""
+        SELECT o.character_id,
+               EXTRACT(EPOCH FROM w_login.time)::bigint,
+               EXTRACT(EPOCH FROM w_logout.time)::bigint
+        FROM online_history o
+        JOIN world_save_time w_login  ON o.login_time  = w_login.id
+        JOIN world_save_time w_logout ON o.logout_time = w_logout.id
+        WHERE o.character_id IN (
+          SELECT DISTINCT sub.adj_char FROM (
+            SELECT oh2.character_id AS adj_char
+            FROM me_sessions
+            JOIN online_history oh2 ON oh2.login_time = me_sessions.logout_time
+            UNION ALL
+            SELECT oh2.character_id AS adj_char
+            FROM me_sessions
+            JOIN online_history oh2 ON oh2.logout_time = me_sessions.login_time
+          ) sub
+        )"""
+
+    val outerFromToFilter = sql"AND w_login.time >= $timestamptz AND w_login.time <= $timestamptz"
+    val outerFromFilter   = sql"AND w_login.time >= $timestamptz"
+    val outerToFilter     = sql"AND w_login.time <= $timestamptz"
+
+    (from, to) match {
+      case (None, None) =>
+        val q = sql"""
+            WITH me_sessions AS (
+              SELECT oh1.login_time, oh1.logout_time
+              FROM online_history oh1
+              JOIN character c ON oh1.character_id = c.id
+              WHERE LOWER(c.name) IN (${varchar.values.list(n)})
+            )
+            $outerSelect
+          """.query(onlineSegmentDecoder)
+        prepareToList(session)(q, cl)
+
+      case (Some(f), None) =>
+        val q = sql"""
+            WITH me_sessions AS (
+              SELECT oh1.login_time, oh1.logout_time
+              FROM online_history oh1
+              JOIN character c  ON oh1.character_id = c.id
+              JOIN world_save_time ws_l ON oh1.login_time = ws_l.id
+              WHERE LOWER(c.name) IN (${varchar.values.list(n)})
+              AND ws_l.time >= $timestamptz
+            )
+            $outerSelect $outerFromFilter
+          """.query(onlineSegmentDecoder)
+        prepareToList(session)(q, (cl, f, f))
+
+      case (None, Some(t)) =>
+        val q = sql"""
+            WITH me_sessions AS (
+              SELECT oh1.login_time, oh1.logout_time
+              FROM online_history oh1
+              JOIN character c  ON oh1.character_id = c.id
+              JOIN world_save_time ws_l ON oh1.login_time = ws_l.id
+              WHERE LOWER(c.name) IN (${varchar.values.list(n)})
+              AND ws_l.time <= $timestamptz
+            )
+            $outerSelect $outerToFilter
+          """.query(onlineSegmentDecoder)
+        prepareToList(session)(q, (cl, t, t))
+
+      case (Some(f), Some(t)) =>
+        val q = sql"""
+            WITH me_sessions AS (
+              SELECT oh1.login_time, oh1.logout_time
+              FROM online_history oh1
+              JOIN character c  ON oh1.character_id = c.id
+              JOIN world_save_time ws_l ON oh1.login_time = ws_l.id
+              WHERE LOWER(c.name) IN (${varchar.values.list(n)})
+              AND ws_l.time >= $timestamptz AND ws_l.time <= $timestamptz
+            )
+            $outerSelect $outerFromToFilter
+          """.query(onlineSegmentDecoder)
+        prepareToList(session)(q, (cl, f, t, (f, t)))
+    }
+  }
+
   override def getPossibleMatches(
       characterNames: List[String],
       from: Option[OffsetDateTime],
@@ -282,6 +377,24 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     val cl = characterNames.map(_.toLowerCase)
     // Convert distance from minutes to seconds for real-time comparison.
     val distanceSecs = distance.map(_ * 60L).getOrElse(0L)
+
+    // For distance = 0 use the FK-based fast path: joins on login_time/logout_time FKs
+    // (indexed) instead of computing EXTRACT(EPOCH) across the full history table.
+    // For distance > 0 fall through to the epoch-based path below.
+    if (distanceSecs == 0L) {
+      for {
+        historical <- getPossibleMatchesFastPath(session, characterNames, from, to)
+        currentSessions <- fetchCurrentlyOnlineSessions(session, characterNames, from, to)
+        adjacent <- if (currentSessions.nonEmpty) {
+          val loginSecs  = currentSessions.map(_.start)
+          val minSec     = loginSecs.min
+          val maxSec     = loginSecs.max
+          val excludeIds = currentSessions.map(_.characterId).toSet
+          fetchSessionsAdjacentToEpochWindow(session, minSec, maxSec, from, to)
+            .map(_.filterNot(s => excludeIds.contains(s.characterId)))
+        } else IO.pure(Nil)
+      } yield (historical ++ adjacent).distinct
+    } else {
 
     // Adjacency: session of o1 ends within distanceSecs before oh_epoch starts, or vice-versa.
     // distanceSecs is a safely computed Long (distance minutes × 60) – not raw user input,
@@ -363,6 +476,7 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
           .map(_.filterNot(s => excludeIds.contains(s.characterId)))
       } else IO.pure(Nil)
     } yield (historical ++ adjacent).distinct
+    } // end else (distanceSecs > 0)
   }
 
   // Returns all sessions of characters who had any session ending within [minSec, maxSec].
