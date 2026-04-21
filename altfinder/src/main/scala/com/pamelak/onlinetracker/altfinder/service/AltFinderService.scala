@@ -3,7 +3,6 @@ package com.pamelak.onlinetracker.altfinder.service
 import cats.Parallel
 import cats.effect.kernel.Async
 import cats.implicits.*
-import com.carrotsearch.sizeof.RamUsageEstimator
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper.*
 import com.pamelak.onlinetracker.altfinder.repo.AltFinderRepoAlg
@@ -118,17 +117,37 @@ class AltFinderService[F[_]: Async: Parallel](
     for
       _ <- Logger[F].info(s"Searching for: ${characterNames.mkString(", ")}")
       _ <- Logger[F].info(s"Date range: $from - $to")
-      sales <- characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).parSequence
+      // Bound the bazaar pre-check to 5 s.  Each individual HTTP call already has a
+      // 5 s request timeout, but with retries on 5xx the per-character cost can reach
+      // ~11 s.  Capping the whole parallel batch here prevents the bazaar check from
+      // consuming most of the 45 s API budget before the DB queries even start.
+      // On timeout we fall back to empty sales so tradedFrom falls back to defaultFrom.
+      sales <- Async[F].timeoutTo(
+        characterNames.map(n => bazaarScraper.multipleCharacterSales(List(n))).parSequence,
+        5.seconds,
+        Async[F].pure(characterNames.map(n => CharacterSales(n, Right(Nil))))
+      )
       latestSale = BazaarScraper.latestSale(sales)
       defaultFrom = OffsetDateTime.now(ZoneId.of("Europe/Berlin")).minusDays(defaultLookbackDays.toLong)
-      tradedFrom = from.orElse { latestSale.map(_.toOffsetDateTime()) }.orElse(Some(defaultFrom))
-      mainSegments <- repo.getOnlineTimes(characterNames, tradedFrom, to)
-      _ <- Logger[F].info(s"Got online times for searched characters (${mainSegments.length} rows)")
-      _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(mainSegments))
-      matchesToCheck <- repo.getPossibleMatches(characterNames, tradedFrom, to, distance)
-      _ <- Logger[F].info("Got online times for possible matched characters")
-      _ <- Logger[F].info(RamUsageEstimator.humanSizeOf(matchesToCheck))
-      _ <- Logger[F].info(s"${matchesToCheck.length} rows to analyse")
+      // Cap tradedFrom at defaultFrom.  If latestSale is older than defaultFrom (e.g. a
+      // character was sold a year ago and the default lookback is 90 days) the uncapped
+      // value would silently expand the DB scan window well beyond what the user expects
+      // and what the database can serve quickly.  The user can always pass an explicit
+      // `from` date to override this.  When `from` is set by the caller it takes precedence.
+      tradedFrom = from.orElse {
+        latestSale.map { s =>
+          val saleDate = s.toOffsetDateTime()
+          if (saleDate.isAfter(defaultFrom)) saleDate else defaultFrom
+        }
+      }.orElse(Some(defaultFrom))
+      // Run the two independent DB read queries in parallel so that the faster one
+      // (getOnlineTimes) completes "for free" while getPossibleMatches is running.
+      dbPair <- (
+        repo.getOnlineTimes(characterNames, tradedFrom, to),
+        repo.getPossibleMatches(characterNames, tradedFrom, to, distance)
+      ).parTupled
+      (mainSegments, matchesToCheck) = dbPair
+      _ <- Logger[F].info(s"DB queries complete — main segments: ${mainSegments.length} rows, candidates: ${matchesToCheck.length} rows to analyse")
       adj <- Async[F].blocking(getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20))
       adjWithNames <- adj.map(a =>
         repo.getCharacterName(a.characterId)
@@ -138,16 +157,19 @@ class AltFinderService[F[_]: Async: Parallel](
               Async[F].pure(a)
           }
       ).parSequence
-      // Cap trade-enrichment at 10 s so that slow or unreachable bazaar/tibia.com
-      // calls do not push the total request time past the 45 s backend timeout or
-      // Render's 60 s HTTP timeout.  On timeout we fall back to empty trade data
-      // (no trade dates shown) but still return the adjacency results.
-      tradeInfo <- Async[F].timeoutTo(
-        enrichWithCandidateTrades(adjWithNames),
-        10.seconds,
-        Async[F].pure(CandidateTradeInfo(Map.empty, adjWithNames.length))
-      )
-      mainLogins <- repo.countTotalLogins(characterNames)
+      // Run trade-enrichment (capped at 10 s) and countTotalLogins in parallel.
+      // countTotalLogins is a fast indexed COUNT query; running it alongside the
+      // (potentially slow) trade HTTP calls means it completes "for free" and does
+      // not add to the critical path at all.
+      tradePair <- (
+        Async[F].timeoutTo(
+          enrichWithCandidateTrades(adjWithNames),
+          10.seconds,
+          Async[F].pure(CandidateTradeInfo(Map.empty, adjWithNames.length))
+        ),
+        repo.countTotalLogins(characterNames)
+      ).parTupled
+      (tradeInfo, mainLogins) = tradePair
       _ <- Logger[F].info(s"Total all-time logins for searched characters: $mainLogins")
       results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap, mainLogins))
       filteredResults =
