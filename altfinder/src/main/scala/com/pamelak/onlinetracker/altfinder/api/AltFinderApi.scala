@@ -334,7 +334,6 @@ final class AltFinderApi[F[_]: Async](
       val characters = characterRaw.map(_.split(",").map(_.trim).filter(_.nonEmpty).toList).getOrElse(Nil)
       val worldParam = params.get("world").map(_.trim).filter(_.nonEmpty)
       val world = worldParam.getOrElse(defaultBazaarWorld).trim
-      if (characters.isEmpty && world.isEmpty) errors += "Missing required query param: characters or world"
 
       val lookbackDays = params.get("lookbackDays").map(_.trim).filter(_.nonEmpty) match
         case None => 30
