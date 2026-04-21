@@ -95,6 +95,9 @@ const el = {
   charPanelName:      document.getElementById('charPanelName'),
   charPanelContent:   document.getElementById('charPanelContent'),
   charPanelClose:     document.getElementById('charPanelClose'),
+  // Searched character info
+  searchedCharInfo:   document.getElementById('searchedCharInfo'),
+  searchedCharCards:  document.getElementById('searchedCharCards'),
 };
 
 let savedChars   = [];
@@ -400,12 +403,57 @@ function renderSummary(text) {
   el.summary.innerHTML = html;
 }
 
+// ── Searched character info ───────────────────────────────────────────────────
+async function fetchAndRenderSearchedChars(names) {
+  el.searchedCharInfo.style.display = '';
+  el.searchedCharCards.innerHTML = names.map(function(n, i) {
+    return '<div class="searched-char-card" id="scc-' + i + '">'
+      + '<div class="searched-char-card-name">' + esc(n) + '</div>'
+      + '<div style="color:#8b949e;font-style:italic;font-size:.8rem">Fetching from TibiaData\u2026</div>'
+      + '</div>';
+  }).join('');
+  await Promise.allSettled(names.map(async function(name, i) {
+    const slot = document.getElementById('scc-' + i);
+    if (!slot) return;
+    try {
+      const d = await fetchJson('/api/altfinder/character?name=' + encodeURIComponent(name), TIMEOUT_CHAR, 2);
+      function f(lbl, val) {
+        return '<div><div class="char-field-lbl">' + esc(lbl) + '</div><div class="char-field-val">' + esc(val || '-') + '</div></div>';
+      }
+      const guild = d.guild ? d.guild + (d.guildRank ? ' (' + d.guildRank + ')' : '') : '-';
+      const lastLogin = d.lastLogin ? d.lastLogin.slice(0, 16).replace('T', ' ') : '-';
+      const traded = (d.recentTradeDates || []).length > 0;
+      const tradeHtml = traded
+        ? '<div class="trade-alert-box" style="margin:6px 0">\u26a0 RECENTLY TRADED \u2014 ' + esc(d.recentTradeDates.join(', ')) + '</div>'
+        : '';
+      const tradeErr = d.tradedCheckError
+        ? '<div class="trade-alert-box" style="margin:6px 0;border-color:#f85149;color:#ffa198">\u26a0 Trade check failed (may be rate-limited).</div>'
+        : '';
+      slot.innerHTML = '<div class="searched-char-card-name">' + esc(d.name || name) + '</div>'
+        + '<div class="char-fields" style="grid-template-columns:repeat(2,1fr);margin-bottom:6px">'
+        + f('Level', String(d.level || '-')) + f('Vocation', d.vocation) + f('World', d.world)
+        + f('Guild', guild) + f('Last Login', lastLogin)
+        + '</div>'
+        + tradeHtml + tradeErr
+        + '<div class="char-links">'
+        + '<a class="char-link" href="' + esc(d.tibiaComUrl) + '" target="_blank" rel="noopener">Tibia.com \u2197</a>'
+        + '<a class="char-link" href="' + esc(d.exevopanUrl) + '" target="_blank" rel="noopener">Exevopan \u2197</a>'
+        + '</div>';
+    } catch(err) {
+      slot.innerHTML = '<div class="searched-char-card-name">' + esc(name) + '</div>'
+        + '<div style="color:#f85149;font-size:.8rem">Could not fetch character info.</div>';
+    }
+  }));
+}
+
 // ── Run alt search ────────────────────────────────────────────────────────────
 async function runSearch() {
   clearError();
   hideCharPanel();
   const chars = el.characters.value.trim();
   if (!chars) { showError('Enter at least one character name.'); return; }
+  const searchedNames = chars.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  fetchAndRenderSearchedChars(searchedNames);
   const distance  = Number(el.distance.value || 0);
   const clashes   = el.includeClashes.value;
   const format    = el.altFormat.value;
@@ -440,6 +488,8 @@ function clearAll() {
   el.altFrom.value = ''; el.altTo.value = '';
   el.summary.innerHTML = 'No search yet.';
   el.matchesArea.innerHTML = '<pre>No search yet.</pre>';
+  el.searchedCharInfo.style.display = 'none';
+  el.searchedCharCards.innerHTML = '';
   lastMatches = [];
 }
 
