@@ -147,8 +147,7 @@ class AltFinderService[F[_]: Async: Parallel](
         repo.getPossibleMatches(characterNames, tradedFrom, to, distance)
       ).parTupled
       (mainSegments, matchesToCheck) = dbPair
-      _ <- Logger[F].info(s"Got online times for searched characters (${mainSegments.length} rows)")
-      _ <- Logger[F].info(s"${matchesToCheck.length} rows to analyse")
+      _ <- Logger[F].info(s"DB queries complete — main segments: ${mainSegments.length} rows, candidates: ${matchesToCheck.length} rows to analyse")
       adj <- Async[F].blocking(getAdjacencies(mainSegments, matchesToCheck, includeClashes, distance.getOrElse(0)).take(20))
       adjWithNames <- adj.map(a =>
         repo.getCharacterName(a.characterId)
