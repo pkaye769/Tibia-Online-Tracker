@@ -44,6 +44,24 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
     yield CharacterSales(allSales.head.name, errored.getOrElse(Right(dates)))
   }
 
+  def recentWorldSales(world: String, lookbackDays: Int, pageSize: Int = 300): F[Either[BazaarScraperError, CharacterSalesList]] = {
+    val cutoff = ZonedDateTime.now(zone).minusDays(lookbackDays.toLong)
+    client.searchWorld(world, pageSize).map { raw =>
+      parseAuctions(raw).map { auctions =>
+        val grouped = auctions.flatMap { a =>
+          val end = instantToSSDay(a.end)
+          Option.when(end.isAfter(cutoff))((a.name, end))
+        }.groupBy(_._1).view.mapValues(_.map(_._2)).toMap
+
+        val sales = grouped.toList.map { case (name, ends) =>
+          val sorted = ends.distinct.sortBy(_.toInstant.toEpochMilli)(Ordering.Long.reverse)
+          CharacterSales(name, Right(sorted))
+        }
+        CharacterSalesList(sales)
+      }
+    }
+  }
+
   private def singleCharacterSales(name: String): F[CharacterSales] = {
     for
       json <- client.searchCharacter(name).map(Right(_)).handleError { case e =>
@@ -69,6 +87,10 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
   }
 
   private def parseJson(jsonString: String, name: String): Either[BazaarScraperError, List[BazaarAuction]] = {
+    parseAuctions(jsonString).map(_.filter(_.name == name))
+  }
+
+  private def parseAuctions(jsonString: String): Either[BazaarScraperError, List[BazaarAuction]] = {
     parse(jsonString).leftMap(err => BazaarScraperError(s"Invalid JSON: ${err.getMessage}")).flatMap { json =>
       val pageCur = json.hcursor.downField("page")
       pageCur.as[List[Json]] match
@@ -82,7 +104,7 @@ class BazaarScraper[F[_]: Sync](client: BazaarScraperClientAlg[F], tibiaComClien
               val biddedOpt = c.get[Boolean]("hasBeenBidded").toOption
               val auctionIdOpt = c.get[Long]("auctionId").toOption
               (nickOpt, endOpt, biddedOpt) match
-                case (Some(nick), Some(epoch), Some(bidded)) if nick == name && bidded =>
+                case (Some(nick), Some(epoch), Some(bidded)) if bidded =>
                   Some(BazaarAuction(nick, Instant.ofEpochSecond(epoch), auctionIdOpt))
                 case _ => None
             }

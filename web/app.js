@@ -14,6 +14,13 @@ const ui = {
   health: $("health"),
   summary: $("summary"),
   results: $("results"),
+  tradeWorld: $("tradeWorld"),
+  tradeLookback: $("tradeLookback"),
+  tradeCharacters: $("tradeCharacters"),
+  tradeSearchBtn: $("tradeSearchBtn"),
+  tradeClearBtn: $("tradeClearBtn"),
+  tradeStatus: $("tradeStatus"),
+  tradeResults: $("tradeResults"),
   guildName: $("guildName"),
   guildSearchBtn: $("guildSearchBtn"),
   guildSaveBtn: $("guildSaveBtn"),
@@ -71,6 +78,12 @@ if (storedDistance !== null && storedDistance !== "") {
 ui.strictMode.checked = localStorage.getItem(STRICT_MODE_KEY) === "true";
 ui.watchGuildId.value = localStorage.getItem(WATCH_GUILD_ID_KEY) || "";
 ui.watchChannelId.value = localStorage.getItem(WATCH_CHANNEL_ID_KEY) || "";
+if (!ui.tradeWorld.value) {
+  ui.tradeWorld.value = "Nefera";
+}
+if (!ui.tradeLookback.value) {
+  ui.tradeLookback.value = "7";
+}
 
 function syncStrictModeControls() {
   if (ui.strictMode.checked) {
@@ -336,6 +349,39 @@ async function run() {
   }
 }
 
+async function runTrades() {
+  ui.tradeStatus.textContent = "Searching...";
+  const world = (ui.tradeWorld.value || "").trim() || "Nefera";
+  const lookbackDays = Math.max(1, Math.min(365, Number(ui.tradeLookback.value || 7)));
+  const names = parseNames(ui.tradeCharacters.value || "");
+  const params = new URLSearchParams();
+  if (names.length > 0) {
+    params.set("characters", names.join(","));
+  }
+  if (world) {
+    params.set("world", world);
+  }
+  params.set("lookbackDays", String(lookbackDays));
+
+  try {
+    const data = await fetchJson(`/api/altfinder/trades?${params.toString()}`);
+    const lines = Array.isArray(data.results)
+      ? data.results.map((row) => {
+          const dates = (row.recentTradeDates || []).length > 0 ? row.recentTradeDates.join(", ") : "none";
+          const errorText = row.hadError ? " | check error" : "";
+          const aliases =
+            (row.checkedNames || []).length > 0 ? (row.checkedNames || []).join(", ") : row.characterName || "-";
+          return `${row.characterName || "Unknown"} | traded ${dates}${errorText} | checked names: ${aliases}`;
+        })
+      : [];
+    ui.tradeResults.textContent = lines.length > 0 ? lines.join("\n") : "No traded characters found.";
+    ui.tradeStatus.textContent = "Done.";
+  } catch (err) {
+    ui.tradeStatus.textContent = "";
+    ui.tradeResults.textContent = err instanceof Error ? err.message : String(err);
+  }
+}
+
 async function runGuildSearch() {
   ui.guildStatus.textContent = "Searching...";
   const name = ui.guildName.value.trim();
@@ -595,6 +641,16 @@ ui.clearBtn.addEventListener("click", () => {
   setError("");
   ui.summary.textContent = "No search yet.";
   ui.results.textContent = "No search yet.";
+});
+ui.tradeSearchBtn.addEventListener("click", runTrades);
+ui.tradeClearBtn.addEventListener("click", () => {
+  ui.tradeStatus.textContent = "";
+  ui.tradeResults.textContent = "No trade search yet.";
+  ui.tradeCharacters.value = "";
+  ui.tradeLookback.value = "7";
+});
+ui.tradeCharacters.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runTrades();
 });
 ui.apiBase.addEventListener("change", checkHealth);
 ui.distance.addEventListener("change", () => {
