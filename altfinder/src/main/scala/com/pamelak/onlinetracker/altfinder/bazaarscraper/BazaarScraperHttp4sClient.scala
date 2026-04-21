@@ -34,7 +34,7 @@ object BazaarScraperHttp4sClient {
     }
   }
 
-  val clientResource: Resource[IO, Client[IO]] = BlazeClientBuilder[IO].withRequestTimeout(5.seconds).resource
+  val clientResource: Resource[IO, Client[IO]] = BlazeClientBuilder[IO].withConnectTimeout(5.seconds).withRequestTimeout(5.seconds).resource
     .map(GZip()(_)).map(Retry[IO](retryPolicy)(_))
 }
 

@@ -15,6 +15,7 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.time.{LocalDate, OffsetDateTime, ZoneId, ZonedDateTime}
+import scala.concurrent.duration.*
 
 object AltFinderService {
   case class CharacterLoginHistory(characterId: Long, segments: Array[OnlineSegment], segmentsByEnd: Array[OnlineSegment])
@@ -137,7 +138,11 @@ class AltFinderService[F[_]: Async: Parallel](
               Async[F].pure(a)
           }
       ).parSequence
-      tradeInfo <- enrichWithCandidateTrades(adjWithNames)
+      tradeInfo <- Async[F].timeoutTo(
+        enrichWithCandidateTrades(adjWithNames),
+        10.seconds,
+        Async[F].pure(CandidateTradeInfo(Map.empty, adjWithNames.length))
+      )
       mainLogins <- repo.countTotalLogins(characterNames)
       _ <- Logger[F].info(s"Total all-time logins for searched characters: $mainLogins")
       results = adjWithNames.map(a => addTradeAndConfidence(a, tradeInfo.tradeMap, mainLogins))
