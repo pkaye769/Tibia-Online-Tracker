@@ -39,6 +39,13 @@ const el = {
   tradesErrorBox:     document.getElementById('tradesErrorBox'),
   tradesErrorMsg:     document.getElementById('tradesErrorMsg'),
   tradesArea:         document.getElementById('tradesArea'),
+  transferWorld:      document.getElementById('transferWorld'),
+  transferLookback:   document.getElementById('transferLookback'),
+  transferRunBtn:     document.getElementById('transferRunBtn'),
+  transferErrorBox:   document.getElementById('transferErrorBox'),
+  transferErrorMsg:   document.getElementById('transferErrorMsg'),
+  transferToArea:     document.getElementById('transferToArea'),
+  transferFromArea:   document.getElementById('transferFromArea'),
   // Clashes
   clashCharacters:    document.getElementById('clashCharacters'),
   clashTargets:       document.getElementById('clashTargets'),
@@ -107,6 +114,7 @@ let savedPresets = {};
 let ignoreList   = [];
 let guildOnlineMap = {};
 let lastMatches  = [];
+let transfersLoaded = false;
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 function loadStorage() {
@@ -154,6 +162,12 @@ function fmtSeconds(sec) {
   if (sec < 60) return sec + 's';
   if (sec < 3600) return Math.round(sec / 60) + 'm';
   return (sec / 3600).toFixed(1) + 'h';
+}
+function fmtTimestamp(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return ts;
+  return d.toLocaleString();
 }
 
 // ── Error ─────────────────────────────────────────────────────────────────────
@@ -493,6 +507,61 @@ function clearAll() {
   el.searchedCharCards.innerHTML = '';
   lastMatches = [];
 }
+
+// ── Transfers ───────────────────────────────────────────────────────────────
+function renderTransferTable(list, area, emptyText) {
+  if (!list || list.length === 0) {
+    area.innerHTML = '<pre>' + esc(emptyText) + '</pre>';
+    return;
+  }
+  const rows = list.map(function(t) {
+    return '<tr>'
+      + '<td style="font-weight:600;color:#79c0ff">' + esc(t.characterName || '') + '</td>'
+      + '<td>' + esc(t.fromWorld || '') + '</td>'
+      + '<td>' + esc(t.toWorld || '') + '</td>'
+      + '<td>' + esc(fmtTimestamp(t.transferTime)) + '</td>'
+      + '</tr>';
+  }).join('');
+  area.innerHTML = '<div class="table-wrap"><table>'
+    + '<thead><tr><th>Character</th><th>From</th><th>To</th><th>Transfer Time</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div>';
+}
+
+async function runTransfers() {
+  clearError(el.transferErrorBox);
+  const world = (el.transferWorld.value || '').trim() || 'Nefera';
+  let lookback = parseInt(el.transferLookback.value || '7', 10);
+  if (!Number.isFinite(lookback)) lookback = 7;
+  lookback = Math.min(365, Math.max(1, lookback));
+  el.transferLookback.value = String(lookback);
+  const params = new URLSearchParams({ world, lookbackDays: String(lookback) });
+  el.transferRunBtn.disabled = true; el.transferRunBtn.textContent = 'Loading\u2026';
+  el.transferToArea.innerHTML = '<pre>Loading\u2026</pre>';
+  el.transferFromArea.innerHTML = '<pre>Loading\u2026</pre>';
+  try {
+    const data = await fetchJson('/api/altfinder/transfers?' + params.toString().replace(/\+/g, '%20'), TIMEOUT_SEARCH, 3);
+    const lookbackDays = data.lookbackDays != null ? data.lookbackDays : lookback;
+    renderTransferTable(data.transfersTo || [], el.transferToArea, 'No transfers to ' + world + ' in the last ' + lookbackDays + ' days.');
+    renderTransferTable(data.transfersFrom || [], el.transferFromArea, 'No transfers from ' + world + ' in the last ' + lookbackDays + ' days.');
+    transfersLoaded = true;
+  } catch(err) {
+    showError(err.message || String(err), el.transferErrorBox, el.transferErrorMsg);
+    el.transferToArea.innerHTML = '<pre>Search failed.</pre>';
+    el.transferFromArea.innerHTML = '<pre>Search failed.</pre>';
+  } finally {
+    el.transferRunBtn.disabled = false; el.transferRunBtn.textContent = 'Load Transfers';
+  }
+}
+
+const transferTab = document.querySelector('.tab[data-tab=\"transfers\"]');
+if (transferTab) {
+  transferTab.addEventListener('click', function() {
+    if (!transfersLoaded) runTransfers();
+  });
+}
+el.transferRunBtn.addEventListener('click', runTransfers);
+el.transferLookback.addEventListener('keydown', function(e) { if (e.key === 'Enter') runTransfers(); });
+el.transferWorld.addEventListener('keydown', function(e) { if (e.key === 'Enter') runTransfers(); });
 
 // ── Trades ────────────────────────────────────────────────────────────────────
 async function runTrades() {

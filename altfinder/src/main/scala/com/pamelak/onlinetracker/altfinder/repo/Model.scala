@@ -97,4 +97,11 @@ object Model {
       summary: String,
       createdAt: OffsetDateTime
   )
+
+  case class WorldTransfer(
+      characterName: String,
+      fromWorld: String,
+      toWorld: String,
+      transferTime: OffsetDateTime
+  )
 }

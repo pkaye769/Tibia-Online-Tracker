@@ -47,4 +47,5 @@ trait AltFinderRepoAlg[F[_]] {
   def countOnlineHistoryRows: F[Long]
   def latestWorldSaveTime: F[Option[OffsetDateTime]]
   def getCurrentlyOnlineNames: F[List[String]]
+  def getWorldTransfers(world: String, lookbackDays: Int): F[List[WorldTransfer]]
 }

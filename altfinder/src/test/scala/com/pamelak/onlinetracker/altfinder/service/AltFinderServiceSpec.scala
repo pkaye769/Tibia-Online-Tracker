@@ -34,6 +34,7 @@ class AltFinderServiceSpec extends munit.FunSuite {
     def countTotalLogins(names: List[String]) = IO.pure(0)
     def latestWorldSaveTime = IO.pure(None)
     def getCurrentlyOnlineNames = IO.pure(Nil)
+    def getWorldTransfers(world: String, lookbackDays: Int) = IO.pure(Nil)
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
@@ -288,4 +289,3 @@ class AltFinderServiceSpec extends munit.FunSuite {
       "Delishana Senia must survive the filter because its own logins (11) >= 8")
   }
 }
-

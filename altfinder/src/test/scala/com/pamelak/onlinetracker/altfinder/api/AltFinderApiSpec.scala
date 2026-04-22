@@ -42,6 +42,9 @@ class AltFinderApiSpec extends munit.FunSuite {
     def countTotalLogins(names: List[String])                                                               = IO.pure(0)
     def latestWorldSaveTime                                                                                 = IO.pure(None)
     def getCurrentlyOnlineNames                                                                             = IO.pure(Nil)
+    def getWorldTransfers(world: String, lookbackDays: Int)                                                 = IO.pure(
+      List(WorldTransfer("Alice", "Antica", "Nefera", OffsetDateTime.parse("2024-01-01T10:00:00Z")))
+    )
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
@@ -195,6 +198,23 @@ class AltFinderApiSpec extends munit.FunSuite {
     val resp = get("/api/altfinder/trades?characters=Hero&lookbackDays=30")
     assertEquals(resp.status, Status.Ok)
     assertEquals(jsonOf(resp).hcursor.get[Int]("lookbackDays").toOption, Some(30))
+  }
+
+  // ---- GET /api/altfinder/transfers ----------------------------------------
+
+  test("GET /api/altfinder/transfers returns to/from lists") {
+    val resp = get("/api/altfinder/transfers?world=Nefera&lookbackDays=7")
+    assertEquals(resp.status, Status.Ok)
+    val body = jsonOf(resp)
+    assertEquals(body.hcursor.get[Int]("lookbackDays").toOption, Some(7))
+    val toList = body.hcursor.get[List[Json]]("transfersTo").toOption.getOrElse(Nil)
+    assert(toList.nonEmpty)
+    assert(body.hcursor.get[List[Json]]("transfersFrom").isRight)
+  }
+
+  test("GET /api/altfinder/transfers with invalid lookback returns 400") {
+    val resp = get("/api/altfinder/transfers?lookbackDays=0")
+    assertEquals(resp.status, Status.BadRequest)
   }
 
   // ---- GET /api/altfinder/clashes ------------------------------------------
