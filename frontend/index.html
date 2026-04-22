@@ -32,6 +32,7 @@
     <div class="tab-bar">
       <button class="tab active" data-tab="alts">Alt Finder</button>
       <button class="tab" data-tab="trades">Trades</button>
+      <button class="tab" data-tab="transfers">Transfers</button>
       <button class="tab" data-tab="clashes">Clashes</button>
       <button class="tab" data-tab="research">Research History</button>
     </div>
@@ -152,6 +153,37 @@
       <div class="card">
         <div class="card-title">Trade Results</div>
         <div id="tradesArea"><pre>No search yet.</pre></div>
+      </div>
+    </div>
+
+    <!-- ── Transfers tab ───────────────────────────────────────────────────── -->
+    <div id="tab-transfers" class="tab-panel hidden">
+      <div class="card">
+        <p class="tab-desc">Recent world transfers to and from the selected world.</p>
+        <div class="row-2" style="margin-bottom:12px">
+          <div>
+            <label for="transferWorld">World</label>
+            <input id="transferWorld" type="text" placeholder="Nefera" value="Nefera"/>
+          </div>
+          <div>
+            <label for="transferLookback">Lookback days (1–365)</label>
+            <input id="transferLookback" type="number" value="7" min="1" max="365"/>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="transferRunBtn" class="btn-green">Load Transfers</button>
+        </div>
+        <div id="transferErrorBox" class="error-box">
+          <span id="transferErrorMsg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Transfers To World</div>
+        <div id="transferToArea"><pre>Click "Load Transfers" to fetch recent transfers.</pre></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Transfers From World</div>
+        <div id="transferFromArea"><pre>Click "Load Transfers" to fetch recent transfers.</pre></div>
       </div>
     </div>
 

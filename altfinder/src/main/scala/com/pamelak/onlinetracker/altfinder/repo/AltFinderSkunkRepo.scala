@@ -778,6 +778,57 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     })
   }
 
+  override def getWorldTransfers(world: String, lookbackDays: Int): IO[List[WorldTransfer]] = withSession { session =>
+    val fetchWorld = sql"""
+      SELECT id, name
+      FROM world
+      WHERE LOWER(name) = LOWER($varchar)
+    """.query(int8 ~ varchar)
+
+    session.option(fetchWorld, world.trim).flatMap {
+      case None => IO.pure(Nil)
+      case Some(targetWorld) =>
+        val targetWorldId = targetWorld._1
+        val cutoff = OffsetDateTime.now().minusDays(lookbackDays.toLong)
+        val historyStart = cutoff.minusDays(lookbackDays.toLong.max(7))
+
+        val q = sql"""
+          WITH sessions AS (
+            SELECT c.id AS character_id, c.name AS character_name, ws.world_id, ws.time AS login_time
+            FROM online_history oh
+            JOIN character c ON oh.character_id = c.id
+            JOIN world_save_time ws ON oh.login_time = ws.id
+            WHERE ws.time >= $timestamptz
+            UNION ALL
+            SELECT c.id AS character_id, c.name AS character_name, co.world_id, ws.time AS login_time
+            FROM currently_online co
+            JOIN character c ON co.character_id = c.id
+            JOIN world_save_time ws ON co.login_time = ws.id
+            WHERE ws.time >= $timestamptz
+          ),
+          ordered AS (
+            SELECT s.*,
+                   LAG(s.world_id) OVER (PARTITION BY s.character_id ORDER BY s.login_time) AS prev_world_id
+            FROM sessions s
+          )
+          SELECT s.character_name,
+                 w_prev.name AS from_world,
+                 w_cur.name AS to_world,
+                 s.login_time
+          FROM ordered s
+          JOIN world w_cur ON w_cur.id = s.world_id
+          JOIN world w_prev ON w_prev.id = s.prev_world_id
+          WHERE s.prev_world_id IS NOT NULL
+            AND s.world_id <> s.prev_world_id
+            AND s.login_time >= $timestamptz
+            AND (s.world_id = $int8 OR s.prev_world_id = $int8)
+          ORDER BY s.login_time DESC
+        """.query(worldTransferDecoder)
+
+        prepareToList(session)(q, (historyStart, historyStart, cutoff, targetWorldId, targetWorldId))
+    }
+  }
+
   override def countTotalLogins(characterNames: List[String]): IO[Int] = withSession { session =>
     val cl = characterNames.map(_.toLowerCase)
     val q = sql"""

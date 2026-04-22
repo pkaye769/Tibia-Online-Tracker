@@ -9,6 +9,7 @@ import com.pamelak.onlinetracker.altfinder.repo.AltFinderRepoAlg
 import com.pamelak.onlinetracker.altfinder.repo.Model.LastSearch
 import com.pamelak.onlinetracker.altfinder.repo.Model.OnlineDateSegment
 import com.pamelak.onlinetracker.altfinder.repo.Model.OnlineSegment
+import com.pamelak.onlinetracker.altfinder.repo.Model.WorldTransfer
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService.*
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -106,6 +107,9 @@ class AltFinderService[F[_]: Async: Parallel](
       if (rows.length <= limit) rows else rows.takeRight(limit)
     }
   }
+
+  def getWorldTransfers(world: String, lookbackDays: Int): F[List[WorldTransfer]] =
+    repo.getWorldTransfers(world, lookbackDays)
 
   def findAndPrintAlts(
       characterNames: List[String],

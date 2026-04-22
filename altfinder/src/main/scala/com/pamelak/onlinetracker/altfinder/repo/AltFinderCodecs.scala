@@ -43,4 +43,9 @@ trait AltFinderCodecs {
       case id ~ runType ~ searchedCharacters ~ targetCharacters ~ from ~ to ~ distance ~ includeClashes ~ totalLogins ~ matchCount ~ summary ~ createdAt =>
         (id, runType, searchedCharacters, targetCharacters, from, to, distance, includeClashes, totalLogins, matchCount, summary, createdAt)
     }
+
+  val worldTransferDecoder: Decoder[WorldTransfer] =
+    (varchar ~ varchar ~ varchar ~ timestamptz).map { case name ~ fromWorld ~ toWorld ~ ts =>
+      WorldTransfer(name, fromWorld, toWorld, ts)
+    }
 }

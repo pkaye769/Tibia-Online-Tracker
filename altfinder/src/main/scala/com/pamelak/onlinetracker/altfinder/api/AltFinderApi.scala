@@ -155,6 +155,19 @@ final class AltFinderApi[F[_]: Async](
       formattedText: String
   )
 
+  final case class TransferEvent(
+      characterName: String,
+      fromWorld: String,
+      toWorld: String,
+      transferTime: String
+  )
+  final case class TransfersResponse(
+      world: String,
+      lookbackDays: Int,
+      transfersTo: List[TransferEvent],
+      transfersFrom: List[TransferEvent]
+  )
+
   given Encoder[Health] = deriveEncoder
   given Encoder[TrackerStatusResponse] = deriveEncoder
   given Encoder[ErrorResponse] = deriveEncoder
@@ -174,6 +187,8 @@ final class AltFinderApi[F[_]: Async](
   given Encoder[WatchBatchResponse] = deriveEncoder
   given Encoder[CharacterInfoResponse] = deriveEncoder
   given Encoder[OnlineNamesResponse] = deriveEncoder
+  given Encoder[TransferEvent] = deriveEncoder
+  given Encoder[TransfersResponse] = deriveEncoder
 
   private val queryCacheTtlSeconds = sys.env.get("QUERY_CACHE_TTL_SECONDS").flatMap(_.toIntOption).getOrElse(60).max(5)
   private val queryCache = mutable.Map.empty[String, (Long, Json)]
@@ -324,6 +339,31 @@ final class AltFinderApi[F[_]: Async](
         ).flatMap(json => Ok(json)).handleErrorWith { case ex =>
           InternalServerError(ErrorResponse(s"Internal server error: ${ex.getMessage}", Nil).asJson)
         }
+      }
+
+    case req @ GET -> Root / "api" / "altfinder" / "transfers" =>
+      val params = req.uri.query.params
+      val errors = collection.mutable.ListBuffer.empty[String]
+      val world = params.get("world").map(_.trim).filter(_.nonEmpty).getOrElse(defaultBazaarWorld)
+      val lookbackDays = params.get("lookbackDays").flatMap(_.toIntOption).getOrElse(7)
+      if (lookbackDays < 1 || lookbackDays > 365) errors += "lookbackDays must be between 1 and 365"
+
+      if (errors.nonEmpty) {
+        BadRequest(ErrorResponse("Invalid request", errors.toList).asJson)
+      } else {
+        val cacheKey = s"transfers|$world|$lookbackDays"
+        cachedJson(cacheKey) {
+          service.getWorldTransfers(world, lookbackDays).map { transfers =>
+            val toWorld = transfers.filter(t => t.toWorld.equalsIgnoreCase(world))
+            val fromWorld = transfers.filter(t => t.fromWorld.equalsIgnoreCase(world))
+            TransfersResponse(
+              world = world,
+              lookbackDays = lookbackDays,
+              transfersTo = toWorld.map(t => TransferEvent(t.characterName, t.fromWorld, t.toWorld, t.transferTime.toString)),
+              transfersFrom = fromWorld.map(t => TransferEvent(t.characterName, t.fromWorld, t.toWorld, t.transferTime.toString))
+            ).asJson
+          }
+        }.flatMap(Ok(_))
       }
 
     case req @ GET -> Root / "api" / "altfinder" / "trades" =>
