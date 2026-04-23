@@ -34,7 +34,11 @@ object BazaarScraper {
     .flatten.maxOption
 }
 
-class BazaarScraper[F[_]: Sync: Parallel](client: BazaarScraperClientAlg[F], tibiaComClient: Option[TibiaComAuctionClientAlg[F]] = None) {
+class BazaarScraper[F[_]: Sync: Parallel](
+    client: BazaarScraperClientAlg[F],
+    tibiaComClient: Option[TibiaComAuctionClientAlg[F]] = None,
+    additionalSaleClients: List[CharacterSaleDateClientAlg[F]] = Nil
+) {
   private val zone = ZoneId.of("Europe/Berlin")
 
   def multipleCharacterSales(names: List[String]): F[CharacterSales] = {
@@ -80,7 +84,23 @@ class BazaarScraper[F[_]: Sync: Parallel](client: BazaarScraperClientAlg[F], tib
               list.parTraverse(verifyAuction(tc)).map(Right(_))
             case None =>
               Sync[F].pure(Right(list))
-    yield CharacterSales(name, auctions.map(_.map(_.end).map(instantToSSDay)))
+      // Fetch additional sale dates from supplementary sources (guildstats.eu,
+      // hakaimarket.com, etc.).  Each client handles its own errors internally
+      // and returns an empty list on failure, so we always get a Right here.
+      extraDates <- additionalSaleClients
+        .map(_.getSaleDates(name).handleError(_ => Nil))
+        .parSequence
+        .map(_.flatten)
+      extraZdts = extraDates.map(instantToSSDay)
+    yield CharacterSales(
+      name,
+      auctions match {
+        case Left(err) if extraZdts.isEmpty => Left(err)
+        case Left(_)                        => Right(extraZdts.distinct)
+        case Right(existing) =>
+          Right((existing.map(_.end).map(instantToSSDay) ++ extraZdts).distinct)
+      }
+    )
   }
 
   private def instantToSSDay(instant: Instant): ZonedDateTime = {

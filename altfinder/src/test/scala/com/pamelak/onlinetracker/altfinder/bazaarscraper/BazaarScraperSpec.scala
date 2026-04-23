@@ -187,4 +187,61 @@ class BazaarScraperSpec extends munit.FunSuite {
     assert(result.saleDates.isRight)
     assert(result.saleDates.toOption.get.nonEmpty)
   }
+
+  // ---- additionalSaleClients ----
+
+  private def additionalClient(dates: List[Instant]): CharacterSaleDateClientAlg[IO] =
+    name => IO.pure(dates)
+
+  test("additionalSaleClients dates are merged with exevopan results") {
+    val extraInstant = Instant.ofEpochSecond(1700100000L)
+    val s = new BazaarScraper[IO](noopClient, additionalSaleClients = List(additionalClient(List(extraInstant))))
+    val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
+    assert(result.saleDates.isRight)
+    assert(result.saleDates.toOption.get.nonEmpty)
+  }
+
+  test("additionalSaleClients error is silenced and returns empty dates") {
+    val failingClient: CharacterSaleDateClientAlg[IO] = _ => IO.raiseError(new RuntimeException("ext error"))
+    val s = new BazaarScraper[IO](noopClient, additionalSaleClients = List(failingClient))
+    val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
+    assertEquals(result.saleDates, Right(Nil))
+  }
+
+  test("additionalSaleClients merges dates from multiple external sources") {
+    val instant1 = Instant.ofEpochSecond(1700100000L)
+    val instant2 = Instant.ofEpochSecond(1700200000L)
+    val s = new BazaarScraper[IO](
+      noopClient,
+      additionalSaleClients = List(additionalClient(List(instant1)), additionalClient(List(instant2)))
+    )
+    val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
+    assert(result.saleDates.isRight)
+    assertEquals(result.saleDates.toOption.get.length, 2)
+  }
+
+  test("additionalSaleClients deduplicates dates from multiple sources") {
+    val instant = Instant.ofEpochSecond(1700100000L)
+    val s = new BazaarScraper[IO](
+      noopClient,
+      additionalSaleClients = List(additionalClient(List(instant)), additionalClient(List(instant)))
+    )
+    val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
+    assert(result.saleDates.isRight)
+    assertEquals(result.saleDates.toOption.get.length, 1)
+  }
+
+  test("additionalSaleClients rescue exevopan error when extra dates are available") {
+    val errorClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
+      def searchCharacter(name: String) = IO.raiseError(new RuntimeException("network error"))
+      def searchWorld(world: String, pageSize: Int) = IO.pure("""{"page":[]}""")
+      def cooldownRemainingSeconds = IO.pure(0L)
+    }
+    val extraInstant = Instant.ofEpochSecond(1700100000L)
+    val s = new BazaarScraper[IO](errorClient, additionalSaleClients = List(additionalClient(List(extraInstant))))
+    val result = s.multipleCharacterSales(List("Hero")).unsafeRunSync()
+    // Extra source provides dates even though exevopan.com errored
+    assert(result.saleDates.isRight)
+    assert(result.saleDates.toOption.get.nonEmpty)
+  }
 }
