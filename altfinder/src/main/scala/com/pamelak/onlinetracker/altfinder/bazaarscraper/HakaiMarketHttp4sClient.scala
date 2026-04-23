@@ -45,6 +45,9 @@ class HakaiMarketHttp4sClient[F[_]: Concurrent](client: Client[F])
   private[bazaarscraper] val humanFormatter =
     DateTimeFormatter.ofPattern("MMM dd yyyy HH:mm:ss", Locale.ENGLISH)
 
+  /** Expected character length of a "MMM dd yyyy HH:mm:ss" datetime string. */
+  private val humanDateLength = 20
+
   override def getSaleDates(name: String): F[List[Instant]] = {
     fetchJsonDates(name)
       .flatMap { jsonDates =>
@@ -137,7 +140,7 @@ class HakaiMarketHttp4sClient[F[_]: Concurrent](client: Client[F])
       .toOption
 
   private def parseHuman(text: String): Option[Instant] = {
-    val candidate = if (text.length >= 20) text.take(20) else text
+    val candidate = if (text.length >= humanDateLength) text.take(humanDateLength) else text
     Try(LocalDateTime.parse(candidate, humanFormatter))
       .map(_.atZone(zone).toInstant)
       .toOption
