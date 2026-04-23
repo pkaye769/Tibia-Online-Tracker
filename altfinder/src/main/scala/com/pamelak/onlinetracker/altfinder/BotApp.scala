@@ -6,6 +6,8 @@ import cats.syntax.all.*
 import com.pamelak.onlinetracker.altfinder.api.AltFinderApi
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraper
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.BazaarScraperHttp4sClient
+import com.pamelak.onlinetracker.altfinder.bazaarscraper.GuildStatsHttp4sClient
+import com.pamelak.onlinetracker.altfinder.bazaarscraper.HakaiMarketHttp4sClient
 import com.pamelak.onlinetracker.altfinder.bazaarscraper.TibiaComAuctionHttp4sClient
 import com.pamelak.onlinetracker.altfinder.bot.BotListener
 import com.pamelak.onlinetracker.altfinder.bot.command.Command
@@ -135,7 +137,13 @@ object BotApp extends IOApp {
           (dbPoolResource, httpClientResource).tupled.use { case (sessionPool, httpClient) =>
             val bazaarScraperClient = new BazaarScraperHttp4sClient(httpClient)
             val tibiaComClient = new TibiaComAuctionHttp4sClient(httpClient)
-            val bazaarScraper = new BazaarScraper(bazaarScraperClient, Some(tibiaComClient))
+            val guildStatsClient = new GuildStatsHttp4sClient[IO](httpClient)
+            val hakaiMarketClient = new HakaiMarketHttp4sClient[IO](httpClient)
+            val bazaarScraper = new BazaarScraper(
+              bazaarScraperClient,
+              Some(tibiaComClient),
+              List(guildStatsClient, hakaiMarketClient)
+            )
             val repo = new AltFinderSkunkRepo(sessionPool)
 
             val tradeLookbackDays = sys.env.get("TRADE_LOOKBACK_DAYS").flatMap(_.toIntOption).getOrElse(30)
