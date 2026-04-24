@@ -48,4 +48,13 @@ trait AltFinderRepoAlg[F[_]] {
   def latestWorldSaveTime: F[Option[OffsetDateTime]]
   def getCurrentlyOnlineNames: F[List[String]]
   def getWorldTransfers(world: String, lookbackDays: Int): F[List[WorldTransfer]]
+
+  def upsertLevelEvent(config: LevelEventConfig): F[Unit]
+  def removeLevelEvent(guildId: String, tibiaGuildName: String): F[Boolean]
+  def listLevelEvents(guildId: String): F[List[LevelEventEntry]]
+  def listAllLevelEvents: F[List[LevelEventEntry]]
+  def insertLevelSnapshot(snapshot: LevelSnapshotWrite): F[Unit]
+  def getLevelSnapshots(guildId: String, tibiaGuildName: String): F[List[LevelSnapshotRow]]
+  def getLatestLevelsByGuild(guildId: String, tibiaGuildName: String): F[Map[String, Int]]
+  def clearLevelSnapshots(guildId: String, tibiaGuildName: String): F[Unit]
 }

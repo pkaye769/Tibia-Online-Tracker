@@ -48,4 +48,19 @@ trait AltFinderCodecs {
     (varchar ~ varchar ~ varchar ~ timestamptz).map { case name ~ fromWorld ~ toWorld ~ ts =>
       WorldTransfer(name, fromWorld, toWorld, ts)
     }
+
+  val levelEventEntryDecoder: Decoder[(Long, String, String, OffsetDateTime, OffsetDateTime)] =
+    (int8 ~ text ~ text ~ timestamptz ~ timestamptz).map {
+      case id ~ guildId ~ tibiaGuildName ~ createdAt ~ updatedAt =>
+        (id, guildId, tibiaGuildName, createdAt, updatedAt)
+    }
+
+  val levelSnapshotRowDecoder: Decoder[(Long, String, String, String, Int, OffsetDateTime)] =
+    (int8 ~ text ~ text ~ text ~ int4 ~ timestamptz).map {
+      case id ~ guildId ~ tibiaGuildName ~ characterName ~ level ~ recordedAt =>
+        (id, guildId, tibiaGuildName, characterName, level, recordedAt)
+    }
+
+  val charLevelDecoder: Decoder[(String, Int)] =
+    (text ~ int4).map { case name ~ level => (name, level) }
 }

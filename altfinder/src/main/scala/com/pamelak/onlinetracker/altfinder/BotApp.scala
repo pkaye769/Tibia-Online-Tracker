@@ -18,11 +18,13 @@ import com.pamelak.onlinetracker.altfinder.bot.command.GuildCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.GuildTrackCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.HistoryCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.LastAltsCommand
+import com.pamelak.onlinetracker.altfinder.bot.command.LevelEventCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.TradesCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.WatchCommand
 import com.pamelak.onlinetracker.altfinder.bot.command.WorldCommand
 import com.pamelak.onlinetracker.altfinder.repo.AltFinderSkunkRepo
 import com.pamelak.onlinetracker.altfinder.service.AltFinderService
+import com.pamelak.onlinetracker.altfinder.service.LevelEventRunner
 import com.pamelak.onlinetracker.altfinder.service.WatchRunner
 import com.pamelak.onlinetracker.altfinder.tibiadata.TibiaDataHttp4sClient
 import com.pamelak.onlinetracker.common.config.AppConfig
@@ -185,7 +187,8 @@ object BotApp extends IOApp {
               new GuildCommand[IO](tibiaDataClient),
               new WatchCommand[IO](service, repo),
               new GuildTrackCommand[IO](tibiaDataClient, repo),
-              new TradesCommand[IO](service)
+              new TradesCommand[IO](service),
+              new LevelEventCommand[IO](repo)
             )
 
             val guildIdOverride = sys.env.get("DISCORD_GUILD_ID")
@@ -209,6 +212,8 @@ object BotApp extends IOApp {
 
             val watchIntervalSeconds = sys.env.get("WATCH_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
             val watchCooldownMinutes = sys.env.get("WATCH_ALERT_COOLDOWN_MINUTES").flatMap(_.toIntOption).getOrElse(360)
+            val levelEventIntervalSeconds =
+              sys.env.get("LEVEL_EVENT_INTERVAL_SECONDS").flatMap(_.toIntOption).getOrElse(300)
 
             def startDiscordIfConfigured: IO[Unit] =
               maybeToken match {
@@ -224,11 +229,17 @@ object BotApp extends IOApp {
                       watchIntervalSeconds.seconds,
                       watchCooldownMinutes.minutes
                     )
+                    val levelEventRunner = new LevelEventRunner[IO](
+                      repo,
+                      tibiaDataClient,
+                      levelEventIntervalSeconds.seconds
+                    )
 
                     (IO.delay(jda.awaitReady()) *>
                       IO.delay(jda.addEventListener(botListener)) *>
                       registerCommands(jda, commands, guildIdOverride) *>
-                      watchRunner.run.start.void)
+                      watchRunner.run.start.void *>
+                      levelEventRunner.run.start.void)
                   }.handleErrorWith(e => Logger[IO].warn(e)("Discord setup failed; API will keep running"))
               }
 

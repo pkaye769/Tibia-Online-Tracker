@@ -104,4 +104,43 @@ object Model {
       toWorld: String,
       transferTime: OffsetDateTime
   )
+
+  case class LevelEventConfig(guildId: String, tibiaGuildName: String)
+
+  case class LevelEventEntry(
+      id: Long,
+      guildId: String,
+      tibiaGuildName: String,
+      createdAt: OffsetDateTime,
+      updatedAt: OffsetDateTime
+  )
+
+  case class LevelSnapshotWrite(guildId: String, tibiaGuildName: String, characterName: String, level: Int)
+
+  case class LevelSnapshotRow(
+      id: Long,
+      guildId: String,
+      tibiaGuildName: String,
+      characterName: String,
+      level: Int,
+      recordedAt: OffsetDateTime
+  )
+
+  case class LevelCharData(name: String, startLevel: Int, endLevel: Int, gained: Int)
+
+  case class LevelBracket(id: Int, displayName: String, minLevel: Int, maxLevel: Option[Int])
+
+  object LevelBracket {
+    val all: List[LevelBracket] = List(
+      LevelBracket(1, "1-199", 1, Some(199)),
+      LevelBracket(2, "200-399", 200, Some(399)),
+      LevelBracket(3, "400-599", 400, Some(599)),
+      LevelBracket(4, "600-799", 600, Some(799)),
+      LevelBracket(5, "800-999", 800, Some(999)),
+      LevelBracket(6, "1000+", 1000, None)
+    )
+
+    def forLevel(level: Int): LevelBracket =
+      all.find(b => level >= b.minLevel && b.maxLevel.forall(level <= _)).getOrElse(all.last)
+  }
 }

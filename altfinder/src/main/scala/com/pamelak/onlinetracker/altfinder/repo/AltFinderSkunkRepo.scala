@@ -112,6 +112,38 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     ON altfinder_guild_track(guild_id)
   """.command
 
+  val createLevelEventTable = sql"""
+    CREATE TABLE IF NOT EXISTS altfinder_level_event (
+      id BIGSERIAL PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      tibia_guild_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (guild_id, tibia_guild_name)
+    )
+  """.command
+
+  val createLevelEventGuildIdx = sql"""
+    CREATE INDEX IF NOT EXISTS altfinder_level_event_guild_idx
+    ON altfinder_level_event(guild_id)
+  """.command
+
+  val createLevelSnapshotTable = sql"""
+    CREATE TABLE IF NOT EXISTS altfinder_level_snapshot (
+      id BIGSERIAL PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      tibia_guild_name TEXT NOT NULL,
+      character_name TEXT NOT NULL,
+      level INTEGER NOT NULL,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  """.command
+
+  val createLevelSnapshotIdx = sql"""
+    CREATE INDEX IF NOT EXISTS altfinder_level_snapshot_event_idx
+    ON altfinder_level_snapshot(guild_id, tibia_guild_name, character_name, recorded_at DESC)
+  """.command
+
   val createResearchRunTable = sql"""
     CREATE TABLE IF NOT EXISTS altfinder_research_run (
       id BIGSERIAL PRIMARY KEY,
@@ -168,6 +200,10 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
     _ <- session.execute(createWatchGuildIdx, Void)
     _ <- session.execute(createGuildTrackTable, Void)
     _ <- session.execute(createGuildTrackGuildIdx, Void)
+    _ <- session.execute(createLevelEventTable, Void)
+    _ <- session.execute(createLevelEventGuildIdx, Void)
+    _ <- session.execute(createLevelSnapshotTable, Void)
+    _ <- session.execute(createLevelSnapshotIdx, Void)
     _ <- session.execute(createResearchRunTable, Void)
     _ <- session.execute(createResearchRunCreatedIdx, Void)
     _ <- session.execute(createOnlineHistoryCharacterIdx, Void)
@@ -862,5 +898,96 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
       ORDER BY c.name
     """.query(varchar)
     session.stream(q, Void, 65536).compile.toList
+  }
+
+  override def upsertLevelEvent(config: LevelEventConfig): IO[Unit] = withSession { session =>
+    val q = sql"""
+      INSERT INTO altfinder_level_event
+        (guild_id, tibia_guild_name, created_at, updated_at)
+      VALUES
+        ($varchar, $varchar, NOW(), NOW())
+      ON CONFLICT (guild_id, tibia_guild_name) DO UPDATE
+      SET updated_at = NOW()
+    """.command
+    session.execute(q, (config.guildId, config.tibiaGuildName)).void
+  }
+
+  override def removeLevelEvent(guildId: String, tibiaGuildName: String): IO[Boolean] = withSession { session =>
+    val q = sql"""
+      DELETE FROM altfinder_level_event
+      WHERE guild_id = $varchar AND lower(tibia_guild_name) = $varchar
+    """.command
+    session.execute(q, (guildId, tibiaGuildName.toLowerCase)).map {
+      case Completion.Delete(count) => count > 0
+      case _ => false
+    }
+  }
+
+  override def listLevelEvents(guildId: String): IO[List[LevelEventEntry]] = withSession { session =>
+    val q = sql"""
+      SELECT id, guild_id, tibia_guild_name, created_at, updated_at
+      FROM altfinder_level_event
+      WHERE guild_id = $varchar
+      ORDER BY created_at ASC
+    """.query(levelEventEntryDecoder)
+    prepareToList(session)(q, guildId).map(_.map {
+      case (id, gid, name, createdAt, updatedAt) =>
+        LevelEventEntry(id, gid, name, createdAt, updatedAt)
+    })
+  }
+
+  override def listAllLevelEvents: IO[List[LevelEventEntry]] = withSession { session =>
+    val q = sql"""
+      SELECT id, guild_id, tibia_guild_name, created_at, updated_at
+      FROM altfinder_level_event
+      ORDER BY created_at ASC
+    """.query(levelEventEntryDecoder)
+    prepareToList(session)(q, Void).map(_.map {
+      case (id, gid, name, createdAt, updatedAt) =>
+        LevelEventEntry(id, gid, name, createdAt, updatedAt)
+    })
+  }
+
+  override def insertLevelSnapshot(snapshot: LevelSnapshotWrite): IO[Unit] = withSession { session =>
+    val q = sql"""
+      INSERT INTO altfinder_level_snapshot
+        (guild_id, tibia_guild_name, character_name, level, recorded_at)
+      VALUES
+        ($varchar, $varchar, $varchar, $int4, NOW())
+    """.command
+    session.execute(q, (snapshot.guildId, snapshot.tibiaGuildName, snapshot.characterName, snapshot.level)).void
+  }
+
+  override def getLevelSnapshots(guildId: String, tibiaGuildName: String): IO[List[LevelSnapshotRow]] =
+    withSession { session =>
+      val q = sql"""
+        SELECT id, guild_id, tibia_guild_name, character_name, level, recorded_at
+        FROM altfinder_level_snapshot
+        WHERE guild_id = $varchar AND lower(tibia_guild_name) = lower($varchar)
+        ORDER BY character_name, recorded_at ASC
+      """.query(levelSnapshotRowDecoder)
+      prepareToList(session)(q, (guildId, tibiaGuildName)).map(_.map {
+        case (id, gid, guildName, charName, level, recordedAt) =>
+          LevelSnapshotRow(id, gid, guildName, charName, level, recordedAt)
+      })
+    }
+
+  override def getLatestLevelsByGuild(guildId: String, tibiaGuildName: String): IO[Map[String, Int]] =
+    withSession { session =>
+      val q = sql"""
+        SELECT DISTINCT ON (lower(character_name)) lower(character_name), level
+        FROM altfinder_level_snapshot
+        WHERE guild_id = $varchar AND lower(tibia_guild_name) = lower($varchar)
+        ORDER BY lower(character_name), recorded_at DESC
+      """.query(charLevelDecoder)
+      prepareToList(session)(q, (guildId, tibiaGuildName)).map(_.toMap)
+    }
+
+  override def clearLevelSnapshots(guildId: String, tibiaGuildName: String): IO[Unit] = withSession { session =>
+    val q = sql"""
+      DELETE FROM altfinder_level_snapshot
+      WHERE guild_id = $varchar AND lower(tibia_guild_name) = lower($varchar)
+    """.command
+    session.execute(q, (guildId, tibiaGuildName.toLowerCase)).void
   }
 }

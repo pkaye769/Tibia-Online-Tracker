@@ -35,6 +35,14 @@ class AltFinderServiceSpec extends munit.FunSuite {
     def latestWorldSaveTime = IO.pure(None)
     def getCurrentlyOnlineNames = IO.pure(Nil)
     def getWorldTransfers(world: String, lookbackDays: Int) = IO.pure(Nil)
+    def upsertLevelEvent(c: LevelEventConfig) = IO.unit
+    def removeLevelEvent(guildId: String, tibiaGuildName: String) = IO.pure(false)
+    def listLevelEvents(guildId: String) = IO.pure(Nil)
+    def listAllLevelEvents = IO.pure(Nil)
+    def insertLevelSnapshot(snapshot: LevelSnapshotWrite) = IO.unit
+    def getLevelSnapshots(guildId: String, tibiaGuildName: String) = IO.pure(Nil)
+    def getLatestLevelsByGuild(guildId: String, tibiaGuildName: String) = IO.pure(Map.empty)
+    def clearLevelSnapshots(guildId: String, tibiaGuildName: String) = IO.unit
   }
 
   private val stubScraperClient: BazaarScraperClientAlg[IO] = new BazaarScraperClientAlg[IO] {
