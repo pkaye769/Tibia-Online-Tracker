@@ -45,7 +45,8 @@ class LevelEventRunner[F[_]: Async](
           Logger[F].warn(s"No members found for guild ${event.tibiaGuildName}")
         else
           for {
-            onlineLevels <- fetchOnlineLevels(worldName)
+            onlineLevels <- if (worldName.nonEmpty) fetchOnlineLevels(worldName)
+                            else Logger[F].warn(s"Could not extract world name for guild ${event.tibiaGuildName}").as(Map.empty[String, Int])
             latestLevels <- repo.getLatestLevelsByGuild(event.guildId, event.tibiaGuildName)
             _ <- members.traverse_ { case (name, guildLevel) =>
               val effectiveLevel = onlineLevels.getOrElse(name.toLowerCase, guildLevel)
@@ -60,12 +61,10 @@ class LevelEventRunner[F[_]: Async](
     }
 
   private def fetchOnlineLevels(worldName: String): F[Map[String, Int]] =
-    if (worldName.isEmpty) Async[F].pure(Map.empty)
-    else
-      tibiaDataClient.getWorld(worldName).attempt.map {
-        case Left(_)    => Map.empty
-        case Right(json) => extractOnlinePlayers(json)
-      }
+    tibiaDataClient.getWorld(worldName).attempt.map {
+      case Left(_)     => Map.empty
+      case Right(json) => extractOnlinePlayers(json)
+    }
 
   private def extractGuildMembers(json: Json): List[(String, Int)] = {
     val cursor = json.hcursor.downField("guild")

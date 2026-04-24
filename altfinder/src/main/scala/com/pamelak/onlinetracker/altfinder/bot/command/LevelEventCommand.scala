@@ -222,14 +222,16 @@ class LevelEventCommand[F[_]: Async](repo: AltFinderRepoAlg[F]) extends Command[
 
   private def calculatePrizes(chars: List[LevelCharData]): List[PrizeLevelWinner] = {
     val prizeDistribution = List(1000000, 750000)
-    if (chars.isEmpty) return Nil
-    val topN = chars.take(prizeDistribution.length)
-    val winners = topN ++ chars.drop(prizeDistribution.length).takeWhile(_.gained == topN.last.gained)
-    winners.zipWithIndex.map { case (winner, i) =>
-      val tiedWith = winners.zipWithIndex.filter(_._1.gained == winner.gained)
-      val totalPrize = tiedWith.map(_._2).flatMap(prizeDistribution.lift).sum
-      val prize = if (tiedWith.nonEmpty) totalPrize / tiedWith.length else 0
-      PrizeLevelWinner(winner.name, winner.gained, prize)
+    if (chars.isEmpty) Nil
+    else {
+      val topN = chars.take(prizeDistribution.length)
+      val winners = topN ++ chars.drop(prizeDistribution.length).takeWhile(_.gained == topN.last.gained)
+      winners.zipWithIndex.map { case (winner, i) =>
+        val tiedWith = winners.zipWithIndex.filter(_._1.gained == winner.gained)
+        val totalPrize = tiedWith.map(_._2).flatMap(prizeDistribution.lift).sum
+        val prize = if (tiedWith.nonEmpty) totalPrize / tiedWith.length else 0
+        PrizeLevelWinner(winner.name, winner.gained, prize)
+      }
     }
   }
 

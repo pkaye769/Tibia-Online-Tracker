@@ -988,6 +988,6 @@ class AltFinderSkunkRepo(sessionPool: Resource[IO, Session[IO]])
       DELETE FROM altfinder_level_snapshot
       WHERE guild_id = $varchar AND lower(tibia_guild_name) = lower($varchar)
     """.command
-    session.execute(q, (guildId, tibiaGuildName.toLowerCase)).void
+    session.execute(q, (guildId, tibiaGuildName)).void
   }
 }
