@@ -175,11 +175,15 @@ function showError(msg, box, msgEl) {
   if (!box) { box = el.errorBox; msgEl = el.errorMsg; }
   if (msgEl) msgEl.textContent = msg || '';
   box.classList.toggle('visible', !!msg);
-  if (box === el.errorBox) el.backendLink.href = safeBoardUrl();
+  if (box === el.errorBox) {
+    el.backendLink.href = safeBoardUrl();
+    el.backendLink.style.display = (msg && /backend timed out/i.test(msg)) ? 'none' : '';
+  }
 }
 function clearError(box) {
   if (!box) box = el.errorBox;
   box.classList.remove('visible');
+  if (box === el.errorBox) el.backendLink.style.display = '';
 }
 
 // ── API fetch ─────────────────────────────────────────────────────────────────
@@ -206,7 +210,7 @@ async function fetchJson(path, timeoutMs, maxAttempts) {
     throw new Error('Could not reach API at ' + url + ' after ' + maxAttempts + ' attempts. ' + detail);
   }
   const text = await res.text();
-  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try narrowing your search.');
+  if (/response timed out/i.test(text)) throw new Error('Backend timed out. Try adding a From date to limit the search window (e.g. last 30 days).');
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) throw new Error('Non-JSON response (HTTP ' + res.status + '): ' + text.slice(0,200));
   const body = JSON.parse(text);
