@@ -9,6 +9,7 @@ const STORAGE_IGNORE    = 'altfinder_ignore_list';
 const TIMEOUT_SEARCH    = 90000;
 const TIMEOUT_STATUS    = 10000;
 const TIMEOUT_CHAR      = 20000;
+const RE_BACKEND_TIMEOUT = /backend timed out/i;
 
 const el = {
   backendUrl:         document.getElementById('backendUrl'),
@@ -177,7 +178,7 @@ function showError(msg, box, msgEl) {
   box.classList.toggle('visible', !!msg);
   if (box === el.errorBox) {
     el.backendLink.href = safeBoardUrl();
-    el.backendLink.style.display = (msg && /backend timed out/i.test(msg)) ? 'none' : '';
+    el.backendLink.style.display = (msg && RE_BACKEND_TIMEOUT.test(msg)) ? 'none' : '';
   }
 }
 function clearError(box) {
