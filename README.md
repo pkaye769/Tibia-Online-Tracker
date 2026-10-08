@@ -97,6 +97,12 @@ UI page is served at:
 - `/`
 - `/altfinder`
 
+## GitHub Pages
+
+The standalone **Online Tibia Tracker** website in `site/` is deployed by the **Deploy GitHub Pages** workflow when changes are pushed to `main`. To enable it, select **GitHub Actions** as the Pages build and deployment source in the repository's Pages settings. The workflow can also be run manually from the Actions tab.
+
+The site uses the public [Tibia Stalker API](https://api.tibiastalker.pl/) to look up possible hidden-character matches, and [TibiaData](https://api.tibiadata.com/) for character profiles and live online-player lists by world. It also provides an offline leveling calculator, a hunt-profit calculator, and world-transfer lookup. The character and online searches work directly from the browser without this repository's API or Render; Tibia Stalker allows cross-origin browser requests. Possible hidden-character matches are estimates, not proof of shared ownership. World-transfer history still requires a compatible tracker API URL saved in the site; that API must allow browser requests from the Pages origin.
+
 ## Standalone Web Version (Render Static Site)
 
 You can deploy a separate frontend from the `web` folder.

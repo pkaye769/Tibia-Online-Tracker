@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111814">
+  <meta name="description" content="Online Tibia Tracker: find possible hidden characters with Tibia Stalker, check character profiles and live Tibia worlds, and use leveling and hunt-profit calculators.">
+  <title>Online Tibia Tracker</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home" aria-label="Online Tibia Tracker home">
+      <span class="brand-mark" aria-hidden="true">OT</span>
+      <span>Online Tibia <strong>Tracker</strong></span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#characters">Characters</a>
+      <a href="#leveling">Leveling</a>
+      <a href="#tools">Tools</a>
+      <a href="#transfers">Transfers</a>
+    </nav>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot"></span> Your Tibia companion</p>
+        <h1>Know your next<br><span>move.</span></h1>
+        <p class="hero-text">Find possible hidden characters, see who's online in Tibia worlds, plan your next level, and check world transfers—all in one place.</p>
+        <a class="button" href="#characters">Get started <span aria-hidden="true">↓</span></a>
+      </div>
+      <div class="hero-art" aria-label="Illustration of character activity">
+        <div class="orb orb-one"></div>
+        <div class="orb orb-two"></div>
+        <div class="moon"></div>
+        <div class="land"></div>
+        <div class="tower tower-one"><i></i><i></i><i></i></div>
+        <div class="tower tower-two"><i></i><i></i></div>
+        <div class="hero-caption"><span class="caption-dot"></span><span>CHARACTER TOOLS, IN ONE PLACE</span><span class="caption-line"></span></div>
+      </div>
+    </section>
+
+    <section class="section-block" id="characters">
+      <div class="section-head">
+        <div><p class="eyebrow">01 / Character search</p><h2>Discover a character.</h2></div>
+        <p>Search Tibia Stalker for possible hidden characters and view public profile details from TibiaData.</p>
+      </div>
+      <div class="two-card-grid">
+        <article class="tool-card character-card">
+          <span class="card-icon" aria-hidden="true">⌕</span>
+          <h3>Character search</h3>
+          <p>Possible hidden characters from Tibia Stalker, with public character details from TibiaData.</p>
+          <form id="characterSearchForm">
+            <label class="sr-only" for="characterNames">Character name</label>
+            <input id="characterNames" type="search" placeholder="Enter character name" required maxlength="80" autocomplete="off">
+            <button class="button" id="characterSearchButton" type="submit">Search character <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="api-note" id="characterSearchStatus" aria-live="polite">Search live Tibia Stalker correlations and public TibiaData character details.</p>
+          <div class="character-results" id="characterResults" hidden>
+            <h4>Character information</h4>
+            <p id="characterSummary"></p>
+            <div class="character-details" id="characterDetails"></div>
+            <h4>Possible hidden characters · Tibia Stalker</h4>
+            <div id="hiddenCharacters"></div>
+            <h4>Other characters listed on this account</h4>
+            <div id="accountCharacters"></div>
+            <h4>Recent deaths</h4>
+            <div id="characterDeaths"></div>
+          </div>
+        </article>
+        <article class="tool-card online-card">
+          <div class="card-heading"><span class="card-icon" aria-hidden="true">◉</span><span class="live-label"><i></i> Live · TibiaData</span></div>
+          <h3>Online players by world</h3>
+          <p>Check a world for online players or look up one character's online status.</p>
+          <form class="online-search" id="onlineSearchForm">
+            <label for="onlineCharacter">World</label>
+            <div class="inline-field">
+              <input id="onlineCharacter" type="search" placeholder="World name (e.g. Secura)" value="Secura" maxlength="60" autocomplete="off">
+              <button class="button button-secondary" id="onlineCheck" type="submit">Load players</button>
+            </div>
+          </form>
+          <form class="online-search" id="onlineCharacterForm">
+            <label for="onlineCharacterName">Check a character's online status</label>
+            <div class="inline-field">
+              <input id="onlineCharacterName" type="search" placeholder="Character name" maxlength="80" autocomplete="off">
+              <button class="button button-secondary" id="onlineCharacterCheck" type="submit">Check</button>
+            </div>
+          </form>
+          <div class="api-note" id="onlineStatus" aria-live="polite">Live online status loads directly from TibiaData.</div>
+          <div class="online-filters" id="onlineFilters" role="group" aria-label="Filter online players by vocation" hidden></div>
+          <ul class="online-list" id="onlineList" aria-live="polite"></ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-block" id="leveling">
+      <div class="section-head">
+        <div><p class="eyebrow">02 / Level planning</p><h2>Plan your next level.</h2></div>
+        <p>Estimate experience needed and time to your goal. Calculations run in your browser.</p>
+      </div>
+      <article class="tool-card calculator-card">
+        <div class="calculator-fields">
+          <div class="field">
+            <label for="currentLevel">Current level</label>
+            <input id="currentLevel" type="number" value="100" min="1" max="1000" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="targetLevel">Target level</label>
+            <input id="targetLevel" type="number" value="110" min="2" max="1000" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="currentLevelExp">XP earned this level</label>
+            <input id="currentLevelExp" type="number" value="0" min="0" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="expPerHour">XP per hour <span class="label-optional">optional</span></label>
+            <input id="expPerHour" type="number" value="0" min="0" inputmode="numeric">
+          </div>
+        </div>
+        <div class="calculator-output" aria-live="polite">
+          <div><span class="result-label">EXPERIENCE TO GOAL</span><strong id="expNeeded">—</strong></div>
+          <div><span class="result-label">ESTIMATED TIME</span><strong id="timeNeeded">Enter your XP/hour</strong></div>
+          <p class="calculator-error" id="levelError" role="status"></p>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-block" id="tools">
+      <div class="section-head">
+        <div><p class="eyebrow">03 / Hunt tools</p><h2>Split the hunt.</h2></div>
+        <p>Calculate net profit and an even share for each party member.</p>
+      </div>
+      <article class="tool-card calculator-card">
+        <div class="calculator-fields three-fields">
+          <div class="field">
+            <label for="huntLoot">Total loot</label>
+            <input id="huntLoot" type="number" value="0" min="0" step="1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="huntSupplies">Total supplies</label>
+            <input id="huntSupplies" type="number" value="0" min="0" step="1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="partySize">Party members</label>
+            <input id="partySize" type="number" value="1" min="1" max="100" step="1" inputmode="numeric">
+          </div>
+        </div>
+        <div class="calculator-output profit-output" aria-live="polite">
+          <div><span class="result-label">NET HUNT PROFIT</span><strong id="huntProfit">0</strong></div>
+          <div><span class="result-label">SHARE PER PLAYER</span><strong id="profitShare">0</strong></div>
+          <p class="calculator-error" id="huntError" role="status"></p>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-block" id="transfers">
+      <div class="section-head">
+        <div><p class="eyebrow">04 / World activity</p><h2>World transfers.</h2></div>
+        <p>Browse characters recently transferred to or from a world.</p>
+      </div>
+      <article class="tool-card transfer-card">
+        <form id="transferForm">
+          <div class="transfer-fields">
+            <div class="field">
+              <label for="transferWorld">World</label>
+              <input id="transferWorld" type="text" placeholder="World name" required maxlength="60">
+            </div>
+            <div class="field">
+              <label for="transferDays">Look back (days)</label>
+              <input id="transferDays" type="number" value="7" min="1" max="365" required>
+            </div>
+            <button class="button" type="submit" id="transferSearch">Search transfers <span aria-hidden="true">→</span></button>
+          </div>
+        </form>
+        <p class="api-note" id="transferStatus" aria-live="polite">World transfer history needs a compatible tracker API. Configure its URL below.</p>
+        <div class="transfer-results" id="transferResults" hidden>
+          <section><h3>Transfers to <span id="toWorldName"></span></h3><div id="transfersTo"></div></section>
+          <section><h3>Transfers from <span id="fromWorldName"></span></h3><div id="transfersFrom"></div></section>
+        </div>
+      </article>
+    </section>
+
+    <details class="api-settings" id="apiSettings">
+      <summary>Configure world-transfer API <span>Optional · character search uses Tibia Stalker and TibiaData</span></summary>
+      <div class="api-config">
+        <label for="apiBase">Compatible world-transfer API URL</label>
+        <div class="api-config-row">
+          <input id="apiBase" type="url" placeholder="https://your-api.example.com" autocomplete="url">
+          <button class="button button-secondary" id="saveApi" type="button">Save API URL</button>
+        </div>
+        <p>Possible hidden-character matches load from the public Tibia Stalker API; character profiles and online players load from TibiaData. World-transfer history needs a separate compatible API with browser access (CORS) enabled.</p>
+      </div>
+    </details>
+
+    <aside class="disclaimer"><span aria-hidden="true">ⓘ</span> Possible hidden-character matches are estimates from the <a href="https://www.tibiastalker.pl/" target="_blank" rel="noopener noreferrer">Tibia Stalker API</a>; profiles and world data come from <a href="https://api.tibiadata.com/" target="_blank" rel="noopener noreferrer">TibiaData</a>. Matches are not proof of shared ownership. This independent fan project is not affiliated with CipSoft or Tibia.</aside>
+  </main>
+
+  <footer>
+    <a class="brand footer-brand" href="#home"><span class="brand-mark" aria-hidden="true">OT</span><span>Online Tibia <strong>Tracker</strong></span></a>
+    <a href="https://github.com/pkaye769/Tibia-Online-Tracker">Open-source project <span aria-hidden="true">↗</span></a>
+  </footer>
+</body>
+</html>
