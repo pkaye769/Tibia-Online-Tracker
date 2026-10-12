@@ -2,6 +2,11 @@
   'use strict';
 
   const DATA_URL = './static/tasks-data.json';
+  // Tibia full-floor PNGs are 1 pixel per tile, starting at this world position
+  const MAP_ORIGIN_X = 31744;
+  const MAP_ORIGIN_Y = 30976;
+  const MAP_WIDTH = 2560;
+  const MAP_HEIGHT = 2048;
   const STORAGE_KEY = 'tibia_tasks_completed_v1';
 
   // State
@@ -14,6 +19,7 @@
     view: 'all', // 'all' | 'delivery' | 'kill' | 'monsters'
     difficulty: 'all', // 'all' | 'Easy' | 'Medium' | 'Hard'
     selected: null,
+    floor: 7,
     markers: []
   };
 
@@ -65,6 +71,9 @@
   // Initialize Map
   let map = null;
   let markerLayerGroup = null;
+  let floorLayer = null;
+  const floorSelect = document.getElementById('floorSelect');
+  const mapCoords = document.getElementById('mapCoords');
 
   function initMap() {
     const mapEl = document.getElementById('map');
@@ -83,21 +92,51 @@
 
     try {
       map = window.L.map('map', {
+        crs: window.L.CRS.Simple,
         zoomControl: true,
-        attributionControl: true
-      }).setView([51.4, 0.1], 6);
+        attributionControl: true,
+        minZoom: -1,
+        maxZoom: 5,
+        zoomSnap: 0.25,
+        maxBounds: [[-2300, -300], [250, 2860]],
+        maxBoundsViscosity: 0.8
+      }).setView(toLatLng({ x: 32369, y: 32241 }), 1);
 
-      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        maxZoom: 18,
-        minZoom: 4,
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-      }).addTo(map);
-
+      map.attributionControl.setPrefix(false);
+      map.attributionControl.addAttribution('Map data from <a href="https://tibiamaps.io/" target="_blank" rel="noopener">TibiaMaps.io</a>');
+      setFloor(state.floor);
       markerLayerGroup = window.L.layerGroup().addTo(map);
+
+      map.on('mousemove', (e) => {
+        const c = fromLatLng(e.latlng);
+        if (mapCoords) mapCoords.textContent = `X: ${c.x} Y: ${c.y} Z: ${state.floor}`;
+      });
     } catch (err) {
       console.error('Failed to initialize Leaflet map:', err);
     }
+  }
+
+  function toLatLng(pos) {
+    return [-(pos.y - MAP_ORIGIN_Y), pos.x - MAP_ORIGIN_X];
+  }
+
+  function fromLatLng(latlng) {
+    return { x: Math.floor(latlng.lng + MAP_ORIGIN_X), y: Math.floor(MAP_ORIGIN_Y - latlng.lat) };
+  }
+
+  function setFloor(z) {
+    state.floor = z;
+    if (floorSelect && floorSelect.value !== String(z)) floorSelect.value = String(z);
+    if (!map) return;
+    if (floorLayer) map.removeLayer(floorLayer);
+    const name = String(z).padStart(2, '0');
+    floorLayer = window.L.imageOverlay(
+      `https://tibiamaps.github.io/tibia-map-data/floor-${name}-map.png`,
+      [[-MAP_HEIGHT, 0], [0, MAP_WIDTH]],
+      { className: 'tibia-floor-image' }
+    ).addTo(map);
+    floorLayer.bringToBack();
+    if (markerLayerGroup) applyFilters();
   }
 
   function normalize(str) {
@@ -162,8 +201,9 @@
     hudBody.innerHTML = bodyHtml;
     hudActions.hidden = false;
 
-    if (map && spot.lat && spot.lng) {
-      map.flyTo([spot.lat, spot.lng], 9, { duration: 0.75 });
+    if (map && spot.x && spot.y) {
+      if (typeof spot.z === 'number' && spot.z !== state.floor) setFloor(spot.z);
+      map.flyTo(toLatLng(spot), 3, { duration: 0.75 });
     }
   }
 
@@ -343,6 +383,8 @@
           <span>·</span>
           <span>EXP: <strong>${monster.exp}</strong></span>
           <span>·</span>
+          <span>Total: <strong>~${spots.reduce((n, sp) => n + (sp.amount || 0), 0)}</strong></span>
+          <span>·</span>
           <span>Best: <strong>${best ? best.name : 'Unknown'}</strong> (~${best?.amount || 0})</span>
         </div>
 
@@ -423,13 +465,14 @@
       const killTask = killTaskByMonster.get(normalize(monster.name));
 
       spots.forEach((spot, idx) => {
-        if (!spot.lat || !spot.lng) return;
+        if (!spot.x || !spot.y) return;
 
         let markerClass = 'marker-monster';
+        const offFloor = spot.z !== state.floor;
         if (deliveryTask) markerClass = 'marker-delivery';
         else if (killTask) markerClass = 'marker-kill';
 
-        const iconHtml = `<div class="tibia-map-marker ${markerClass}" title="${monster.name} (${spot.name})">${spot.amount}</div>`;
+        const iconHtml = `<div class="tibia-map-marker ${markerClass}${offFloor ? ' marker-off-floor' : ''}" title="${monster.name} (${spot.name})">${spot.amount}</div>`;
         const customIcon = window.L.divIcon({
           html: iconHtml,
           className: 'tibia-div-icon',
@@ -438,7 +481,7 @@
           popupAnchor: [0, -14]
         });
 
-        const marker = window.L.marker([spot.lat, spot.lng], { icon: customIcon });
+        const marker = window.L.marker(toLatLng(spot), { icon: customIcon });
 
         let popupContent = `
           <div style="min-width:200px;">
@@ -553,21 +596,26 @@
       }
     });
 
+    if (floorSelect) {
+      floorSelect.addEventListener('change', () => setFloor(parseInt(floorSelect.value, 10)));
+    }
+
     // Quick Zones
     document.querySelectorAll('.zone-chip').forEach(chip => {
       chip.addEventListener('click', () => {
-        const lat = parseFloat(chip.getAttribute('data-lat'));
-        const lng = parseFloat(chip.getAttribute('data-lng'));
-        if (map && !isNaN(lat) && !isNaN(lng)) {
-          map.flyTo([lat, lng], 8, { duration: 0.8 });
+        const x = parseInt(chip.getAttribute('data-x'), 10);
+        const y = parseInt(chip.getAttribute('data-y'), 10);
+        if (map && !isNaN(x) && !isNaN(y)) {
+          if (state.floor !== 7) setFloor(7);
+          map.flyTo(toLatLng({ x, y }), 2, { duration: 0.8 });
         }
       });
     });
 
     // HUD Actions
     hudFocusBtn.addEventListener('click', () => {
-      if (map && state.selected?.spot?.lat && state.selected?.spot?.lng) {
-        map.flyTo([state.selected.spot.lat, state.selected.spot.lng], 10, { duration: 0.6 });
+      if (map && state.selected?.spot?.x && state.selected?.spot?.y) {
+        map.flyTo(toLatLng(state.selected.spot), 4, { duration: 0.6 });
       }
     });
 
