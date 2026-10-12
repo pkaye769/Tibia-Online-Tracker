@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Delivery Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+      :root {
+        --bg: #0f1720;
+        --panel: #111b22;
+        --panel-strong: #15242c;
+        --border: rgba(255,255,255,0.08);
+        --text: #edf6ff;
+        --muted: #a9becf;
+        --accent: #79c0ff;
+        --accent-soft: rgba(121,192,255,0.18);
+      }
+
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      body {
+        padding: 20px;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(17, 27, 34, 0.9);
+        box-shadow: 0 10px 35px rgba(0,0,0,0.18);
+      }
+
+      .brand {
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .nav {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .nav a {
+        color: var(--muted);
+        text-decoration: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        transition: 0.2s ease;
+      }
+
+      .nav a:hover,
+      .nav a.active {
+        background: var(--accent-soft);
+        color: var(--text);
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+      }
+
+      .header {
+        padding: 18px 20px 12px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-strong);
+      }
+
+      .header h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.6rem, 2vw, 2.3rem);
+      }
+
+      .header p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        min-height: 70vh;
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: rgba(17, 27, 34, 0.95);
+      }
+
+      .sidebar-inner {
+        padding: 16px;
+      }
+
+      .status {
+        color: var(--muted);
+        margin: 0 0 12px;
+        font-size: 0.9rem;
+      }
+
+      .task-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .task-item {
+        padding: 12px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(255,255,255,0.02);
+        cursor: pointer;
+        transition: 0.2s ease;
+      }
+
+      .task-item:hover,
+      .task-item.active {
+        border-color: rgba(121,192,255,0.5);
+        background: rgba(121,192,255,0.08);
+      }
+
+      .task-item strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .task-meta {
+        color: var(--muted);
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
+      .map-wrap {
+        position: relative;
+        min-height: 520px;
+      }
+
+      #map {
+        width: 100%;
+        height: 100%;
+        min-height: 520px;
+        background: #0d1a21;
+      }
+
+      .leaflet-popup-content-wrapper,
+      .leaflet-popup-tip {
+        background: #16252d;
+        color: var(--text);
+      }
+
+      .leaflet-container a.leaflet-popup-close-button {
+        color: var(--text);
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <a class="brand" href="./index.html">Online Tibia Tracker</a>
+        <nav class="nav" aria-label="Main navigation">
+          <a href="./index.html#characters">Characters</a>
+          <a href="./index.html#guilds">Guilds</a>
+          <a href="./task-delivery.html" class="active">Task delivery</a>
+        </nav>
+      </div>
+
+      <div class="panel">
+        <div class="header">
+          <h1>Task delivery map</h1>
+          <p>Browse available task-delivery routes and click any marker to inspect the job details.</p>
+        </div>
+
+        <div class="layout">
+          <aside class="sidebar">
+            <div class="sidebar-inner">
+              <p class="status">Available deliveries</p>
+              <ul id="taskList" class="task-list" aria-live="polite"></ul>
+            </div>
+          </aside>
+
+          <div class="map-wrap">
+            <div id="map" aria-label="Task delivery map"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="./task-delivery.js"></script>
+  </body>
+</html>
