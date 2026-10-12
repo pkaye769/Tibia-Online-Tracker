@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080d12">
-  <meta name="description" content="Tibia Tasks: Interactive map for weekly delivery and kill tasks, monster spawns, drops, and hunting locations.">
+  <meta name="description" content="Tibia Tasks: Interactive map for weekly delivery tasks, monster spawns, drops, and hunting locations.">
   <title>Tibia Tasks</title>
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./tibia-tasks.css">
@@ -27,11 +27,11 @@
     <div class="tasks-page-header">
       <div class="tasks-headline">
         <div>
-          <p class="eyebrow"><span class="status-dot"></span> Weekly Tasks & Monster Spawns</p>
+          <p class="eyebrow"><span class="status-dot"></span> Delivery Tasks & Monster Spawns</p>
           <h1>Tibia Tasks</h1>
         </div>
         <div class="tasks-stats-bar">
-          <span><strong id="statTasksCount">0</strong> Weekly Tasks</span>
+          <span><strong id="statTasksCount">0</strong> Delivery Tasks</span>
           <span>·</span>
           <span><strong id="statMonstersCount">0</strong> Monsters</span>
           <span>·</span>
@@ -39,7 +39,7 @@
         </div>
       </div>
       <p class="hero-text" style="max-width: 680px; margin-top: 8px;">
-        Find where to gather weekly delivery task items, plan hunting tasks, inspect creature spawns and best-spot locations across the map.
+      Find weekly delivery task items and inspect creature spawns and best-spot locations across the map.
       </p>
     </div>
 
@@ -62,7 +62,6 @@
           <span style="font-size:12px; color:var(--muted); margin-right:4px;">View:</span>
           <button class="filter-chip active" data-view="all" type="button">All</button>
           <button class="filter-chip" data-view="delivery" type="button">Delivery Tasks</button>
-          <button class="filter-chip" data-view="kill" type="button">Kill Tasks</button>
           <button class="filter-chip" data-view="monsters" type="button">Monsters</button>
         </div>
 
@@ -84,10 +83,10 @@
         <section id="weeklyTasksSection">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
             <h2 class="tasks-section-title">
-              Weekly Tasks
+              Delivery Tasks
               <span class="tasks-count-badge" id="tasksListCount">0</span>
             </h2>
-            <button id="resetProgressBtn" type="button" style="background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline; cursor:pointer;">Reset progress</button>
+            <button id="resetProgressBtn" type="button" style="background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline; cursor:pointer;">Reset delivery progress</button>
           </div>
           <div id="weeklyTasksList" style="display:flex; flex-direction:column; gap:10px;"></div>
         </section>
@@ -105,7 +104,7 @@
       <!-- Right Column: Interactive Map & HUD -->
       <section class="tasks-map-container" aria-label="Interactive map">
         <div class="map-wrapper">
-          <div id="map" aria-label="Tibia Task and Spawn Map"></div>
+          <div id="map" aria-label="Tibia Delivery Task and Spawn Map"></div>
 
           <!-- Selected Spot HUD -->
           <div class="map-hud-box" id="mapHud">
@@ -114,7 +113,7 @@
               <span class="map-hud-coords" id="hudCoords">—</span>
             </div>
             <div class="map-hud-body" id="hudBody">
-              Click any weekly task or monster on the left, or click a map marker to view spawn density and task requirements.
+              Click any delivery task or monster on the left, or click a map marker to view spawn density and delivery requirements.
             </div>
             <div class="map-hud-actions" id="hudActions" hidden>
               <button class="card-btn" id="hudFocusBtn" type="button">Center Map</button>

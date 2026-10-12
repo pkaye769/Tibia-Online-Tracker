@@ -11,7 +11,7 @@
     completedTaskIds: new Set(),
     searchQuery: '',
     searchMode: 'monsters',
-    view: 'all', // 'all' | 'delivery' | 'kill' | 'monsters'
+    view: 'all', // 'all' | 'delivery' | 'monsters'
     difficulty: 'all', // 'all' | 'Easy' | 'Medium' | 'Hard'
     selected: null,
     markers: []
@@ -110,7 +110,6 @@
     const filteredTasks = state.weeklyTasks.filter(task => {
       if (state.view === 'monsters') return false;
       if (state.view === 'delivery' && task.type !== 'delivery') return false;
-      if (state.view === 'kill' && task.type !== 'kill') return false;
       if (state.difficulty !== 'all' && task.difficulty !== state.difficulty) return false;
 
       if (!q) return true;
@@ -124,7 +123,7 @@
     });
 
     const filteredMonsters = state.monsters.filter(monster => {
-      if (state.view === 'delivery' || state.view === 'kill') return false;
+      if (state.view === 'delivery') return false;
       if (state.difficulty !== 'all' && monster.difficulty !== state.difficulty) return false;
 
       if (!q) return true;
@@ -180,7 +179,7 @@
     if (!tasks.length) {
       weeklyTasksList.innerHTML = `
         <div style="padding:16px; background:#0d1822; border:1px dashed #1e3649; border-radius:6px; color:var(--muted); font-size:12px; text-align:center;">
-          No weekly tasks match the current search or filters.
+          No delivery tasks match the current search or filters.
         </div>`;
       return;
     }
@@ -194,22 +193,19 @@
       card.className = `task-card ${isCompleted ? 'completed' : ''}`;
       card.id = `card-task-${task.id}`;
 
-      const badgeTypeClass = task.type === 'delivery' ? 'badge-delivery' : 'badge-kill';
       const badgeDiffClass = `badge-diff-${task.difficulty.toLowerCase()}`;
 
       card.innerHTML = `
         <div class="card-top">
           <h3 class="card-title">${task.title}</h3>
           <div class="badge-group">
-            <span class="badge ${badgeTypeClass}">${task.type === 'delivery' ? 'Delivery Task' : 'Kill Task'}</span>
+            <span class="badge badge-delivery">Delivery Task</span>
             <span class="badge ${badgeDiffClass}">${task.difficulty}</span>
           </div>
         </div>
 
         <div class="card-meta-line">
-          ${task.itemRequired
-            ? `<span class="item-highlight">✦ Deliver: ${task.amount} ${task.itemRequired}</span>`
-            : `<span style="color:#8ac5ff; font-weight:600;">⚔ Target: ${task.amount}</span>`}
+          <span class="item-highlight">✦ Deliver: ${task.amount} ${task.itemRequired}</span>
           <span>·</span>
           <span>Monster: <strong>${task.monsterName}</strong></span>
         </div>
@@ -287,7 +283,7 @@
     monstersList.innerHTML = '';
     monstersListCount.textContent = String(monsters.length);
 
-    if (state.view === 'delivery' || state.view === 'kill') {
+    if (state.view === 'delivery') {
       monstersSection.style.display = 'none';
       return;
     }
@@ -410,24 +406,15 @@
       }
     });
 
-    const killTaskByMonster = new Map();
-    tasks.forEach(t => {
-      if (t.type === 'kill') {
-        killTaskByMonster.set(normalize(t.monsterName), t);
-      }
-    });
-
     monsters.forEach(monster => {
       const spots = monster.spots || (monster.bestSpot ? [monster.bestSpot] : []);
       const deliveryTask = deliveryTaskByMonster.get(normalize(monster.name));
-      const killTask = killTaskByMonster.get(normalize(monster.name));
 
       spots.forEach((spot, idx) => {
         if (!spot.lat || !spot.lng) return;
 
         let markerClass = 'marker-monster';
         if (deliveryTask) markerClass = 'marker-delivery';
-        else if (killTask) markerClass = 'marker-kill';
 
         const iconHtml = `<div class="tibia-map-marker ${markerClass}" title="${monster.name} (${spot.name})">${spot.amount}</div>`;
         const customIcon = window.L.divIcon({
@@ -453,11 +440,6 @@
           popupContent += `
             <div style="padding:4px 6px; background:rgba(42,226,143,0.15); border:1px solid rgba(42,226,143,0.35); border-radius:4px; font-size:11px; color:#2ae28f; margin-top:6px;">
               ★ Weekly Delivery: Deliver ${deliveryTask.amount} ${deliveryTask.itemRequired}
-            </div>`;
-        } else if (killTask) {
-          popupContent += `
-            <div style="padding:4px 6px; background:rgba(60,141,255,0.15); border:1px solid rgba(60,141,255,0.35); border-radius:4px; font-size:11px; color:#8ac5ff; margin-top:6px;">
-              ⚔ Weekly Task: Slay ${killTask.amount}
             </div>`;
         }
 
@@ -546,7 +528,7 @@
 
     // Reset progress button
     resetProgressBtn.addEventListener('click', () => {
-      if (confirm('Reset your saved weekly tasks progress?')) {
+      if (confirm('Reset your saved delivery task progress?')) {
         state.completedTaskIds.clear();
         saveCompletedTasks();
         applyFilters();
@@ -592,7 +574,13 @@
       const data = await resp.json();
 
       state.monsters = Array.isArray(data.monsters) ? data.monsters : [];
-      state.weeklyTasks = Array.isArray(data.weeklyTasks) ? data.weeklyTasks : [];
+      state.weeklyTasks = Array.isArray(data.weeklyTasks)
+        ? data.weeklyTasks.filter(task => task.type === 'delivery')
+        : [];
+      const deliveryTaskIds = new Set(state.weeklyTasks.map(task => task.id));
+      state.completedTaskIds = new Set(
+        [...state.completedTaskIds].filter(taskId => deliveryTaskIds.has(taskId))
+      );
 
       updateStats();
       applyFilters();
