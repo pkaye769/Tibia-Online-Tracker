@@ -276,6 +276,72 @@ function setCharacterResults(data, stalkerData, searchedName) {
   results.hidden = false;
 }
 
+function toMemberList(guild) {
+  if (Array.isArray(guild?.members)) return guild.members;
+  const nested = guild?.members?.members;
+  return Array.isArray(nested) ? nested : [];
+}
+
+function setGuildResults(data, searchedName) {
+  const results = byId("guildResults");
+  const guild = data?.guild;
+  if (!guild) {
+    throw new Error(data.message || `Guild "${searchedName}" was not found.`);
+  }
+
+  byId("guildSummary").textContent = `${guild.name || searchedName} · ${guild.world || "World unknown"}`;
+
+  const memberList = toMemberList(guild);
+  const memberTotal = Number(guild.members_total ?? guild.membersTotal ?? memberList.length ?? 0);
+  const onlineTotal = Number(guild.members_online ?? guild.membersOnline ?? 0);
+  const onlineNames = memberList
+    .filter((member) => {
+      const status = String(member.status || member.memberStatus || "").toLowerCase();
+      const isOnline = member.online === true || status.includes("online");
+      return isOnline;
+    })
+    .map((member) => member.name || member.character_name || member.player_name)
+    .filter(Boolean);
+
+  const details = byId("guildDetails");
+  details.replaceChildren();
+  const fields = [
+    ["World", guild.world || "—"],
+    ["Members", memberTotal ? numberFormat.format(memberTotal) : "—"],
+    ["Online", onlineTotal ? numberFormat.format(onlineTotal) : (onlineNames.length ? numberFormat.format(onlineNames.length) : "0")],
+    ["Founded", guild.founded || "—"],
+    ["Homepage", guild.homepage || "—"]
+  ];
+  for (const [label, value] of fields) {
+    const item = document.createElement("div");
+    const term = document.createElement("span");
+    term.textContent = label;
+    const description = document.createElement("strong");
+    description.textContent = value;
+    item.append(term, description);
+    details.append(item);
+  }
+
+  const onlineContainer = byId("guildOnlineMembers");
+  onlineContainer.replaceChildren();
+  if (!onlineNames.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-result";
+    empty.textContent = "No guild members are currently online.";
+    onlineContainer.append(empty);
+  } else {
+    const list = document.createElement("ul");
+    for (const name of onlineNames.slice(0, 50)) {
+      const item = document.createElement("li");
+      item.textContent = name;
+      list.append(item);
+    }
+    onlineContainer.append(list);
+  }
+
+  results.hidden = false;
+}
+
 async function searchCharacter(event) {
   event.preventDefault();
   const name = byId("characterNames").value.trim();
@@ -318,6 +384,33 @@ async function searchCharacter(event) {
     status.textContent = `${messages.join("; ")}.`;
   } catch (error) {
     status.textContent = `Could not look up ${name}: ${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function searchGuild(event) {
+  event.preventDefault();
+  const name = byId("guildName").value.trim();
+  const status = byId("guildSearchStatus");
+  const output = byId("guildResults");
+  output.hidden = true;
+
+  if (!name) {
+    status.textContent = "Enter a guild name.";
+    return;
+  }
+
+  const button = byId("guildSearchButton");
+  button.disabled = true;
+  status.textContent = `Looking up guild ${name}…`;
+
+  try {
+    const data = await fetchTibiaData(`/guild/${encodeURIComponent(name)}`);
+    setGuildResults(data, name);
+    status.textContent = `Guild lookup completed for ${name}.`;
+  } catch (error) {
+    status.textContent = `Could not look up guild ${name}: ${error.message}`;
   } finally {
     button.disabled = false;
   }
@@ -520,6 +613,7 @@ for (const id of ["huntLoot", "huntSupplies", "partySize"]) {
 }
 
 byId("characterSearchForm").addEventListener("submit", searchCharacter);
+byId("guildSearchForm").addEventListener("submit", searchGuild);
 byId("transferForm").addEventListener("submit", loadTransfers);
 byId("onlineSearchForm").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -570,3 +664,4 @@ try {
 }
 calculateLeveling();
 calculateHuntProfit();
+
