@@ -6,7 +6,6 @@ const TIBIASTALKER_API = "https://api.tibiastalker.pl/api/tibia-stalker/v1/chara
 const byId = (id) => document.getElementById(id);
 const apiInput = byId("apiBase");
 const onlineStatus = byId("onlineStatus");
-const transferStatus = byId("transferStatus");
 const numberFormat = new Intl.NumberFormat();
 const shareFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 const vocationCategories = [
@@ -21,7 +20,6 @@ let onlinePlayers = [];
 let activeVocationCategory = "all";
 let onlineWorldName = "";
 let checkedCharacterName = "";
-let selectedTransferWorld = "";
 
 // Saved lists keys (reuse names used elsewhere for compatibility)
 const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
@@ -471,86 +469,49 @@ async function refreshSavedGuilds() {
   refreshSavedGuildsUI();
 }
 
-async function fetchWorlds() {
-  const container = byId("worldList");
-  container.textContent = "Loading worlds…";
-  try {
-    const data = await fetchTibiaData('/worlds');
-    const worlds = Array.isArray(data.worlds) ? data.worlds : (data.worlds?.list || []);
-    if (!worlds.length) {
-      container.textContent = "No worlds found.";
-      return;
-    }
-    container.replaceChildren();
-    // Create buttons for each world (limit to 200 to avoid huge DOM)
-    for (const w of worlds.slice(0, 200)) {
-      const name = w.name || w;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'world-button';
-      btn.dataset.world = name;
-      btn.textContent = name;
-      container.appendChild(btn);
-    }
-  } catch (err) {
-    container.textContent = 'Could not load worlds.';
-  }
-}
-
-async function loadTransfersForWorld(worldName, days) {
-  const base = readApiBase();
-  const output = byId("transferResults");
-  output.hidden = true;
-
-  if (!base) {
-    byId("apiSettings").open = true;
-    transferStatus.textContent = "Set a compatible tracker API URL above to load transfer history. This GitHub Pages site does not host an API.";
-    return;
-  }
-  if (!worldName) {
-    transferStatus.textContent = "Select a server to view transfers.";
-    return;
-  }
-  const lookback = Number(days) || Number(byId("transferDays").value) || 7;
-  if (!Number.isInteger(lookback) || lookback < 1 || lookback > 365) {
-    transferStatus.textContent = "Choose a look-back period from 1 to 365 days.";
-    return;
-  }
-
-  const button = byId("transferSearch");
+async function searchCharacter(event) {
+  event.preventDefault();
+  const name = byId("characterNames").value.trim();
+  const status = byId("characterSearchStatus");
+  const button = byId("characterSearchButton");
+  if (!name) { status.textContent = "Enter a character name."; return; }
   button.disabled = true;
-  transferStatus.textContent = `Loading transfers to ${worldName}…`;
-  const params = new URLSearchParams({ world: worldName, lookbackDays: String(lookback) });
-
+  status.textContent = `Searching for ${name}…`;
+  byId("characterResults").hidden = true;
   try {
-    const response = await fetch(`${base}/api/altfinder/transfers?${params.toString()}`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || data.message || `Request failed (${response.status}).`);
+    const [profile, stalker] = await Promise.allSettled([
+      fetchTibiaData(`/character/${encodeURIComponent(name)}`),
+      fetchTibiaStalker(name)
+    ]);
+    const data = profile.status === "fulfilled" ? profile.value : null;
+    const stalkerData = stalker.status === "fulfilled" ? stalker.value : null;
+    if (!data && !stalkerData) {
+      throw profile.reason || stalker.reason || new Error(`Character "${name}" was not found.`);
     }
-    if (!Array.isArray(data.transfersTo) || !Array.isArray(data.transfersFrom)) {
-      throw new Error("The API returned an unexpected transfer response.");
-    }
-    byId("toWorldName").textContent = data.world || worldName;
-    byId("fromWorldName").textContent = data.world || worldName;
-    setRows(byId("transfersTo"), data.transfersTo);
-    setRows(byId("transfersFrom"), data.transfersFrom);
-    transferStatus.textContent = `Showing transfer activity for ${data.world || worldName} over the last ${data.lookbackDays || lookback} days.`;
-    output.hidden = false;
+    setCharacterResults(data, stalkerData, name);
+    status.textContent = stalkerData ? "Showing TibiaData profile and Tibia Stalker matches." : "Showing TibiaData profile (Tibia Stalker unavailable).";
   } catch (error) {
-    transferStatus.textContent = `Could not load transfers: ${error.message} Check the API URL and its CORS settings.`;
+    status.textContent = `Could not search: ${error.message}`;
   } finally {
     button.disabled = false;
   }
 }
 
-async function loadTransfers(event) {
+async function searchGuild(event) {
   event.preventDefault();
-  if (!selectedTransferWorld) {
-    transferStatus.textContent = "Select a server from the list to search transfers.";
-    return;
+  const name = byId("guildName").value.trim();
+  const status = byId("guildSearchStatus");
+  const button = byId("guildSearchButton");
+  if (!name) { status.textContent = "Enter a guild name."; return; }
+  button.disabled = true;
+  status.textContent = `Searching for ${name}…`;
+  try {
+    setGuildResults(await fetchTibiaData(`/guild/${encodeURIComponent(name)}`), name);
+  } catch (error) {
+    status.textContent = `Could not search: ${error.message}`;
+  } finally {
+    button.disabled = false;
   }
-  await loadTransfersForWorld(selectedTransferWorld);
 }
 
 function expAtLevel(level) {
@@ -630,7 +591,6 @@ for (const id of ["huntLoot", "huntSupplies", "partySize"]) {
 
 byId("characterSearchForm").addEventListener("submit", searchCharacter);
 byId("guildSearchForm").addEventListener("submit", searchGuild);
-byId("transferForm").addEventListener("submit", loadTransfers);
 byId("onlineSearchForm").addEventListener("submit", (event) => {
   event.preventDefault();
   loadOnlineCharacters();
@@ -646,20 +606,6 @@ byId("onlineFilters").addEventListener("click", (event) => {
   }
   activeVocationCategory = button.dataset.category;
   renderOnlinePlayers();
-});
-
-// world list click handler
-byId("worldList").addEventListener("click", (e) => {
-  const btn = e.target.closest("button.world-button");
-  if (!btn) return;
-  const world = btn.dataset.world;
-  // highlight
-  const siblings = byId("worldList").querySelectorAll("button.world-button");
-  siblings.forEach(s => s.classList.remove("active"));
-  btn.classList.add("active");
-  selectedTransferWorld = world;
-  // perform search for this server
-  loadTransfersForWorld(world);
 });
 
 // Saved players UI events
@@ -695,7 +641,6 @@ byId("saveApi").addEventListener("click", () => {
       localStorage.setItem(API_KEY, parsed.origin + parsed.pathname.replace(/\/+$/, ""));
       apiInput.value = localStorage.getItem(API_KEY);
       onlineStatus.textContent = "API URL saved in this browser.";
-      transferStatus.textContent = "API URL saved in this browser.";
     } catch (error) {
       onlineStatus.textContent = error.message || "Enter a valid API URL.";
     }
@@ -703,7 +648,6 @@ byId("saveApi").addEventListener("click", () => {
     try {
       localStorage.removeItem(API_KEY);
       onlineStatus.textContent = "API URL cleared.";
-      transferStatus.textContent = "API URL cleared.";
     } catch (error) {
       onlineStatus.textContent = `Could not clear the saved API URL: ${error.message}`;
     }
@@ -719,6 +663,4 @@ try {
 // Initialize saved lists UI
 refreshSavedPlayersUI();
 refreshSavedGuildsUI();
-// fetch worlds list
-fetchWorlds();
 
