@@ -189,6 +189,7 @@
       const isCompleted = state.completedTaskIds.has(task.id);
       const monster = state.monsters.find(m => m.id === task.monsterId || normalize(m.name) === normalize(task.monsterName));
       const bestSpot = monster?.bestSpot;
+      const monsterSpots = monster?.spots?.length ? monster.spots : (bestSpot ? [bestSpot] : []);
 
       const card = document.createElement('article');
       card.className = `task-card ${isCompleted ? 'completed' : ''}`;
@@ -222,6 +223,18 @@
           <span>Area: <strong>${task.location}</strong></span>
         </div>
 
+        ${monsterSpots.length ? `
+          <div class="spawn-location-list">
+            <span class="spawn-location-heading">${task.monsterName} spawn locations · approximate counts</span>
+            ${monsterSpots.map((spot, index) => `
+              <button class="spawn-location-btn task-spawn-btn" type="button" data-spot-index="${index}">
+                <span>${spot.name}${spot.city ? ` · ${spot.city}` : ''}</span>
+                <strong>~${spot.amount} creatures</strong>
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+
         <div class="card-bottom-actions">
           <label class="check-label" title="Mark this task as completed for this week">
             <input type="checkbox" ${isCompleted ? 'checked' : ''} data-task-id="${task.id}">
@@ -250,15 +263,15 @@
       });
 
       // Click card or button to focus on map
-      const focusAction = () => {
+      const focusAction = (spot = bestSpot) => {
         document.querySelectorAll('.task-card, .monster-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
 
-        if (bestSpot) {
+        if (spot) {
           selectSpot(
-            bestSpot,
-            `${task.title} (${task.monsterName})`,
-            `<strong>Task:</strong> ${task.description}<br><strong>Reward:</strong> ${task.reward}`,
+            spot,
+            `${task.monsterName} - ${spot.name}`,
+            `<strong>Weekly task:</strong> ${task.title}<br><strong>Target monster:</strong> ${task.monsterName}<br><strong>Task:</strong> ${task.description}<br><strong>Reward:</strong> ${task.reward}`,
             task.itemRequired ? `<span class="drop-pill is-task-item">Required: ${task.amount} ${task.itemRequired}</span>` : null
           );
         } else {
@@ -277,6 +290,13 @@
       card.querySelector('.btn-show-map').addEventListener('click', (e) => {
         e.stopPropagation();
         focusAction();
+      });
+
+      card.querySelectorAll('.task-spawn-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          focusAction(monsterSpots[Number(button.dataset.spotIndex)]);
+        });
       });
 
       weeklyTasksList.appendChild(card);
@@ -417,13 +437,25 @@
       }
     });
 
+    const monstersToMap = new Map();
     monsters.forEach(monster => {
+      monstersToMap.set(monster.id || normalize(monster.name), monster);
+    });
+    tasks.forEach(task => {
+      const monster = state.monsters.find(candidate =>
+        (task.monsterId && candidate.id === task.monsterId) ||
+        normalize(candidate.name) === normalize(task.monsterName)
+      );
+      if (monster) monstersToMap.set(monster.id || normalize(monster.name), monster);
+    });
+
+    monstersToMap.forEach(monster => {
       const spots = monster.spots || (monster.bestSpot ? [monster.bestSpot] : []);
       const deliveryTask = deliveryTaskByMonster.get(normalize(monster.name));
       const killTask = killTaskByMonster.get(normalize(monster.name));
 
       spots.forEach((spot, idx) => {
-        if (!spot.lat || !spot.lng) return;
+        if (spot.lat == null || spot.lng == null) return;
 
         let markerClass = 'marker-monster';
         if (deliveryTask) markerClass = 'marker-delivery';
@@ -473,7 +505,8 @@
           );
 
           // Scroll sidebar to matching card
-          const card = document.getElementById(`card-monster-${monster.id}`) || document.getElementById(`card-task-${deliveryTask?.id}`);
+          const matchingTask = tasks.find(task => normalize(task.monsterName) === normalize(monster.name));
+          const card = document.getElementById(`card-monster-${monster.id}`) || document.getElementById(`card-task-${matchingTask?.id}`);
           if (card) {
             document.querySelectorAll('.task-card, .monster-card').forEach(c => c.classList.remove('active'));
             card.classList.add('active');
