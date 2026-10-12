@@ -1,165 +1,134 @@
 const MONSTERS_URL = './static/monster-spawns.json';
 
-const map = L.map('monsterMap', { zoomControl: false }).setView([20, 0], 2);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd',
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-}).addTo(map);
-
+const mapCanvas = document.getElementById('mapCanvas');
 const monsterListEl = document.getElementById('monsterList');
-const monsterSearchInput = document.getElementById('monsterSearch');
 const monsterCountText = document.getElementById('monsterCountText');
+const monsterSearchInput = document.getElementById('monsterSearch');
 const mapHud = document.getElementById('mapHud');
 const showBestSpotBtn = document.getElementById('showBestSpotBtn');
 const showMonsterListBtn = document.getElementById('showMonsterListBtn');
-const showTopSpawnsBtn = document.getElementById('showTopSpawnsBtn');
+
+const WORLD = {
+  minX: 30000,
+  maxX: 34000,
+  minY: 30000,
+  maxY: 34000,
+  width: 1200,
+  height: 560
+};
 
 const state = {
   monsters: [],
-  current: null,
   markers: []
 };
 
-function normalizeName(name) {
-  return String(name || '').trim().toLowerCase();
+function normalize(text) {
+  return String(text || '').trim().toLowerCase();
+}
+
+function tibiaToPixel(x, y) {
+  const px = ((x - WORLD.minX) / (WORLD.maxX - WORLD.minX)) * WORLD.width;
+  const py = ((WORLD.maxY - y) / (WORLD.maxY - WORLD.minY)) * WORLD.height;
+  return { x: px, y: py };
 }
 
 function clearMarkers() {
-  state.markers.forEach((marker) => map.removeLayer(marker));
+  state.markers.forEach((marker) => marker.remove());
   state.markers = [];
 }
 
 function bestSpotForMonster(monster) {
   if (!monster || !Array.isArray(monster.spots) || !monster.spots.length) return null;
-  return monster.spots.reduce((best, spot) => (
-    (spot.amount || 0) > (best.amount || 0) ? spot : best
-  ), monster.spots[0]);
+
+  return monster.spots.reduce((best, spot) => {
+    return (spot.amount || 0) > (best.amount || 0) ? spot : best;
+  }, monster.spots[0]);
 }
 
-function highlightMonster(monsterName, options = {}) {
-  const monster = state.monsters.find((entry) => normalizeName(entry.name) === normalizeName(monsterName));
+function showMonster(monsterName, forcedSpot = null) {
+  const monster = state.monsters.find((entry) => normalize(entry.name) === normalize(monsterName));
   if (!monster) return;
 
   clearMarkers();
-  const best = bestSpotForMonster(monster);
-  if (!best) return;
+  const bestSpot = forcedSpot || bestSpotForMonster(monster);
+  if (!bestSpot) return;
 
-  const spotMarker = L.circleMarker([best.lat || 0, best.lng || 0], {
-    radius: 9,
-    color: '#f5b942',
-    fillColor: '#f5b942',
-    fillOpacity: 1,
-    weight: 3
-  }).addTo(map);
+  const pos = tibiaToPixel(bestSpot.x, bestSpot.y);
 
-  spotMarker.bindPopup(`
-    <div style="color:#fff; font-size:13px; line-height:1.5;">
+  const marker = document.createElement('button');
+  marker.type = 'button';
+  marker.className = 'tibia-marker';
+  marker.setAttribute('title', `${monster.name} - ${bestSpot.name}`);
+  marker.style.left = `${pos.x}px`;
+  marker.style.top = `${pos.y}px`;
+  marker.textContent = String(bestSpot.amount);
+
+  marker.addEventListener('click', () => {
+    mapHud.innerHTML = `
       <strong>${monster.name}</strong><br>
-      ${best.name}<br>
-      Amount: <strong>${best.amount}</strong><br>
-      Position: ${best.x}, ${best.y}, ${best.z}
-    </div>
-  `);
+      ${bestSpot.name}<br>
+      Amount: <strong>${bestSpot.amount}</strong><br>
+      X: ${bestSpot.x} · Y: ${bestSpot.y} · Z: ${bestSpot.z}
+    `;
+  });
 
-  spotMarker.openPopup();
-  map.flyTo([best.lat || 0, best.lng || 0], 7, { duration: 0.9 });
-
-  const ranking = [...monster.spots].sort((a, b) => (b.amount || 0) - (a.amount || 0));
-  const topThree = ranking.slice(0, 3).map((entry) => `${entry.name}: ${entry.amount}`).join(' · ');
+  mapCanvas.appendChild(marker);
+  state.markers.push(marker);
 
   mapHud.innerHTML = `
     <strong>${monster.name}</strong><br>
-    Best: ${best.name}<br>
-    Amount: <strong>${best.amount}</strong><br>
-    ${best.x} / ${best.y} / ${best.z}
+    Best: ${bestSpot.name}<br>
+    Amount: <strong>${bestSpot.amount}</strong><br>
+    X: ${bestSpot.x} · Y: ${bestSpot.y} · Z: ${bestSpot.z}
   `;
-
-  state.current = monster;
-  state.markers = [spotMarker];
-
-  if (options.showRanking) {
-    console.log('Top spots:', topThree);
-  }
 }
 
-function renderMonsterList(list) {
+function renderMonsterList(monsters) {
   monsterListEl.innerHTML = '';
-  monsterCountText.textContent = String(list.length);
+  monsterCountText.textContent = String(monsters.length);
 
-  for (const monster of list) {
+  monsters.forEach((monster) => {
     const item = document.createElement('li');
     item.className = 'monster-item';
-    item.innerHTML = `
-      <div class="left">
-        <span class="monster-icon" aria-hidden="true"></span>
-        <span class="monster-name">${monster.name}</span>
-      </div>
-      <button class="monster-btn" type="button">Show best spot</button>
+
+    const left = document.createElement('div');
+    left.className = 'left';
+    left.innerHTML = `
+      <span class="monster-icon" aria-hidden="true"></span>
+      <span class="monster-name">${monster.name}</span>
     `;
 
-    item.querySelector('button').addEventListener('click', () => {
-      highlightMonster(monster.name);
-    });
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'monster-btn';
+    button.textContent = 'Show best spot';
+    button.addEventListener('click', () => showMonster(monster.name));
 
+    item.appendChild(left);
+    item.appendChild(button);
     monsterListEl.appendChild(item);
-  }
+  });
 }
 
 function filterMonsters() {
-  const query = normalizeName(monsterSearchInput.value);
-  const filtered = state.monsters.filter((monster) => normalizeName(monster.name).includes(query));
+  const query = normalize(monsterSearchInput.value);
+  const filtered = state.monsters.filter((monster) => normalize(monster.name).includes(query));
   renderMonsterList(filtered);
 }
 
 function setDefaultMonster() {
   if (!state.monsters.length) return;
-  const first = state.monsters[0];
-  highlightMonster(first.name);
-}
-
-function setupToolbar() {
-  monsterSearchInput.addEventListener('input', filterMonsters);
-
-  showBestSpotBtn.addEventListener('click', () => {
-    const query = normalizeName(monsterSearchInput.value);
-    if (!query) {
-      setDefaultMonster();
-      return;
-    }
-
-    const matched = state.monsters.find((monster) => normalizeName(monster.name).includes(query));
-    if (matched) highlightMonster(matched.name);
-  });
-
-  showMonsterListBtn.addEventListener('click', () => {
-    monsterSearchInput.value = '';
-    filterMonsters();
-  });
-
-  showTopSpawnsBtn.addEventListener('click', () => {
-    if (!state.monsters.length) return;
-    const ranked = [...state.monsters]
-      .map((monster) => ({
-        name: monster.name,
-        best: bestSpotForMonster(monster)
-      }))
-      .filter((entry) => entry.best)
-      .sort((a, b) => (b.best.amount || 0) - (a.best.amount || 0));
-
-    const top = ranked[0];
-    if (top) highlightMonster(top.name, { showRanking: true });
-  });
+  showMonster(state.monsters[0].name);
 }
 
 async function loadMonsters() {
   try {
     const response = await fetch(MONSTERS_URL);
-    if (!response.ok) throw new Error(`Failed to load ${MONSTERS_URL}`);
+    if (!response.ok) throw new Error(`Failed to load monster data: ${response.status}`);
+
     const data = await response.json();
     state.monsters = Array.isArray(data.monsters) ? data.monsters : [];
     renderMonsterList(state.monsters);
-    setupToolbar();
     setDefaultMonster();
   } catch (error) {
     console.error(error);
@@ -168,5 +137,19 @@ async function loadMonsters() {
     mapHud.innerHTML = 'Monster data unavailable';
   }
 }
+
+monsterSearchInput.addEventListener('input', filterMonsters);
+
+showBestSpotBtn.addEventListener('click', () => {
+  const query = normalize(monsterSearchInput.value);
+  const match = state.monsters.find((monster) => normalize(monster.name).includes(query));
+  if (match) showMonster(match.name);
+  else if (!query) setDefaultMonster();
+});
+
+showMonsterListBtn.addEventListener('click', () => {
+  monsterSearchInput.value = '';
+  renderMonsterList(state.monsters);
+});
 
 loadMonsters();
