@@ -10,6 +10,7 @@
     weeklyTasks: [],
     completedTaskIds: new Set(),
     searchQuery: '',
+    searchMode: 'monsters',
     view: 'all', // 'all' | 'delivery' | 'kill' | 'monsters'
     difficulty: 'all', // 'all' | 'Easy' | 'Medium' | 'Hard'
     selected: null,
@@ -127,14 +128,11 @@
       if (state.difficulty !== 'all' && monster.difficulty !== state.difficulty) return false;
 
       if (!q) return true;
-      const dropsMatch = monster.dropItems && monster.dropItems.some(item => normalize(item).includes(q));
-      const spotsMatch = monster.spots && monster.spots.some(spot => normalize(spot.name).includes(q) || normalize(spot.city).includes(q));
-      return (
-        normalize(monster.name).includes(q) ||
-        normalize(monster.category).includes(q) ||
-        dropsMatch ||
-        spotsMatch
-      );
+      if (state.searchMode === 'drops') {
+        return (monster.dropItems || []).some(item => normalize(item).includes(q));
+      }
+      const spotsMatch = (monster.spots || []).some(spot => normalize(spot.name).includes(q) || normalize(spot.city).includes(q));
+      return normalize(monster.name).includes(q) || normalize(monster.category).includes(q) || spotsMatch;
     });
 
     return { filteredTasks, filteredMonsters };
@@ -310,7 +308,9 @@
 
     monsters.forEach(monster => {
       const best = monster.bestSpot;
+      const spots = monster.spots?.length ? monster.spots : (best ? [best] : []);
       const badgeDiffClass = `badge-diff-${(monster.difficulty || 'easy').toLowerCase()}`;
+      const searchQuery = normalize(state.searchQuery);
 
       const card = document.createElement('article');
       card.className = 'monster-card';
@@ -319,8 +319,15 @@
       // Build drops HTML
       const dropsHtml = (monster.dropItems || []).map(drop => {
         const isTask = deliveryItems.has(normalize(drop));
-        return `<span class="drop-pill ${isTask ? 'is-task-item' : ''}" title="${isTask ? 'Delivery Task Item' : 'Monster Drop'}">${isTask ? '★ ' : ''}${drop}</span>`;
+        const isSearchMatch = state.searchMode === 'drops' && searchQuery && normalize(drop).includes(searchQuery);
+        return `<span class="drop-pill ${isTask ? 'is-task-item' : ''} ${isSearchMatch ? 'is-search-match' : ''}" title="${isSearchMatch ? 'Matching drop item' : isTask ? 'Delivery Task Item' : 'Monster Drop'}">${isTask ? '★ ' : ''}${drop}</span>`;
       }).join(' ');
+      const spotsHtml = spots.map((spot, index) => `
+        <button class="spawn-location-btn" type="button" data-spot-index="${index}">
+          <span>${spot.name}${spot.city ? ` · ${spot.city}` : ''}</span>
+          <strong>~${spot.amount} creatures</strong>
+        </button>
+      `).join('');
 
       card.innerHTML = `
         <div class="card-top">
@@ -344,6 +351,11 @@
           <div class="drops-tag-list">${dropsHtml}</div>
         </div>
 
+        <div class="spawn-location-list">
+          <span class="spawn-location-heading">Spawn locations · approximate counts</span>
+          ${spotsHtml}
+        </div>
+
         <div class="card-bottom-actions" style="margin-top:10px;">
           <span style="font-size:11px; color:var(--muted);">
             Coords: <strong style="color:var(--accent-bright);">${best ? `${best.x}, ${best.y}` : '—'}</strong>
@@ -354,21 +366,27 @@
         </div>
       `;
 
-      const focusMonster = () => {
+      const focusMonster = (spot = best) => {
         document.querySelectorAll('.task-card, .monster-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
 
-        if (best) {
+        if (spot) {
           selectSpot(
-            best,
-            `${monster.name} - Best Spot`,
-            `<strong>Creature Stats:</strong> ${monster.hp} HP · ${monster.exp} EXP<br><strong>Location:</strong> ${best.name} (${best.city})`,
+            spot,
+            `${monster.name} - ${spot.name}`,
+            `<strong>Creature Stats:</strong> ${monster.hp} HP · ${monster.exp} EXP<br><strong>Location:</strong> ${spot.name} (${spot.city || 'Tibia'})<br><strong>Approximate count:</strong> ~${spot.amount} creatures`,
             `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">${dropsHtml}</div>`
           );
         }
       };
 
       card.addEventListener('click', focusMonster);
+      card.querySelectorAll('[data-spot-index]').forEach(button => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          focusMonster(spots[Number(button.dataset.spotIndex)]);
+        });
+      });
       card.querySelector('.btn-show-best').addEventListener('click', (e) => {
         e.stopPropagation();
         focusMonster();
@@ -496,6 +514,22 @@
         document.querySelectorAll('[data-view]').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         state.view = chip.getAttribute('data-view');
+        applyFilters();
+      });
+    });
+
+    document.querySelectorAll('[data-search-mode]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('[data-search-mode]').forEach(button => {
+          button.classList.remove('active');
+          button.setAttribute('aria-pressed', 'false');
+        });
+        chip.classList.add('active');
+        chip.setAttribute('aria-pressed', 'true');
+        state.searchMode = chip.getAttribute('data-search-mode');
+        searchInput.placeholder = state.searchMode === 'drops'
+          ? 'Search dropped items (e.g. Gauze Bandage)...'
+          : 'Search monster names (e.g. Mummy)...';
         applyFilters();
       });
     });
