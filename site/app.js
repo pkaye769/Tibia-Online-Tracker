@@ -8,6 +8,7 @@ const apiInput = byId("apiBase");
 const onlineStatus = byId("onlineStatus");
 const transferStatus = byId("transferStatus");
 const numberFormat = new Intl.NumberFormat();
+const shareFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 const vocationCategories = [
   { id: "all", label: "All", matches: () => true },
   { id: "knight", label: "Knight", matches: (vocation) => vocation.includes("knight") },
@@ -20,6 +21,7 @@ let onlinePlayers = [];
 let activeVocationCategory = "all";
 let onlineWorldName = "";
 let checkedCharacterName = "";
+let selectedTransferWorld = "";
 
 // Saved lists keys (reuse names used elsewhere for compatibility)
 const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
@@ -469,124 +471,34 @@ async function refreshSavedGuilds() {
   refreshSavedGuildsUI();
 }
 
-async function searchCharacter(event) {
-  event.preventDefault();
-  const name = byId("characterNames").value.trim();
-  const status = byId("characterSearchStatus");
-  const output = byId("characterResults");
-  output.hidden = true;
-
-  if (!name) {
-    status.textContent = "Enter a character name.";
-    return;
-  }
-
-  const button = byId("characterSearchButton");
-  button.disabled = true;
-  status.textContent = "Searching Tibia Stalker and loading TibiaData profile…";
-
+async function fetchWorlds() {
+  const container = byId("worldList");
+  container.textContent = "Loading worlds…";
   try {
-    const [profileResult, hiddenResult] = await Promise.allSettled([
-      fetchTibiaData(`/character/${encodeURIComponent(name)}`),
-      fetchTibiaStalker(name)
-    ]);
-    const profileData = profileResult.status === "fulfilled" ? profileResult.value : null;
-    const hiddenData = hiddenResult.status === "fulfilled" ? hiddenResult.value : null;
-    if (!profileData && !hiddenData) {
-      throw new Error(`Tibia Stalker: ${hiddenResult.reason.message} TibiaData: ${profileResult.reason.message}`);
+    const data = await fetchTibiaData('/worlds');
+    const worlds = Array.isArray(data.worlds) ? data.worlds : (data.worlds?.list || []);
+    if (!worlds.length) {
+      container.textContent = "No worlds found.";
+      return;
     }
-    setCharacterResults(profileData, hiddenData, name);
-
-    const messages = [];
-    if (hiddenData) {
-      messages.push(`${hiddenData.possibleInvisibleCharacters.length} possible hidden characters from Tibia Stalker`);
-    } else {
-      messages.push(`Hidden-character search unavailable: ${hiddenResult.reason.message}`);
+    container.replaceChildren();
+    // Create buttons for each world (limit to 200 to avoid huge DOM)
+    for (const w of worlds.slice(0, 200)) {
+      const name = w.name || w;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'world-button';
+      btn.dataset.world = name;
+      btn.textContent = name;
+      container.appendChild(btn);
     }
-    if (profileData) {
-      messages.push("profile details from TibiaData");
-    } else {
-      messages.push(`TibiaData profile unavailable: ${profileResult.reason.message}`);
-    }
-    status.textContent = `${messages.join("; ")}.`;
-  } catch (error) {
-    status.textContent = `Could not look up ${name}: ${error.message}`;
-  } finally {
-    button.disabled = false;
+  } catch (err) {
+    container.textContent = 'Could not load worlds.';
   }
 }
 
-async function searchGuild(event) {
-  event.preventDefault();
-  const name = byId("guildName").value.trim();
-  const status = byId("guildSearchStatus");
-  const output = byId("guildResults");
-  output.hidden = true;
-
-  if (!name) {
-    status.textContent = "Enter a guild name.";
-    return;
-  }
-
-  const button = byId("guildSearchButton");
-  button.disabled = true;
-  status.textContent = `Looking up guild ${name}…`;
-
-  try {
-    const data = await fetchTibiaData(`/guild/${encodeURIComponent(name)}`);
-    setGuildResults(data, name);
-    status.textContent = `Guild lookup completed for ${name}.`;
-  } catch (error) {
-    status.textContent = `Could not look up guild ${name}: ${error.message}`;
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function setRows(container, events) {
-  container.replaceChildren();
-  if (!events.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty-result";
-    empty.textContent = "No transfers found.";
-    container.append(empty);
-    return;
-  }
-
-  const table = document.createElement("table");
-  const head = document.createElement("thead");
-  const header = document.createElement("tr");
-  for (const label of ["Character", "Transfer", "Date"]) {
-    const cell = document.createElement("th");
-    cell.scope = "col";
-    cell.textContent = label;
-    header.append(cell);
-  }
-  head.append(header);
-  table.append(head);
-
-  const body = document.createElement("tbody");
-  for (const event of events) {
-    const row = document.createElement("tr");
-    const name = document.createElement("td");
-    name.textContent = event.characterName || "Unknown";
-    const route = document.createElement("td");
-    route.textContent = `${event.fromWorld || "?"} → ${event.toWorld || "?"}`;
-    const date = document.createElement("td");
-    const parsedDate = new Date(event.transferTime);
-    date.textContent = Number.isNaN(parsedDate.getTime()) ? event.transferTime || "—" : parsedDate.toLocaleDateString();
-    row.append(name, route, date);
-    body.append(row);
-  }
-  table.append(body);
-  container.append(table);
-}
-
-async function loadTransfers(event) {
-  event.preventDefault();
+async function loadTransfersForWorld(worldName, days) {
   const base = readApiBase();
-  const world = byId("transferWorld").value.trim();
-  const days = Number(byId("transferDays").value);
   const output = byId("transferResults");
   output.hidden = true;
 
@@ -595,15 +507,20 @@ async function loadTransfers(event) {
     transferStatus.textContent = "Set a compatible tracker API URL above to load transfer history. This GitHub Pages site does not host an API.";
     return;
   }
-  if (!Number.isInteger(days) || days < 1 || days > 365) {
+  if (!worldName) {
+    transferStatus.textContent = "Select a server to view transfers.";
+    return;
+  }
+  const lookback = Number(days) || Number(byId("transferDays").value) || 7;
+  if (!Number.isInteger(lookback) || lookback < 1 || lookback > 365) {
     transferStatus.textContent = "Choose a look-back period from 1 to 365 days.";
     return;
   }
 
   const button = byId("transferSearch");
   button.disabled = true;
-  transferStatus.textContent = "Loading transfers…";
-  const params = new URLSearchParams({ world, lookbackDays: String(days) });
+  transferStatus.textContent = `Loading transfers to ${worldName}…`;
+  const params = new URLSearchParams({ world: worldName, lookbackDays: String(lookback) });
 
   try {
     const response = await fetch(`${base}/api/altfinder/transfers?${params.toString()}`);
@@ -614,17 +531,50 @@ async function loadTransfers(event) {
     if (!Array.isArray(data.transfersTo) || !Array.isArray(data.transfersFrom)) {
       throw new Error("The API returned an unexpected transfer response.");
     }
-    byId("toWorldName").textContent = data.world || world;
-    byId("fromWorldName").textContent = data.world || world;
+    byId("toWorldName").textContent = data.world || worldName;
+    byId("fromWorldName").textContent = data.world || worldName;
     setRows(byId("transfersTo"), data.transfersTo);
     setRows(byId("transfersFrom"), data.transfersFrom);
-    transferStatus.textContent = `Showing transfer activity for ${data.world || world} over the last ${data.lookbackDays || days} days.`;
+    transferStatus.textContent = `Showing transfer activity for ${data.world || worldName} over the last ${data.lookbackDays || lookback} days.`;
     output.hidden = false;
   } catch (error) {
     transferStatus.textContent = `Could not load transfers: ${error.message} Check the API URL and its CORS settings.`;
   } finally {
     button.disabled = false;
   }
+}
+
+async function loadTransfers(event) {
+  event.preventDefault();
+  if (!selectedTransferWorld) {
+    transferStatus.textContent = "Select a server from the list to search transfers.";
+    return;
+  }
+  await loadTransfersForWorld(selectedTransferWorld);
+}
+
+function expAtLevel(level) {
+  return Math.floor((50 * level ** 3) / 3 - 100 * level ** 2 + (850 * level) / 3 - 200);
+}
+
+function calculateHuntProfit() {
+  const loot = Number(byId("huntLoot").value);
+  const supplies = Number(byId("huntSupplies").value);
+  const partySize = Number(byId("partySize").value);
+  const error = byId("huntError");
+  error.textContent = "";
+
+  if (!Number.isInteger(loot) || !Number.isInteger(supplies) || loot < 0 || supplies < 0 ||
+      !Number.isInteger(partySize) || partySize < 1 || partySize > 100) {
+    error.textContent = "Enter whole, non-negative loot and supplies and a party size from 1 to 100.";
+    byId("huntProfit").textContent = "—";
+    byId("profitShare").textContent = "—";
+    return;
+  }
+
+  const profit = loot - supplies;
+  byId("huntProfit").textContent = numberFormat.format(profit);
+  byId("profitShare").textContent = shareFormat.format(profit / partySize);
 }
 
 async function loadOnlineCharacters(characterName) {
@@ -671,8 +621,11 @@ async function loadOnlineCharacters(characterName) {
   }
 }
 
+for (const id of ["currentLevel", "targetLevel", "currentLevelExp", "expPerHour"]) {
+  try { byId(id).addEventListener("input", calculateLeveling); } catch (_) {}
+}
 for (const id of ["huntLoot", "huntSupplies", "partySize"]) {
-  // removed hunt profit listeners
+  try { byId(id).addEventListener("input", calculateHuntProfit); } catch (_) {}
 }
 
 byId("characterSearchForm").addEventListener("submit", searchCharacter);
@@ -693,6 +646,20 @@ byId("onlineFilters").addEventListener("click", (event) => {
   }
   activeVocationCategory = button.dataset.category;
   renderOnlinePlayers();
+});
+
+// world list click handler
+byId("worldList").addEventListener("click", (e) => {
+  const btn = e.target.closest("button.world-button");
+  if (!btn) return;
+  const world = btn.dataset.world;
+  // highlight
+  const siblings = byId("worldList").querySelectorAll("button.world-button");
+  siblings.forEach(s => s.classList.remove("active"));
+  btn.classList.add("active");
+  selectedTransferWorld = world;
+  // perform search for this server
+  loadTransfersForWorld(world);
 });
 
 // Saved players UI events
@@ -752,4 +719,6 @@ try {
 // Initialize saved lists UI
 refreshSavedPlayersUI();
 refreshSavedGuildsUI();
+// fetch worlds list
+fetchWorlds();
 
