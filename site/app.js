@@ -8,7 +8,6 @@ const apiInput = byId("apiBase");
 const onlineStatus = byId("onlineStatus");
 const transferStatus = byId("transferStatus");
 const numberFormat = new Intl.NumberFormat();
-const shareFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 const vocationCategories = [
   { id: "all", label: "All", matches: () => true },
   { id: "knight", label: "Knight", matches: (vocation) => vocation.includes("knight") },
@@ -21,6 +20,10 @@ let onlinePlayers = [];
 let activeVocationCategory = "all";
 let onlineWorldName = "";
 let checkedCharacterName = "";
+
+// Saved lists keys (reuse names used elsewhere for compatibility)
+const SAVED_CHARS_KEY = "altfinder_saved_chars_v1";
+const SAVED_GUILDS_KEY = "altfinder_saved_guilds_v2";
 
 function getVocationCategory(vocation) {
   const normalized = (vocation || "").toLowerCase();
@@ -342,6 +345,130 @@ function setGuildResults(data, searchedName) {
   results.hidden = false;
 }
 
+// Saved characters (watchlist) helpers
+function loadSavedCharacters() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_CHARS_KEY) || "[]");
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveSavedCharacters(list) {
+  localStorage.setItem(SAVED_CHARS_KEY, JSON.stringify(list));
+}
+
+function refreshSavedPlayersUI() {
+  const list = loadSavedCharacters();
+  const select = byId("savedPlayerList");
+  const display = byId("savedPlayersDisplay");
+  select.innerHTML = list.map((c) => `<option>${c}</option>`).join("");
+  display.textContent = list.length > 0 ? list.join("\n") : "No saved players yet.";
+}
+
+function addSavedPlayer() {
+  const input = byId("savedPlayerInput");
+  const name = (input.value || "").trim();
+  if (!name) return;
+  const list = loadSavedCharacters();
+  if (!list.some((c) => c.toLowerCase() === name.toLowerCase())) {
+    list.push(name);
+    saveSavedCharacters(list);
+  }
+  input.value = "";
+  refreshSavedPlayersUI();
+}
+
+function removeSavedPlayer() {
+  const select = byId("savedPlayerList");
+  const selected = select.value;
+  if (!selected) return;
+  const list = loadSavedCharacters().filter((c) => c !== selected);
+  saveSavedCharacters(list);
+  refreshSavedPlayersUI();
+}
+
+// Saved guilds helpers
+function loadSavedGuilds() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_GUILDS_KEY) || "[]");
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveSavedGuilds(list) {
+  localStorage.setItem(SAVED_GUILDS_KEY, JSON.stringify(list));
+}
+
+function refreshSavedGuildsUI() {
+  const guilds = loadSavedGuilds();
+  const select = byId("savedGuildList");
+  const display = byId("savedGuildsDisplay");
+  select.innerHTML = guilds.map((g) => `<option>${g.name}</option>`).join("");
+  if (guilds.length === 0) {
+    display.textContent = "No saved guilds yet.";
+    return;
+  }
+  display.textContent = guilds.map((g) => {
+    const online = (g.onlineCharacters || []).join(", ") || "none";
+    return `${g.name} | ${g.world || "-"} | online ${g.online || 0}/${g.members || 0}\n  ${online}`;
+  }).join("\n\n");
+}
+
+async function addSavedGuild() {
+  const input = byId("savedGuildInput");
+  const name = (input.value || "").trim();
+  if (!name) return;
+  const guilds = loadSavedGuilds();
+  if (!guilds.some((g) => String(g.name || "").toLowerCase() === name.toLowerCase())) {
+    guilds.push({ name, world: "-", members: 0, online: 0, onlineCharacters: [] });
+    saveSavedGuilds(guilds);
+  }
+  input.value = "";
+  refreshSavedGuildsUI();
+}
+
+async function removeSavedGuild() {
+  const select = byId("savedGuildList");
+  const selected = select.value;
+  if (!selected) return;
+  const guilds = loadSavedGuilds().filter((g) => g.name !== selected);
+  saveSavedGuilds(guilds);
+  refreshSavedGuildsUI();
+}
+
+async function refreshSavedGuilds() {
+  const guilds = loadSavedGuilds();
+  if (guilds.length === 0) {
+    refreshSavedGuildsUI();
+    return;
+  }
+  for (let i = 0; i < guilds.length; i += 1) {
+    const g = guilds[i];
+    try {
+      const data = await fetchTibiaData(`/guild/${encodeURIComponent(g.name)}`);
+      const guild = data.guild;
+      const members = Array.isArray(guild?.members) ? guild.members : (Array.isArray(guild?.members?.members) ? guild.members.members : []);
+      const onlineNames = members.filter((m) => {
+        const status = String(m.status || m.memberStatus || "").toLowerCase();
+        return m.online === true || status.includes("online");
+      }).map((m) => m.name || m.character_name || m.player_name).filter(Boolean);
+      guilds[i] = {
+        name: guild.name || g.name,
+        world: guild.world || "-",
+        members: Number(guild.members_total ?? members.length ?? 0),
+        online: Number(guild.members_online ?? onlineNames.length ?? 0),
+        onlineCharacters: onlineNames
+      };
+    } catch (_) {
+      // leave unchanged on error
+    }
+  }
+  saveSavedGuilds(guilds);
+  refreshSavedGuildsUI();
+}
+
 async function searchCharacter(event) {
   event.preventDefault();
   const name = byId("characterNames").value.trim();
@@ -414,67 +541,6 @@ async function searchGuild(event) {
   } finally {
     button.disabled = false;
   }
-}
-
-function expAtLevel(level) {
-  return Math.floor((50 * level ** 3) / 3 - 100 * level ** 2 + (850 * level) / 3 - 200);
-}
-
-function calculateLeveling() {
-  const current = Number(byId("currentLevel").value);
-  const target = Number(byId("targetLevel").value);
-  const currentExp = Number(byId("currentLevelExp").value);
-  const expPerHour = Number(byId("expPerHour").value);
-  const error = byId("levelError");
-
-  error.textContent = "";
-  byId("expNeeded").textContent = "—";
-  byId("timeNeeded").textContent = "—";
-
-  if (!Number.isInteger(current) || !Number.isInteger(target) || current < 1 || target <= current || target > 1000) {
-    error.textContent = "Enter a current level and a higher target level (up to 1,000).";
-    return;
-  }
-  if (!Number.isFinite(currentExp) || currentExp < 0 || currentExp >= expAtLevel(current + 1) - expAtLevel(current)) {
-    error.textContent = "XP earned this level must be less than the experience needed for your next level.";
-    return;
-  }
-  if (!Number.isFinite(expPerHour) || expPerHour < 0) {
-    error.textContent = "XP per hour cannot be negative.";
-    return;
-  }
-
-  const remaining = Math.max(0, expAtLevel(target) - expAtLevel(current) - currentExp);
-  byId("expNeeded").textContent = numberFormat.format(remaining);
-  if (expPerHour > 0) {
-    const hours = remaining / expPerHour;
-    const totalMinutes = Math.round(hours * 60);
-    const wholeHours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    byId("timeNeeded").textContent = wholeHours ? `${numberFormat.format(wholeHours)}h ${minutes}m` : `${minutes}m`;
-  } else {
-    byId("timeNeeded").textContent = "Enter your XP/hour";
-  }
-}
-
-function calculateHuntProfit() {
-  const loot = Number(byId("huntLoot").value);
-  const supplies = Number(byId("huntSupplies").value);
-  const partySize = Number(byId("partySize").value);
-  const error = byId("huntError");
-  error.textContent = "";
-
-  if (!Number.isInteger(loot) || !Number.isInteger(supplies) || loot < 0 || supplies < 0 ||
-      !Number.isInteger(partySize) || partySize < 1 || partySize > 100) {
-    error.textContent = "Enter whole, non-negative loot and supplies and a party size from 1 to 100.";
-    byId("huntProfit").textContent = "—";
-    byId("profitShare").textContent = "—";
-    return;
-  }
-
-  const profit = loot - supplies;
-  byId("huntProfit").textContent = numberFormat.format(profit);
-  byId("profitShare").textContent = shareFormat.format(profit / partySize);
 }
 
 function setRows(container, events) {
@@ -605,11 +671,8 @@ async function loadOnlineCharacters(characterName) {
   }
 }
 
-for (const id of ["currentLevel", "targetLevel", "currentLevelExp", "expPerHour"]) {
-  byId(id).addEventListener("input", calculateLeveling);
-}
 for (const id of ["huntLoot", "huntSupplies", "partySize"]) {
-  byId(id).addEventListener("input", calculateHuntProfit);
+  // removed hunt profit listeners
 }
 
 byId("characterSearchForm").addEventListener("submit", searchCharacter);
@@ -631,6 +694,29 @@ byId("onlineFilters").addEventListener("click", (event) => {
   activeVocationCategory = button.dataset.category;
   renderOnlinePlayers();
 });
+
+// Saved players UI events
+byId("addSavedPlayerBtn").addEventListener("click", addSavedPlayer);
+byId("removeSavedPlayerBtn").addEventListener("click", removeSavedPlayer);
+byId("useSavedPlayerBtn").addEventListener("click", () => {
+  const select = byId("savedPlayerList");
+  const selected = select.value;
+  if (!selected) return;
+  byId("characterNames").value = selected;
+});
+byId("savedPlayerInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addSavedPlayer();
+});
+
+// Saved guilds UI events
+byId("addSavedGuildBtn").addEventListener("click", addSavedGuild);
+byId("removeSavedGuildBtn").addEventListener("click", removeSavedGuild);
+byId("refreshSavedGuildsBtn").addEventListener("click", refreshSavedGuilds);
+byId("savedGuildInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addSavedGuild();
+});
+
+// API save button
 byId("saveApi").addEventListener("click", () => {
   const base = readApiBase();
   if (base) {
@@ -662,6 +748,8 @@ try {
 } catch (error) {
   onlineStatus.textContent = "Browser storage is unavailable. Enter an API URL to load live data.";
 }
-calculateLeveling();
-calculateHuntProfit();
+
+// Initialize saved lists UI
+refreshSavedPlayersUI();
+refreshSavedGuildsUI();
 

@@ -18,8 +18,6 @@
     <nav aria-label="Main navigation">
       <a href="#characters">Characters</a>
       <a href="#guilds">Guilds</a>
-      <a href="#leveling">Leveling</a>
-      <a href="#tools">Tools</a>
       <a href="#transfers">Transfers</a>
     </nav>
   </header>
@@ -119,71 +117,51 @@
           <div id="guildOnlineMembers"></div>
         </div>
       </article>
-    </section>
 
-    <section class="section-block" id="leveling">
-      <div class="section-head">
-        <div><p class="eyebrow">03 / Level planning</p><h2>Plan your next level.</h2></div>
-        <p>Estimate experience needed and time to your goal. Calculations run in your browser.</p>
-      </div>
-      <article class="tool-card calculator-card">
-        <div class="calculator-fields">
-          <div class="field">
-            <label for="currentLevel">Current level</label>
-            <input id="currentLevel" type="number" value="100" min="1" max="1000" inputmode="numeric">
+      <!-- Saved watchlist players and saved guilds -->
+      <div class="two-card-grid" style="margin-top:18px">
+        <article class="tool-card">
+          <div class="card-heading"><span class="card-icon" aria-hidden="true">★</span><span>Saved watchlist players</span></div>
+          <div class="form-group">
+            <label for="savedPlayerInput">Player name (press Enter to save)</label>
+            <input id="savedPlayerInput" type="text" placeholder="Character name" />
           </div>
-          <div class="field">
-            <label for="targetLevel">Target level</label>
-            <input id="targetLevel" type="number" value="110" min="2" max="1000" inputmode="numeric">
+          <div class="form-group">
+            <label for="savedPlayerList">Saved players</label>
+            <select id="savedPlayerList" size="4" style="width:100%"></select>
           </div>
-          <div class="field">
-            <label for="currentLevelExp">XP earned this level</label>
-            <input id="currentLevelExp" type="number" value="0" min="0" inputmode="numeric">
+          <div class="actions">
+            <button id="addSavedPlayerBtn" class="button">Add</button>
+            <button id="useSavedPlayerBtn" class="button button-secondary">Use in Search</button>
+            <button id="removeSavedPlayerBtn" class="button">Remove</button>
           </div>
-          <div class="field">
-            <label for="expPerHour">XP per hour <span class="label-optional">optional</span></label>
-            <input id="expPerHour" type="number" value="0" min="0" inputmode="numeric">
-          </div>
-        </div>
-        <div class="calculator-output" aria-live="polite">
-          <div><span class="result-label">EXPERIENCE TO GOAL</span><strong id="expNeeded">—</strong></div>
-          <div><span class="result-label">ESTIMATED TIME</span><strong id="timeNeeded">Enter your XP/hour</strong></div>
-          <p class="calculator-error" id="levelError" role="status"></p>
-        </div>
-      </article>
-    </section>
+          <div id="savedPlayersDisplay" class="saved-display">No saved players yet.</div>
+        </article>
 
-    <section class="section-block" id="tools">
-      <div class="section-head">
-        <div><p class="eyebrow">04 / Hunt tools</p><h2>Split the hunt.</h2></div>
-        <p>Calculate net profit and an even share for each party member.</p>
+        <article class="tool-card">
+          <div class="card-heading"><span class="card-icon" aria-hidden="true">★</span><span>Saved guilds</span></div>
+          <div class="form-group">
+            <label for="savedGuildInput">Guild name (press Enter to save)</label>
+            <input id="savedGuildInput" type="text" placeholder="Guild name" />
+          </div>
+          <div class="form-group">
+            <label for="savedGuildList">Saved guilds</label>
+            <select id="savedGuildList" size="4" style="width:100%"></select>
+          </div>
+          <div class="actions">
+            <button id="addSavedGuildBtn" class="button">Add</button>
+            <button id="refreshSavedGuildsBtn" class="button button-secondary">Refresh</button>
+            <button id="removeSavedGuildBtn" class="button">Remove</button>
+          </div>
+          <div id="savedGuildsDisplay" class="saved-display">No saved guilds yet.</div>
+        </article>
       </div>
-      <article class="tool-card calculator-card">
-        <div class="calculator-fields three-fields">
-          <div class="field">
-            <label for="huntLoot">Total loot</label>
-            <input id="huntLoot" type="number" value="0" min="0" step="1" inputmode="decimal">
-          </div>
-          <div class="field">
-            <label for="huntSupplies">Total supplies</label>
-            <input id="huntSupplies" type="number" value="0" min="0" step="1" inputmode="decimal">
-          </div>
-          <div class="field">
-            <label for="partySize">Party members</label>
-            <input id="partySize" type="number" value="1" min="1" max="100" step="1" inputmode="numeric">
-          </div>
-        </div>
-        <div class="calculator-output profit-output" aria-live="polite">
-          <div><span class="result-label">NET HUNT PROFIT</span><strong id="huntProfit">0</strong></div>
-          <div><span class="result-label">SHARE PER PLAYER</span><strong id="profitShare">0</strong></div>
-          <p class="calculator-error" id="huntError" role="status"></p>
-        </div>
-      </article>
+
     </section>
 
     <section class="section-block" id="transfers">
       <div class="section-head">
-        <div><p class="eyebrow">05 / World activity</p><h2>World transfers.</h2></div>
+        <div><p class="eyebrow">03 / World activity</p><h2>World transfers.</h2></div>
         <p>Browse characters recently transferred to or from a world.</p>
       </div>
       <article class="tool-card transfer-card">
