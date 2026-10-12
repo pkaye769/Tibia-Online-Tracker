@@ -361,6 +361,54 @@
   color: #ffd859;
 }
 
+.drop-pill.is-search-match {
+  background: rgba(85, 214, 176, 0.18);
+  border-color: var(--accent-bright);
+  color: #ffffff;
+}
+
+.spawn-location-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.spawn-location-heading {
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.spawn-location-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid #1e3649;
+  border-radius: 5px;
+  background: #0a141d;
+  color: #b9cbd5;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spawn-location-btn:hover,
+.spawn-location-btn:focus-visible {
+  border-color: var(--accent-bright);
+  color: #ffffff;
+}
+
+.spawn-location-btn strong {
+  flex-shrink: 0;
+  color: var(--accent-bright);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
 /* Right Column: Map Container & HUD */
 .tasks-map-container {
   display: flex;

@@ -46,12 +46,18 @@
     <!-- Search & Filter Controls -->
     <section class="tasks-toolbar" aria-label="Task and monster filters">
       <div class="tasks-search-row">
-        <label for="taskSearchInput" class="sr-only">Search monsters, items, or tasks</label>
-        <input id="taskSearchInput" class="tasks-search-input" type="search" placeholder="Search by monster (e.g. Mummy), required item (e.g. Gauze Bandage), or location..." autocomplete="off">
+        <label for="taskSearchInput" class="sr-only">Search for a monster or dropped item</label>
+        <input id="taskSearchInput" class="tasks-search-input" type="search" placeholder="Search monster names (e.g. Mummy)..." autocomplete="off">
         <button id="clearSearchBtn" class="button button-secondary" type="button">Clear</button>
       </div>
 
       <div class="tasks-filter-row">
+        <div class="filter-group" role="group" aria-label="Search type">
+          <span style="font-size:12px; color:var(--muted); margin-right:4px;">Search:</span>
+          <button class="filter-chip active" data-search-mode="monsters" aria-pressed="true" type="button">Monsters</button>
+          <button class="filter-chip" data-search-mode="drops" aria-pressed="false" type="button">Dropped items</button>
+        </div>
+
         <div class="filter-group" role="group" aria-label="View type">
           <span style="font-size:12px; color:var(--muted); margin-right:4px;">View:</span>
           <button class="filter-chip active" data-view="all" type="button">All</button>
