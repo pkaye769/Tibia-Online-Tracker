@@ -1,193 +1,172 @@
-const TASKS_URL = './static/tasks.json';
-const CATEGORY_COLORS = {
-  delivery: '#4da3ff',
-  courier: '#41d39a',
-  collection: '#ffb454',
-  transport: '#b88dff'
-};
-const categoryOrder = ['delivery', 'courier', 'collection', 'transport'];
+const MONSTERS_URL = './static/monster-spawns.json';
 
-const map = L.map('map').setView([50.0, 10.0], 4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const map = L.map('monsterMap', { zoomControl: false }).setView([20, 0], 2);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd',
   maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
+  attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
 }).addTo(map);
 
-const cluster = L.markerClusterGroup({
-  spiderfyDistanceMultiplier: 1.5,
-  showCoverageOnHover: false,
-  maxClusterRadius: 45
-});
-
-const taskList = document.getElementById('taskList');
-const statusSelect = document.getElementById('statusFilter');
-const categoryButtons = [...document.querySelectorAll('[data-category-filter]')];
+const monsterListEl = document.getElementById('monsterList');
+const monsterSearchInput = document.getElementById('monsterSearch');
+const monsterCountText = document.getElementById('monsterCountText');
+const mapHud = document.getElementById('mapHud');
+const showBestSpotBtn = document.getElementById('showBestSpotBtn');
+const showMonsterListBtn = document.getElementById('showMonsterListBtn');
+const showTopSpawnsBtn = document.getElementById('showTopSpawnsBtn');
 
 const state = {
-  status: 'all',
-  categories: new Set(categoryOrder),
-  tasks: [],
-  markers: new Map()
+  monsters: [],
+  current: null,
+  markers: []
 };
 
-function formatLabel(value) {
-  return String(value || '—');
+function normalizeName(name) {
+  return String(name || '').trim().toLowerCase();
 }
 
-function getMarkerColor(category) {
-  return CATEGORY_COLORS[category] || '#8aa0b6';
+function clearMarkers() {
+  state.markers.forEach((marker) => map.removeLayer(marker));
+  state.markers = [];
 }
 
-function getFilteredTasks() {
-  return state.tasks.filter((task) => {
-    const matchesCategory = state.categories.has(task.category);
-    const matchesStatus = state.status === 'all' || task.status === state.status;
-    return matchesCategory && matchesStatus;
-  });
+function bestSpotForMonster(monster) {
+  if (!monster || !Array.isArray(monster.spots) || !monster.spots.length) return null;
+  return monster.spots.reduce((best, spot) => (
+    (spot.amount || 0) > (best.amount || 0) ? spot : best
+  ), monster.spots[0]);
 }
 
-function renderTaskList(tasks) {
-  taskList.innerHTML = '';
+function highlightMonster(monsterName, options = {}) {
+  const monster = state.monsters.find((entry) => normalizeName(entry.name) === normalizeName(monsterName));
+  if (!monster) return;
 
-  if (!tasks.length) {
-    taskList.innerHTML = '<li class="task-item empty-state"><strong>No matching deliveries</strong><div class="task-meta">Adjust your filters to see more task routes.</div></li>';
-    return;
+  clearMarkers();
+  const best = bestSpotForMonster(monster);
+  if (!best) return;
+
+  const spotMarker = L.circleMarker([best.lat || 0, best.lng || 0], {
+    radius: 9,
+    color: '#f5b942',
+    fillColor: '#f5b942',
+    fillOpacity: 1,
+    weight: 3
+  }).addTo(map);
+
+  spotMarker.bindPopup(`
+    <div style="color:#fff; font-size:13px; line-height:1.5;">
+      <strong>${monster.name}</strong><br>
+      ${best.name}<br>
+      Amount: <strong>${best.amount}</strong><br>
+      Position: ${best.x}, ${best.y}, ${best.z}
+    </div>
+  `);
+
+  spotMarker.openPopup();
+  map.flyTo([best.lat || 0, best.lng || 0], 7, { duration: 0.9 });
+
+  const ranking = [...monster.spots].sort((a, b) => (b.amount || 0) - (a.amount || 0));
+  const topThree = ranking.slice(0, 3).map((entry) => `${entry.name}: ${entry.amount}`).join(' · ');
+
+  mapHud.innerHTML = `
+    <strong>${monster.name}</strong><br>
+    Best: ${best.name}<br>
+    Amount: <strong>${best.amount}</strong><br>
+    ${best.x} / ${best.y} / ${best.z}
+  `;
+
+  state.current = monster;
+  state.markers = [spotMarker];
+
+  if (options.showRanking) {
+    console.log('Top spots:', topThree);
   }
+}
 
-  for (const task of tasks) {
-    const li = document.createElement('li');
-    li.className = 'task-item';
-    li.innerHTML = `
-      <div class="task-head">
-        <strong>${task.title}</strong>
-        <span class="task-tag task-${task.category}">${task.category}</span>
+function renderMonsterList(list) {
+  monsterListEl.innerHTML = '';
+  monsterCountText.textContent = String(list.length);
+
+  for (const monster of list) {
+    const item = document.createElement('li');
+    item.className = 'monster-item';
+    item.innerHTML = `
+      <div class="left">
+        <span class="monster-icon" aria-hidden="true"></span>
+        <span class="monster-name">${monster.name}</span>
       </div>
-      <div class="task-meta">${task.location} · ${task.status}</div>
-      <div class="task-meta">Reward: ${task.reward}</div>
+      <button class="monster-btn" type="button">Show best spot</button>
     `;
 
-    li.addEventListener('click', () => {
-      const marker = state.markers.get(task.id);
-      if (marker) {
-        map.flyTo(marker.getLatLng(), 11, { duration: 0.8 });
-        marker.openPopup();
-      }
-      [...document.querySelectorAll('.task-item')].forEach((el) => el.classList.remove('active'));
-      li.classList.add('active');
+    item.querySelector('button').addEventListener('click', () => {
+      highlightMonster(monster.name);
     });
 
-    taskList.appendChild(li);
+    monsterListEl.appendChild(item);
   }
 }
 
-function updateLayerFromFilters() {
-  cluster.clearLayers();
-  const tasks = getFilteredTasks();
-
-  for (const task of tasks) {
-    const marker = state.markers.get(task.id);
-    if (marker) cluster.addLayer(marker);
-  }
-
-  if (tasks.length) {
-    const bounds = L.latLngBounds(tasks.map((task) => state.markers.get(task.id)?.getLatLng()).filter(Boolean));
-    if (bounds.isValid()) map.fitBounds(bounds.pad(0.35));
-  }
-
-  renderTaskList(tasks);
+function filterMonsters() {
+  const query = normalizeName(monsterSearchInput.value);
+  const filtered = state.monsters.filter((monster) => normalizeName(monster.name).includes(query));
+  renderMonsterList(filtered);
 }
 
-function updateCategoryButtons() {
-  for (const button of categoryButtons) {
-    const category = button.dataset.categoryFilter;
-    const active = state.categories.has(category);
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  }
+function setDefaultMonster() {
+  if (!state.monsters.length) return;
+  const first = state.monsters[0];
+  highlightMonster(first.name);
 }
 
-function setupFilterControls() {
-  statusSelect.addEventListener('change', (event) => {
-    state.status = event.target.value;
-    updateLayerFromFilters();
-  });
+function setupToolbar() {
+  monsterSearchInput.addEventListener('input', filterMonsters);
 
-  for (const button of categoryButtons) {
-    button.addEventListener('click', () => {
-      const category = button.dataset.categoryFilter;
-      if (state.categories.has(category)) {
-        state.categories.delete(category);
-      } else {
-        state.categories.add(category);
-      }
-      updateCategoryButtons();
-      updateLayerFromFilters();
-    });
-  }
-}
-
-async function loadTasks() {
-  try {
-    const response = await fetch(TASKS_URL);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    const features = Array.isArray(data.features) ? data.features : [];
-
-    state.tasks = [];
-    state.markers = new Map();
-
-    for (let i = 0; i < features.length; i += 1) {
-      const feature = features[i];
-      const props = feature.properties || {};
-      const coords = feature.geometry?.coordinates || [];
-      if (!Array.isArray(coords) || coords.length < 2) continue;
-
-      const [lng, lat] = coords;
-      const category = (props.category || 'delivery').toLowerCase();
-      const status = props.status || 'Open';
-      const id = `${category}-${i}`;
-      const color = getMarkerColor(category);
-
-      const marker = L.circleMarker([lat, lng], {
-        radius: 9,
-        color,
-        fillColor: color,
-        fillOpacity: 0.92,
-        weight: 2
-      });
-
-      marker.bindPopup(`
-        <strong>${props.title || 'Task delivery'}</strong><br>
-        ${props.description || 'Delivery task'}<br>
-        <strong>Category:</strong> ${formatLabel(category)}<br>
-        <strong>Status:</strong> ${formatLabel(status)}<br>
-        <strong>Reward:</strong> ${formatLabel(props.reward)}<br>
-        <strong>Location:</strong> ${formatLabel(props.location)}
-      `);
-
-      const task = {
-        id,
-        title: props.title || 'Task delivery',
-        description: props.description || 'Delivery task',
-        category,
-        status,
-        location: props.location || 'Unknown',
-        reward: props.reward || '—',
-        marker
-      };
-
-      state.tasks.push(task);
-      state.markers.set(id, marker);
+  showBestSpotBtn.addEventListener('click', () => {
+    const query = normalizeName(monsterSearchInput.value);
+    if (!query) {
+      setDefaultMonster();
+      return;
     }
 
-    map.addLayer(cluster);
-    updateLayerFromFilters();
+    const matched = state.monsters.find((monster) => normalizeName(monster.name).includes(query));
+    if (matched) highlightMonster(matched.name);
+  });
+
+  showMonsterListBtn.addEventListener('click', () => {
+    monsterSearchInput.value = '';
+    filterMonsters();
+  });
+
+  showTopSpawnsBtn.addEventListener('click', () => {
+    if (!state.monsters.length) return;
+    const ranked = [...state.monsters]
+      .map((monster) => ({
+        name: monster.name,
+        best: bestSpotForMonster(monster)
+      }))
+      .filter((entry) => entry.best)
+      .sort((a, b) => (b.best.amount || 0) - (a.best.amount || 0));
+
+    const top = ranked[0];
+    if (top) highlightMonster(top.name, { showRanking: true });
+  });
+}
+
+async function loadMonsters() {
+  try {
+    const response = await fetch(MONSTERS_URL);
+    if (!response.ok) throw new Error(`Failed to load ${MONSTERS_URL}`);
+    const data = await response.json();
+    state.monsters = Array.isArray(data.monsters) ? data.monsters : [];
+    renderMonsterList(state.monsters);
+    setupToolbar();
+    setDefaultMonster();
   } catch (error) {
-    taskList.innerHTML = '<li class="task-item empty-state"><strong>Map data unavailable</strong><div class="task-meta">Failed to load the task list.</div></li>';
     console.error(error);
+    monsterListEl.innerHTML = '<li class="monster-item"><span class="monster-name">Unable to load monster data</span></li>';
+    monsterCountText.textContent = '0';
+    mapHud.innerHTML = 'Monster data unavailable';
   }
 }
 
-setupFilterControls();
-updateCategoryButtons();
-loadTasks();
+loadMonsters();
