@@ -114,13 +114,9 @@
       if (state.difficulty !== 'all' && task.difficulty !== state.difficulty) return false;
 
       if (!q) return true;
-      return (
-        normalize(task.title).includes(q) ||
-        normalize(task.monsterName).includes(q) ||
-        normalize(task.itemRequired).includes(q) ||
-        normalize(task.location).includes(q) ||
-        normalize(task.description).includes(q)
-      );
+      return state.searchMode === 'drops'
+        ? normalize(task.itemRequired).includes(q)
+        : normalize(task.monsterName).includes(q);
     });
 
     const filteredMonsters = state.monsters.filter(monster => {
