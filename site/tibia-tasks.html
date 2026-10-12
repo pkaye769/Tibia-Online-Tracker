@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d12">
+  <meta name="description" content="Tibia Tasks: Interactive map for weekly delivery and kill tasks, monster spawns, drops, and hunting locations.">
+  <title>Tibia Tasks</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./tibia-tasks.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./index.html" aria-label="Online Tibia Tracker home">
+      <span class="brand-mark" aria-hidden="true">OT</span>
+      <span>Online Tibia <strong>Tracker</strong></span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="./index.html#characters">Characters</a>
+      <a href="./index.html#guilds">Guilds</a>
+      <a href="./tibia-tasks.html" class="active" style="color:var(--accent-bright); font-weight:700;">Tibia Tasks</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="tasks-page-header">
+      <div class="tasks-headline">
+        <div>
+          <p class="eyebrow"><span class="status-dot"></span> Weekly Tasks & Monster Spawns</p>
+          <h1>Tibia Tasks</h1>
+        </div>
+        <div class="tasks-stats-bar">
+          <span><strong id="statTasksCount">0</strong> Weekly Tasks</span>
+          <span>·</span>
+          <span><strong id="statMonstersCount">0</strong> Monsters</span>
+          <span>·</span>
+          <span><strong id="statCompletedCount">0</strong> Completed</span>
+        </div>
+      </div>
+      <p class="hero-text" style="max-width: 680px; margin-top: 8px;">
+        Find where to gather weekly delivery task items, plan hunting tasks, inspect creature spawns and best-spot locations across the map.
+      </p>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <section class="tasks-toolbar" aria-label="Task and monster filters">
+      <div class="tasks-search-row">
+        <label for="taskSearchInput" class="sr-only">Search monsters, items, or tasks</label>
+        <input id="taskSearchInput" class="tasks-search-input" type="search" placeholder="Search by monster (e.g. Mummy), required item (e.g. Gauze Bandage), or location..." autocomplete="off">
+        <button id="clearSearchBtn" class="button button-secondary" type="button">Clear</button>
+      </div>
+
+      <div class="tasks-filter-row">
+        <div class="filter-group" role="group" aria-label="View type">
+          <span style="font-size:12px; color:var(--muted); margin-right:4px;">View:</span>
+          <button class="filter-chip active" data-view="all" type="button">All</button>
+          <button class="filter-chip" data-view="delivery" type="button">Delivery Tasks</button>
+          <button class="filter-chip" data-view="kill" type="button">Kill Tasks</button>
+          <button class="filter-chip" data-view="monsters" type="button">Monsters</button>
+        </div>
+
+        <div class="filter-group" role="group" aria-label="Difficulty filter">
+          <span style="font-size:12px; color:var(--muted); margin-right:4px;">Difficulty:</span>
+          <button class="filter-chip active" data-difficulty="all" type="button">All</button>
+          <button class="filter-chip" data-difficulty="Easy" type="button">Easy</button>
+          <button class="filter-chip" data-difficulty="Medium" type="button">Medium</button>
+          <button class="filter-chip" data-difficulty="Hard" type="button">Hard</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Workspace -->
+    <div class="tasks-workspace">
+      <!-- Left Column: Tasks & Monsters List -->
+      <aside class="tasks-sidebar" id="tasksSidebar">
+        <!-- Weekly Tasks Section -->
+        <section id="weeklyTasksSection">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h2 class="tasks-section-title">
+              Weekly Tasks
+              <span class="tasks-count-badge" id="tasksListCount">0</span>
+            </h2>
+            <button id="resetProgressBtn" type="button" style="background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline; cursor:pointer;">Reset progress</button>
+          </div>
+          <div id="weeklyTasksList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </section>
+
+        <!-- Monsters Section -->
+        <section id="monstersSection" style="margin-top:20px;">
+          <h2 class="tasks-section-title" style="margin-bottom:12px;">
+            Monsters & Best Spots
+            <span class="tasks-count-badge" id="monstersListCount">0</span>
+          </h2>
+          <div id="monstersList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </section>
+      </aside>
+
+      <!-- Right Column: Interactive Map & HUD -->
+      <section class="tasks-map-container" aria-label="Interactive map">
+        <div class="map-wrapper">
+          <div id="map" aria-label="Tibia Task and Spawn Map"></div>
+
+          <!-- Selected Spot HUD -->
+          <div class="map-hud-box" id="mapHud">
+            <div class="map-hud-header">
+              <span class="map-hud-title" id="hudTitle">Select a Task or Monster</span>
+              <span class="map-hud-coords" id="hudCoords">—</span>
+            </div>
+            <div class="map-hud-body" id="hudBody">
+              Click any weekly task or monster on the left, or click a map marker to view spawn density and task requirements.
+            </div>
+            <div class="map-hud-actions" id="hudActions" hidden>
+              <button class="card-btn" id="hudFocusBtn" type="button">Center Map</button>
+              <button class="card-btn" id="hudCopyBtn" type="button">Copy Coords</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Location Jumps -->
+        <div class="map-quick-zones" aria-label="Quick jump to region">
+          <strong style="color:var(--text); margin-right:4px;">Quick Zones:</strong>
+          <button class="zone-chip" type="button" data-lat="51.48" data-lng="-0.18">Thais & Fibula</button>
+          <button class="zone-chip" type="button" data-lat="51.72" data-lng="-0.14">Carlin & Ghostlands</button>
+          <button class="zone-chip" type="button" data-lat="51.40" data-lng="0.05">Venore & PoH</button>
+          <button class="zone-chip" type="button" data-lat="51.56" data-lng="0.36">Edron</button>
+          <button class="zone-chip" type="button" data-lat="50.88" data-lng="0.18">Darashia & Drefia</button>
+          <button class="zone-chip" type="button" data-lat="50.62" data-lng="0.28">Ankrahmun</button>
+          <button class="zone-chip" type="button" data-lat="50.76" data-lng="-0.32">Port Hope</button>
+          <button class="zone-chip" type="button" data-lat="52.12" data-lng="0.18">Yalahar</button>
+          <button class="zone-chip" type="button" data-lat="51.08" data-lng="0.43">Kilmaresh</button>
+          <button class="zone-chip" type="button" data-lat="50.41" data-lng="-0.28">Goroma</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <a class="brand footer-brand" href="./index.html">
+      <span class="brand-mark" aria-hidden="true">OT</span>
+      <span>Online Tibia <strong>Tracker</strong></span>
+    </a>
+    <span class="footer-credit">Tibia Tasks & Spawns Map</span>
+    <a href="./index.html">Back to Main Tracker <span aria-hidden="true">↑</span></a>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="./tibia-tasks.js" defer></script>
+</body>
+</html>

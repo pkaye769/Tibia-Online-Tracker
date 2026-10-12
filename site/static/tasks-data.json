@@ -1,0 +1,679 @@
+{
+  "monsters": [
+    {
+      "id": "rotworm",
+      "name": "Rotworm",
+      "category": "Beginner",
+      "difficulty": "Easy",
+      "hp": 65,
+      "exp": 40,
+      "taskEligible": true,
+      "dropItems": ["Lump of Dirt", "Rotworm Leg", "Meat", "Ham", "Gold Coin"],
+      "bestSpot": {
+        "name": "Fibula Rotworm Dungeon",
+        "city": "Thais / Fibula",
+        "amount": 28,
+        "x": 32160,
+        "y": 32270,
+        "z": 8,
+        "lat": 51.48,
+        "lng": -0.18
+      },
+      "spots": [
+        { "name": "Fibula Rotworm Dungeon", "city": "Fibula", "amount": 28, "x": 32160, "y": 32270, "z": 8, "lat": 51.48, "lng": -0.18 },
+        { "name": "Darashia Rotworm Caves", "city": "Darashia", "amount": 24, "x": 33180, "y": 32390, "z": 8, "lat": 50.92, "lng": 0.24 },
+        { "name": "Edron Southern Caves", "city": "Edron", "amount": 19, "x": 33240, "y": 31820, "z": 8, "lat": 51.52, "lng": 0.36 },
+        { "name": "Venore Swamp Caves", "city": "Venore", "amount": 16, "x": 32950, "y": 32080, "z": 8, "lat": 51.42, "lng": 0.08 }
+      ]
+    },
+    {
+      "id": "larva",
+      "name": "Larva",
+      "category": "Beginner",
+      "difficulty": "Easy",
+      "hp": 70,
+      "exp": 44,
+      "taskEligible": true,
+      "dropItems": ["Larva Egg", "Meat", "Gold Coin"],
+      "bestSpot": {
+        "name": "Ankrahmun Northern Larva Caves",
+        "city": "Ankrahmun",
+        "amount": 32,
+        "x": 33110,
+        "y": 32650,
+        "z": 8,
+        "lat": 50.62,
+        "lng": 0.28
+      },
+      "spots": [
+        { "name": "Ankrahmun Northern Larva Caves", "city": "Ankrahmun", "amount": 32, "x": 33110, "y": 32650, "z": 8, "lat": 50.62, "lng": 0.28 },
+        { "name": "Ankrahmun Eastern Caves", "city": "Ankrahmun", "amount": 25, "x": 33230, "y": 32740, "z": 8, "lat": 50.58, "lng": 0.32 },
+        { "name": "Kha'zeel Outpost Caves", "city": "Ankrahmun", "amount": 18, "x": 33020, "y": 32580, "z": 8, "lat": 50.68, "lng": 0.22 }
+      ]
+    },
+    {
+      "id": "tarantula",
+      "name": "Tarantula",
+      "category": "Beginner",
+      "difficulty": "Easy",
+      "hp": 225,
+      "exp": 120,
+      "taskEligible": true,
+      "dropItems": ["Tarantula Egg", "Spider Silk", "Time Ring", "Gold Coin"],
+      "bestSpot": {
+        "name": "Port Hope Tarantula Caves",
+        "city": "Port Hope",
+        "amount": 36,
+        "x": 32680,
+        "y": 32780,
+        "z": 8,
+        "lat": 50.78,
+        "lng": -0.32
+      },
+      "spots": [
+        { "name": "Port Hope Tarantula Caves", "city": "Port Hope", "amount": 36, "x": 32680, "y": 32780, "z": 8, "lat": 50.78, "lng": -0.32 },
+        { "name": "Trapwood Spider Web", "city": "Port Hope", "amount": 22, "x": 32590, "y": 32830, "z": 7, "lat": 50.75, "lng": -0.36 },
+        { "name": "Tiquanda Hidden Burrow", "city": "Port Hope", "amount": 18, "x": 32750, "y": 32890, "z": 8, "lat": 50.72, "lng": -0.28 }
+      ]
+    },
+    {
+      "id": "badger",
+      "name": "Badger",
+      "category": "Beginner",
+      "difficulty": "Easy",
+      "hp": 23,
+      "exp": 16,
+      "taskEligible": true,
+      "dropItems": ["Badger Boots", "Badger Fur", "Meat", "Ham"],
+      "bestSpot": {
+        "name": "Svargrond Glacier Woods",
+        "city": "Svargrond",
+        "amount": 20,
+        "x": 32310,
+        "y": 31120,
+        "z": 7,
+        "lat": 52.42,
+        "lng": -0.16
+      },
+      "spots": [
+        { "name": "Svargrond Glacier Woods", "city": "Svargrond", "amount": 20, "x": 32310, "y": 31120, "z": 7, "lat": 52.42, "lng": -0.16 },
+        { "name": "Port Hope Northern Jungle", "city": "Port Hope", "amount": 15, "x": 32610, "y": 32620, "z": 7, "lat": 50.84, "lng": -0.34 }
+      ]
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton",
+      "category": "Beginner",
+      "difficulty": "Easy",
+      "hp": 60,
+      "exp": 35,
+      "taskEligible": true,
+      "dropItems": ["Pelvis Bone", "Bone", "Bone Shield", "Viking Helmet"],
+      "bestSpot": {
+        "name": "Ghostlands Crypts",
+        "city": "Carlin",
+        "amount": 34,
+        "x": 32230,
+        "y": 31780,
+        "z": 8,
+        "lat": 51.72,
+        "lng": -0.14
+      },
+      "spots": [
+        { "name": "Ghostlands Crypts", "city": "Carlin", "amount": 34, "x": 32230, "y": 31780, "z": 8, "lat": 51.72, "lng": -0.14 },
+        { "name": "Mount Sternum Undead Depths", "city": "Thais", "amount": 26, "x": 32420, "y": 32090, "z": 8, "lat": 51.55, "lng": -0.09 },
+        { "name": "Drefia Outer Ruins", "city": "Darashia", "amount": 22, "x": 32980, "y": 32410, "z": 7, "lat": 50.88, "lng": 0.18 }
+      ]
+    },
+    {
+      "id": "ghoul",
+      "name": "Ghoul",
+      "category": "Beginner",
+      "difficulty": "Easy",
+      "hp": 100,
+      "exp": 85,
+      "taskEligible": true,
+      "dropItems": ["Ghoul Snack", "Rotten Piece of Cloth", "Brown Bread", "Life Ring", "Scale Armor"],
+      "bestSpot": {
+        "name": "Mount Sternum Ghoul Chambers",
+        "city": "Thais",
+        "amount": 30,
+        "x": 32440,
+        "y": 32120,
+        "z": 8,
+        "lat": 51.54,
+        "lng": -0.08
+      },
+      "spots": [
+        { "name": "Mount Sternum Ghoul Chambers", "city": "Thais", "amount": 30, "x": 32440, "y": 32120, "z": 8, "lat": 51.54, "lng": -0.08 },
+        { "name": "Ghostlands Deep Crypt", "city": "Carlin", "amount": 24, "x": 32210, "y": 31760, "z": 9, "lat": 51.73, "lng": -0.15 },
+        { "name": "Drefia Catacombs", "city": "Darashia", "amount": 20, "x": 32960, "y": 32440, "z": 8, "lat": 50.87, "lng": 0.17 }
+      ]
+    },
+    {
+      "id": "scarab",
+      "name": "Scarab",
+      "category": "Intermediate",
+      "difficulty": "Medium",
+      "hp": 320,
+      "exp": 120,
+      "taskEligible": true,
+      "dropItems": ["Scarab Pincer", "Scarab Coin", "Small Emerald", "Dharalion Staff"],
+      "bestSpot": {
+        "name": "Ankrahmun Hidden Scarab Lair",
+        "city": "Ankrahmun",
+        "amount": 38,
+        "x": 33150,
+        "y": 32540,
+        "z": 8,
+        "lat": 50.66,
+        "lng": 0.29
+      },
+      "spots": [
+        { "name": "Ankrahmun Hidden Scarab Lair", "city": "Ankrahmun", "amount": 38, "x": 33150, "y": 32540, "z": 8, "lat": 50.66, "lng": 0.29 },
+        { "name": "Mother of Scarabs Lair", "city": "Ankrahmun", "amount": 32, "x": 33260, "y": 32620, "z": 8, "lat": 50.63, "lng": 0.33 },
+        { "name": "Kha'zeel Sand Dunes", "city": "Ankrahmun", "amount": 21, "x": 33080, "y": 32490, "z": 7, "lat": 50.69, "lng": 0.25 }
+      ]
+    },
+    {
+      "id": "cyclops",
+      "name": "Cyclops",
+      "category": "Intermediate",
+      "difficulty": "Medium",
+      "hp": 260,
+      "exp": 150,
+      "taskEligible": true,
+      "dropItems": ["Cyclops Toe", "Halberd", "Club Ring", "Heavy Machete"],
+      "bestSpot": {
+        "name": "Mistrock Cyclops Mountain",
+        "city": "Yalahar / Mistrock",
+        "amount": 42,
+        "x": 32640,
+        "y": 31420,
+        "z": 7,
+        "lat": 52.05,
+        "lng": 0.18
+      },
+      "spots": [
+        { "name": "Mistrock Cyclops Mountain", "city": "Yalahar / Mistrock", "amount": 42, "x": 32640, "y": 31420, "z": 7, "lat": 52.05, "lng": 0.18 },
+        { "name": "Mount Sternum Cyclops Camp", "city": "Thais", "amount": 35, "x": 32460, "y": 32060, "z": 7, "lat": 51.56, "lng": -0.07 },
+        { "name": "Cyclopolis Underground Level 1", "city": "Edron", "amount": 28, "x": 33280, "y": 31690, "z": 8, "lat": 51.57, "lng": 0.38 }
+      ]
+    },
+    {
+      "id": "minotaur",
+      "name": "Minotaur",
+      "category": "Intermediate",
+      "difficulty": "Medium",
+      "hp": 100,
+      "exp": 45,
+      "taskEligible": true,
+      "dropItems": ["Minotaur Leather", "Minotaur Horn", "Chain Armor", "Brass Helmet"],
+      "bestSpot": {
+        "name": "Mintwallin Minotaur City",
+        "city": "Thais / Mintwallin",
+        "amount": 55,
+        "x": 32410,
+        "y": 32180,
+        "z": 11,
+        "lat": 51.51,
+        "lng": -0.10
+      },
+      "spots": [
+        { "name": "Mintwallin Minotaur City", "city": "Thais / Mintwallin", "amount": 55, "x": 32410, "y": 32180, "z": 11, "lat": 51.51, "lng": -0.10 },
+        { "name": "Darashia Minotaur Tower", "city": "Darashia", "amount": 34, "x": 33290, "y": 32440, "z": 6, "lat": 50.91, "lng": 0.28 },
+        { "name": "Yalahar Foreigner Quarter", "city": "Yalahar", "amount": 26, "x": 32790, "y": 31180, "z": 7, "lat": 52.14, "lng": 0.21 }
+      ]
+    },
+    {
+      "id": "mummy",
+      "name": "Mummy",
+      "category": "Intermediate",
+      "difficulty": "Medium",
+      "hp": 240,
+      "exp": 150,
+      "taskEligible": true,
+      "dropItems": ["Gauze Bandage", "Flask of Embalming Fluid", "Black Pearl", "Crystal Ring"],
+      "bestSpot": {
+        "name": "Ankrahmun Shadow Tomb",
+        "city": "Ankrahmun",
+        "amount": 30,
+        "x": 33180,
+        "y": 32700,
+        "z": 9,
+        "lat": 50.60,
+        "lng": 0.30
+      },
+      "spots": [
+        { "name": "Ankrahmun Shadow Tomb", "city": "Ankrahmun", "amount": 30, "x": 33180, "y": 32700, "z": 9, "lat": 50.60, "lng": 0.30 },
+        { "name": "Drefia Mummy Vaults", "city": "Darashia", "amount": 25, "x": 32940, "y": 32460, "z": 9, "lat": 50.86, "lng": 0.16 },
+        { "name": "Helheim Undead Floor 2", "city": "Svargrond", "amount": 19, "x": 32040, "y": 31250, "z": 8, "lat": 52.38, "lng": -0.22 }
+      ]
+    },
+    {
+      "id": "bonelord",
+      "name": "Bonelord",
+      "category": "Intermediate",
+      "difficulty": "Medium",
+      "hp": 260,
+      "exp": 170,
+      "taskEligible": true,
+      "dropItems": ["Bonelord Eye", "Two Handed Sword", "Terra Rod", "Spellbook"],
+      "bestSpot": {
+        "name": "Hellgate Bonelord Bastion",
+        "city": "Ab'Dendriel",
+        "amount": 26,
+        "x": 32720,
+        "y": 31580,
+        "z": 10,
+        "lat": 51.78,
+        "lng": 0.02
+      },
+      "spots": [
+        { "name": "Hellgate Bonelord Bastion", "city": "Ab'Dendriel", "amount": 26, "x": 32720, "y": 31580, "z": 10, "lat": 51.78, "lng": 0.02 },
+        { "name": "Vandura Mountain Caves", "city": "Liberty Bay", "amount": 21, "x": 32320, "y": 32790, "z": 8, "lat": 50.48, "lng": -0.21 },
+        { "name": "Drefia Hall of Gazes", "city": "Darashia", "amount": 16, "x": 32920, "y": 32430, "z": 9, "lat": 50.88, "lng": 0.15 }
+      ]
+    },
+    {
+      "id": "bonebeast",
+      "name": "Bonebeast",
+      "category": "Intermediate",
+      "difficulty": "Medium",
+      "hp": 515,
+      "exp": 580,
+      "taskEligible": true,
+      "dropItems": ["Bonebeast Bone", "Hardened Bone", "Skull Helmet", "Bone Shield"],
+      "bestSpot": {
+        "name": "Ramoa Bonebeast Island",
+        "city": "Liberty Bay / Goroma",
+        "amount": 40,
+        "x": 32090,
+        "y": 32580,
+        "z": 7,
+        "lat": 50.42,
+        "lng": -0.26
+      },
+      "spots": [
+        { "name": "Ramoa Bonebeast Island", "city": "Liberty Bay / Goroma", "amount": 40, "x": 32090, "y": 32580, "z": 7, "lat": 50.42, "lng": -0.26 },
+        { "name": "Old Fortress Level -1", "city": "Edron", "amount": 34, "x": 33160, "y": 31730, "z": 8, "lat": 51.56, "lng": 0.33 },
+        { "name": "Helheim Undead Floor 3", "city": "Svargrond", "amount": 27, "x": 32050, "y": 31280, "z": 9, "lat": 52.37, "lng": -0.21 }
+      ]
+    },
+    {
+      "id": "giant-spider",
+      "name": "Giant Spider",
+      "category": "Advanced",
+      "difficulty": "Hard",
+      "hp": 790,
+      "exp": 743,
+      "taskEligible": true,
+      "dropItems": ["Spider Silk", "Knight Legs", "Knight Armor", "Platinum Amulet", "Time Ring"],
+      "bestSpot": {
+        "name": "Plains of Havoc Old Temple",
+        "city": "Venore / PoH",
+        "amount": 26,
+        "x": 32820,
+        "y": 32280,
+        "z": 7,
+        "lat": 51.36,
+        "lng": 0.04
+      },
+      "spots": [
+        { "name": "Plains of Havoc Old Temple", "city": "Venore / PoH", "amount": 26, "x": 32820, "y": 32280, "z": 7, "lat": 51.36, "lng": 0.04 },
+        { "name": "Yalahar Cemetery Quarter GS Spawns", "city": "Yalahar", "amount": 22, "x": 32740, "y": 31050, "z": 7, "lat": 52.18, "lng": 0.19 },
+        { "name": "Port Hope Spider Caves", "city": "Port Hope", "amount": 18, "x": 32710, "y": 32840, "z": 8, "lat": 50.76, "lng": -0.31 }
+      ]
+    },
+    {
+      "id": "dragon",
+      "name": "Dragon",
+      "category": "Advanced",
+      "difficulty": "Hard",
+      "hp": 1000,
+      "exp": 700,
+      "taskEligible": true,
+      "dropItems": ["Dragon Scale", "Dragon Tail", "Dragon Ham", "Dragon Shield", "Wand of Cosmic Energy"],
+      "bestSpot": {
+        "name": "Venore Dragon Lair",
+        "city": "Venore",
+        "amount": 35,
+        "x": 32780,
+        "y": 32110,
+        "z": 8,
+        "lat": 51.44,
+        "lng": 0.06
+      },
+      "spots": [
+        { "name": "Venore Dragon Lair", "city": "Venore", "amount": 35, "x": 32780, "y": 32110, "z": 8, "lat": 51.44, "lng": 0.06 },
+        { "name": "Edron Dragon Lair", "city": "Edron", "amount": 28, "x": 33260, "y": 31710, "z": 8, "lat": 51.55, "lng": 0.37 },
+        { "name": "Ankrahmun Dragon Lairs", "city": "Ankrahmun", "amount": 24, "x": 33170, "y": 32420, "z": 7, "lat": 50.71, "lng": 0.29 }
+      ]
+    },
+    {
+      "id": "dragon-lord",
+      "name": "Dragon Lord",
+      "category": "Advanced",
+      "difficulty": "Hard",
+      "hp": 1900,
+      "exp": 2100,
+      "taskEligible": true,
+      "dropItems": ["Dragon Lord Tail", "Red Dragon Scale", "Royal Helmet", "Dragon Slayer", "Fire Sword"],
+      "bestSpot": {
+        "name": "Fenrock Dragon Lord Mountain",
+        "city": "Yalahar / Fenrock",
+        "amount": 32,
+        "x": 32560,
+        "y": 31290,
+        "z": 9,
+        "lat": 52.09,
+        "lng": 0.15
+      },
+      "spots": [
+        { "name": "Fenrock Dragon Lord Mountain", "city": "Yalahar / Fenrock", "amount": 32, "x": 32560, "y": 31290, "z": 9, "lat": 52.09, "lng": 0.15 },
+        { "name": "Edron Dragon Lord Lair", "city": "Edron", "amount": 25, "x": 33310, "y": 31680, "z": 9, "lat": 51.58, "lng": 0.39 },
+        { "name": "Pits of Inferno Dragon Lair", "city": "Venore / PoI", "amount": 20, "x": 32840, "y": 32330, "z": 12, "lat": 51.34, "lng": 0.05 }
+      ]
+    },
+    {
+      "id": "vampire",
+      "name": "Vampire",
+      "category": "Advanced",
+      "difficulty": "Hard",
+      "hp": 467,
+      "exp": 305,
+      "taskEligible": true,
+      "dropItems": ["Vampire Teeth", "Vampire Dust", "Vampire Shield", "Spike Sword"],
+      "bestSpot": {
+        "name": "Drefia Vampire Crypts",
+        "city": "Darashia",
+        "amount": 28,
+        "x": 32910,
+        "y": 32450,
+        "z": 9,
+        "lat": 50.87,
+        "lng": 0.15
+      },
+      "spots": [
+        { "name": "Drefia Vampire Crypts", "city": "Darashia", "amount": 28, "x": 32910, "y": 32450, "z": 9, "lat": 50.87, "lng": 0.15 },
+        { "name": "Yalahar Magician / Cemetery Pass", "city": "Yalahar", "amount": 20, "x": 32760, "y": 31080, "z": 8, "lat": 52.17, "lng": 0.20 },
+        { "name": "Vengoth Castle Crypts", "city": "Yalahar / Vengoth", "amount": 18, "x": 32890, "y": 31450, "z": 8, "lat": 52.04, "lng": 0.26 }
+      ]
+    },
+    {
+      "id": "bashmu",
+      "name": "Bashmu",
+      "category": "Elite",
+      "difficulty": "Hard",
+      "hp": 8500,
+      "exp": 7600,
+      "taskEligible": true,
+      "dropItems": ["Bashmu Fang", "Bloated Maggot", "Giant Tusk", "Crystalline Armor"],
+      "bestSpot": {
+        "name": "Kilmaresh Sunken Ruins",
+        "city": "Kilmaresh",
+        "amount": 24,
+        "x": 33620,
+        "y": 32180,
+        "z": 8,
+        "lat": 51.10,
+        "lng": 0.45
+      },
+      "spots": [
+        { "name": "Kilmaresh Sunken Ruins", "city": "Kilmaresh", "amount": 24, "x": 33620, "y": 32180, "z": 8, "lat": 51.10, "lng": 0.45 },
+        { "name": "Krailos Desert Gorge", "city": "Krailos", "amount": 16, "x": 33540, "y": 32240, "z": 7, "lat": 51.05, "lng": 0.41 }
+      ]
+    },
+    {
+      "id": "demon",
+      "name": "Demon",
+      "category": "Elite",
+      "difficulty": "Hard",
+      "hp": 8200,
+      "exp": 6000,
+      "taskEligible": true,
+      "dropItems": ["Demon Horn", "Demonic Essence", "Demon Shield", "Magic Plate Armor", "Fire Axe"],
+      "bestSpot": {
+        "name": "Goroma Volcano Demon Caves",
+        "city": "Goroma",
+        "amount": 22,
+        "x": 31980,
+        "y": 32620,
+        "z": 10,
+        "lat": 50.40,
+        "lng": -0.30
+      },
+      "spots": [
+        { "name": "Goroma Volcano Demon Caves", "city": "Goroma", "amount": 22, "x": 31980, "y": 32620, "z": 10, "lat": 50.40, "lng": -0.30 },
+        { "name": "Edron Demon Forge", "city": "Edron", "amount": 18, "x": 33330, "y": 31650, "z": 11, "lat": 51.59, "lng": 0.40 },
+        { "name": "Pits of Inferno Demon Throne", "city": "Venore / PoI", "amount": 16, "x": 32860, "y": 32370, "z": 13, "lat": 51.33, "lng": 0.06 }
+      ]
+    }
+  ],
+  "weeklyTasks": [
+    {
+      "id": "wt-deliv-gauze",
+      "title": "Gauze Bandages Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "mummy",
+      "monsterName": "Mummy",
+      "itemRequired": "Gauze Bandage",
+      "amount": "30x",
+      "difficulty": "Medium",
+      "reward": "40 Task Points · 50,000 EXP",
+      "location": "Ankrahmun Shadow Tomb / Drefia",
+      "description": "Collect and deliver 30 Gauze Bandages dropped by Mummies to complete this week's task board quota."
+    },
+    {
+      "id": "wt-deliv-silk",
+      "title": "Spider Silk Gathering",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "giant-spider",
+      "monsterName": "Giant Spider",
+      "itemRequired": "Spider Silk",
+      "amount": "15x",
+      "difficulty": "Hard",
+      "reward": "65 Task Points · 120,000 EXP",
+      "location": "Plains of Havoc / Port Hope Caves",
+      "description": "Gather 15 Spider Silks from Giant Spiders or Tarantulas to supply the crafters guild."
+    },
+    {
+      "id": "wt-deliv-dragon-scale",
+      "title": "Dragon Scales Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "dragon",
+      "monsterName": "Dragon",
+      "itemRequired": "Dragon Scale",
+      "amount": "20x",
+      "difficulty": "Hard",
+      "reward": "70 Task Points · 140,000 EXP",
+      "location": "Venore / Edron Dragon Lair",
+      "description": "Harvest 20 Dragon Scales from Dragons across the realm for the armorer."
+    },
+    {
+      "id": "wt-deliv-pincer",
+      "title": "Scarab Pincers Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "scarab",
+      "monsterName": "Scarab",
+      "itemRequired": "Scarab Pincer",
+      "amount": "40x",
+      "difficulty": "Medium",
+      "reward": "45 Task Points · 60,000 EXP",
+      "location": "Ankrahmun Scarab Lairs",
+      "description": "Deliver 40 Scarab Pincers obtained from deep desert Scarabs."
+    },
+    {
+      "id": "wt-deliv-vampire-teeth",
+      "title": "Vampire Teeth Collection",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "vampire",
+      "monsterName": "Vampire",
+      "itemRequired": "Vampire Teeth",
+      "amount": "25x",
+      "difficulty": "Hard",
+      "reward": "60 Task Points · 95,000 EXP",
+      "location": "Drefia / Yalahar Cemetery",
+      "description": "Collect 25 Vampire Teeth from Vampires to fulfill the imbuement task order."
+    },
+    {
+      "id": "wt-deliv-pelvis",
+      "title": "Pelvis Bones Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "skeleton",
+      "monsterName": "Skeleton",
+      "itemRequired": "Pelvis Bone",
+      "amount": "50x",
+      "difficulty": "Easy",
+      "reward": "25 Task Points · 20,000 EXP",
+      "location": "Ghostlands / Mount Sternum",
+      "description": "Collect 50 Pelvis Bones from Skeletons across dungeon crypts."
+    },
+    {
+      "id": "wt-deliv-minotaur-leather",
+      "title": "Minotaur Leather Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "minotaur",
+      "monsterName": "Minotaur",
+      "itemRequired": "Minotaur Leather",
+      "amount": "30x",
+      "difficulty": "Medium",
+      "reward": "35 Task Points · 35,000 EXP",
+      "location": "Mintwallin / Darashia Tower",
+      "description": "Deliver 30 pieces of Minotaur Leather to support local leatherworkers."
+    },
+    {
+      "id": "wt-deliv-cyclops-toe",
+      "title": "Cyclops Toes Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "cyclops",
+      "monsterName": "Cyclops",
+      "itemRequired": "Cyclops Toe",
+      "amount": "25x",
+      "difficulty": "Medium",
+      "reward": "40 Task Points · 48,000 EXP",
+      "location": "Mistrock / Mount Sternum",
+      "description": "Retrieve 25 Cyclops Toes from Mistrock or Mount Sternum Cyclopes."
+    },
+    {
+      "id": "wt-deliv-badger-boots",
+      "title": "Badger Boots Sourcing",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "badger",
+      "monsterName": "Badger",
+      "itemRequired": "Badger Boots",
+      "amount": "5x",
+      "difficulty": "Easy",
+      "reward": "30 Task Points · 25,000 EXP",
+      "location": "Svargrond Glacier / Port Hope",
+      "description": "Deliver 5 pairs of Badger Boots dropped by Arctic or Jungle Badgers."
+    },
+    {
+      "id": "wt-deliv-bashmu-fang",
+      "title": "Bashmu Fangs Delivery",
+      "type": "delivery",
+      "category": "Weekly Delivery",
+      "monsterId": "bashmu",
+      "monsterName": "Bashmu",
+      "itemRequired": "Bashmu Fang",
+      "amount": "10x",
+      "difficulty": "Hard",
+      "reward": "90 Task Points · 250,000 EXP",
+      "location": "Kilmaresh Sunken Ruins",
+      "description": "Deliver 10 rare Bashmu Fangs from the dangerous serpents of Kilmaresh."
+    },
+    {
+      "id": "wt-kill-rotworm",
+      "title": "Rotworm Extermination",
+      "type": "kill",
+      "category": "Weekly Kill Task",
+      "monsterId": "rotworm",
+      "monsterName": "Rotworm",
+      "itemRequired": null,
+      "amount": "300 Kills",
+      "difficulty": "Easy",
+      "reward": "30 Task Points · 30,000 EXP",
+      "location": "Fibula / Darashia Rotworm Caves",
+      "description": "Slay 300 Rotworms infesting the subterranean cellars."
+    },
+    {
+      "id": "wt-kill-tarantula",
+      "title": "Tarantula Hive Cull",
+      "type": "kill",
+      "category": "Weekly Kill Task",
+      "monsterId": "tarantula",
+      "monsterName": "Tarantula",
+      "itemRequired": null,
+      "amount": "300 Kills",
+      "difficulty": "Easy",
+      "reward": "40 Task Points · 55,000 EXP",
+      "location": "Port Hope Tarantula Caves",
+      "description": "Hunt down 300 Tarantulas in the Tiquanda jungles to unlock Hide."
+    },
+    {
+      "id": "wt-kill-bonebeast",
+      "title": "Bonebeast Purge",
+      "type": "kill",
+      "category": "Weekly Kill Task",
+      "monsterId": "bonebeast",
+      "monsterName": "Bonebeast",
+      "itemRequired": null,
+      "amount": "300 Kills",
+      "difficulty": "Medium",
+      "reward": "65 Task Points · 150,000 EXP",
+      "location": "Ramoa / Old Fortress",
+      "description": "Destroy 300 Bonebeasts in Ramoa or the Edron Old Fortress."
+    },
+    {
+      "id": "wt-kill-dragons",
+      "title": "Dragon Flight Eradication",
+      "type": "kill",
+      "category": "Weekly Kill Task",
+      "monsterId": "dragon",
+      "monsterName": "Dragon",
+      "itemRequired": null,
+      "amount": "250 Kills",
+      "difficulty": "Hard",
+      "reward": "80 Task Points · 220,000 EXP",
+      "location": "Venore / Edron Dragon Lairs",
+      "description": "Slay 250 Dragons to protect the trade roads and caravan routes."
+    },
+    {
+      "id": "wt-kill-dragon-lord",
+      "title": "Dragon Lord Annihilation",
+      "type": "kill",
+      "category": "Weekly Kill Task",
+      "monsterId": "dragon-lord",
+      "monsterName": "Dragon Lord",
+      "itemRequired": null,
+      "amount": "200 Kills",
+      "difficulty": "Hard",
+      "reward": "100 Task Points · 450,000 EXP",
+      "location": "Fenrock / Edron DL Lair",
+      "description": "Defeat 200 Dragon Lords in their blazing subterranean volcanic lairs."
+    },
+    {
+      "id": "wt-kill-demon",
+      "title": "Demonic Incursion Task",
+      "type": "kill",
+      "category": "Weekly Kill Task",
+      "monsterId": "demon",
+      "monsterName": "Demon",
+      "itemRequired": null,
+      "amount": "100 Kills",
+      "difficulty": "Hard",
+      "reward": "150 Task Points · 800,000 EXP",
+      "location": "Goroma Volcano / Edron Demon Forge",
+      "description": "Banish 100 Demons back into the depths of Hell."
+    }
+  ]
+}
