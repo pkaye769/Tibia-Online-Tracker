@@ -1,0 +1,76 @@
+{
+  "monsters": [
+    {
+      "name": "Rotworm",
+      "spots": [
+        { "name": "Rotworm Cave", "x": 32160, "y": 32270, "z": 7, "amount": 18, "lat": 51.5074, "lng": -0.1278 },
+        { "name": "Mummy Trail", "x": 32180, "y": 32290, "z": 7, "amount": 11, "lat": 51.515, "lng": -0.101 },
+        { "name": "Lower Caverns", "x": 32220, "y": 32240, "z": 7, "amount": 9, "lat": 51.497, "lng": -0.144 }
+      ]
+    },
+    {
+      "name": "Larva",
+      "spots": [
+        { "name": "Larva Hollow", "x": 33110, "y": 32350, "z": 7, "amount": 16, "lat": 52.48, "lng": -1.9 },
+        { "name": "Earth Den", "x": 33090, "y": 32420, "z": 7, "amount": 14, "lat": 52.47, "lng": -1.88 },
+        { "name": "Rock Burrow", "x": 33145, "y": 32310, "z": 7, "amount": 13, "lat": 52.49, "lng": -1.82 }
+      ]
+    },
+    {
+      "name": "Ghoul",
+      "spots": [
+        { "name": "Ghoul Ruins", "x": 32780, "y": 32370, "z": 7, "amount": 20, "lat": 50.85, "lng": 4.35 },
+        { "name": "Bone Yard", "x": 32810, "y": 32320, "z": 7, "amount": 15, "lat": 50.86, "lng": 4.4 },
+        { "name": "Crypt Pass", "x": 32760, "y": 32410, "z": 7, "amount": 10, "lat": 50.81, "lng": 4.31 }
+      ]
+    },
+    {
+      "name": "Skeleton",
+      "spots": [
+        { "name": "Bone Field", "x": 33170, "y": 32480, "z": 7, "amount": 19, "lat": 53.3498, "lng": -6.2603 },
+        { "name": "Grave Approach", "x": 33210, "y": 32420, "z": 7, "amount": 15, "lat": 53.36, "lng": -6.24 },
+        { "name": "Crypt West", "x": 33140, "y": 32530, "z": 7, "amount": 12, "lat": 53.34, "lng": -6.27 }
+      ]
+    },
+    {
+      "name": "Scarab",
+      "spots": [
+        { "name": "Sand Burrow", "x": 32860, "y": 32340, "z": 7, "amount": 21, "lat": 48.8566, "lng": 2.3522 },
+        { "name": "Desert Bend", "x": 32890, "y": 32310, "z": 7, "amount": 17, "lat": 48.87, "lng": 2.39 },
+        { "name": "Sunline Pass", "x": 32810, "y": 32380, "z": 7, "amount": 14, "lat": 48.85, "lng": 2.31 }
+      ]
+    },
+    {
+      "name": "Mummy",
+      "spots": [
+        { "name": "Ancient Tomb", "x": 33020, "y": 32390, "z": 7, "amount": 17, "lat": 50.0755, "lng": 14.4378 },
+        { "name": "Burial Hall", "x": 33070, "y": 32350, "z": 7, "amount": 13, "lat": 50.09, "lng": 14.45 },
+        { "name": "Dust Vault", "x": 32990, "y": 32420, "z": 7, "amount": 12, "lat": 50.07, "lng": 14.42 }
+      ]
+    },
+    {
+      "name": "Ghost",
+      "spots": [
+        { "name": "Moon Chapel", "x": 32930, "y": 32290, "z": 7, "amount": 16, "lat": 47.4979, "lng": 19.0402 },
+        { "name": "Silence Hall", "x": 32970, "y": 32310, "z": 7, "amount": 12, "lat": 47.51, "lng": 19.07 },
+        { "name": "The Veil", "x": 32900, "y": 32260, "z": 7, "amount": 11, "lat": 47.49, "lng": 19.02 }
+      ]
+    },
+    {
+      "name": "Gargoyle",
+      "spots": [
+        { "name": "Stone Cliffs", "x": 32670, "y": 32320, "z": 7, "amount": 22, "lat": 44.8378, "lng": 20.4 },
+        { "name": "Bastion Peak", "x": 32710, "y": 32360, "z": 7, "amount": 16, "lat": 44.85, "lng": 20.45 },
+        { "name": "Grey Ridge", "x": 32640, "y": 32290, "z": 7, "amount": 10, "lat": 44.82, "lng": 20.36 }
+      ]
+    },
+    {
+      "name": "Tarantula",
+      "spots": [
+        { "name": "Web Pit", "x": 33240, "y": 32420, "z": 7, "amount": 18, "lat": 40.4168, "lng": -3.7038 },
+        { "name": "Dark Thread", "x": 33280, "y": 32480, "z": 7, "amount": 14, "lat": 40.43, "lng": -3.68 },
+        { "name": "Old Nest", "x": 33220, "y": 32380, "z": 7, "amount": 11, "lat": 40.41, "lng": -3.74 }
+      ]
+    }
+  ]
+}
