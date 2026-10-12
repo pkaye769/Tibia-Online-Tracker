@@ -1,209 +1,199 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#111814">
-    <meta name="description" content="Online Tibia Tracker: find possible hidden characters with Tibia Stalker, check character profiles and live Tibia worlds, and use leveling and hunt-profit calculators.">
-    <title>Online Tibia Tracker</title>
-    <link rel="stylesheet" href="./styles.css">
-    <script src="./app.js" defer></script>
-  </head>
-  <body>
-    <header class="topbar">
-      <a class="brand" href="#home" aria-label="Online Tibia Tracker home">
-        <span class="brand-mark" aria-hidden="true">OT</span>
-        <span>Online Tibia <strong>Tracker</strong></span>
-      </a>
-      <nav aria-label="Main navigation">
-        <a href="#characters">Characters</a>
-        <a href="#guilds">Guilds</a>
-        <a href="#transfers">Transfers</a>
-        <a href="./task-delivery.html">Task delivery</a>
-      </nav>
-    </header>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111814">
+  <meta name="description" content="Online Tibia Tracker: find possible hidden characters with Tibia Stalker, check character profiles and live Tibia worlds, and use leveling and hunt-profit calculators.">
+  <title>Online Tibia Tracker</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home" aria-label="Online Tibia Tracker home">
+      <span class="brand-mark" aria-hidden="true">OT</span>
+      <span>Online Tibia <strong>Tracker</strong></span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#characters">Characters</a>
+      <a href="#guilds">Guilds</a>
+      <a href="#transfers">Transfers</a>
+      <a href="./task-delivery.html">Task delivery</a>
+    </nav>
+  </header>
 
-    <main id="home">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow"><span class="status-dot"></span> Your Tibia companion</p>
-          <h1>Know your next<br><span>move.</span></h1>
-          <p class="hero-text">Find possible hidden characters, see who's online in Tibia worlds, and check world transfers—all in one place.</p>
-          <a class="button" href="#characters">Get started <span aria-hidden="true">↓</span></a>
-        </div>
-        <div class="hero-art" aria-label="Illustration of character activity">
-          <div class="orb orb-one"></div>
-          <div class="orb orb-two"></div>
-          <div class="moon"></div>
-          <div class="land"></div>
-          <div class="tower tower-one"><i></i><i></i><i></i></div>
-          <div class="tower tower-two"><i></i><i></i></div>
-          <div class="hero-caption"><span class="caption-dot"></span><span>CHARACTER TOOLS, IN ONE PLACE</span><span class="caption-line"></span></div>
-        </div>
-      </section>
+  <main id="home">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot"></span> Your Tibia companion</p>
+        <h1>Know your next<br><span>move.</span></h1>
+        <p class="hero-text">Find possible hidden characters, see who's online in Tibia worlds, and check world transfers—all in one place.</p>
+        <a class="button" href="#characters">Get started <span aria-hidden="true">↓</span></a>
+        <a class="button button-secondary" href="./task-delivery.html" aria-label="Open Task delivery map">Task delivery map <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="hero-art" aria-label="Illustration of character activity">
+        <div class="orb orb-one"></div>
+        <div class="orb orb-two"></div>
+        <div class="moon"></div>
+        <div class="land"></div>
+        <div class="tower tower-one"><i></i><i></i><i></i></div>
+        <div class="tower tower-two"><i></i><i></i></div>
+        <div class="hero-caption"><span class="caption-dot"></span><span>CHARACTER TOOLS, IN ONE PLACE</span><span class="caption-line"></span></div>
+      </div>
+    </section>
 
-      <section class="section-block" id="characters">
-        <div class="section-head">
-          <div><p class="eyebrow">01 / Character search</p><h2>Discover a character.</h2></div>
-          <p>Search Tibia Stalker for possible hidden characters and view public profile details from TibiaData.</p>
-        </div>
-        <div class="two-card-grid">
-          <article class="tool-card character-card">
-            <span class="card-icon" aria-hidden="true">⌕</span>
-            <h3>Character search</h3>
-            <p>Possible hidden characters from Tibia Stalker, with public character details from TibiaData.</p>
-            <form id="characterSearchForm">
-              <label class="sr-only" for="characterNames">Character name</label>
-              <input id="characterNames" type="search" placeholder="Enter character name" required maxlength="80" autocomplete="off">
-              <button class="button" id="characterSearchButton" type="submit">Search character <span aria-hidden="true">→</span></button>
-            </form>
-            <p class="api-note" id="characterSearchStatus" aria-live="polite">Search live Tibia Stalker correlations and public TibiaData character details.</p>
-            <div class="character-results" id="characterResults" hidden>
-              <h4>Character information</h4>
-              <p id="characterSummary"></p>
-              <div class="character-details" id="characterDetails"></div>
-              <h4>Possible hidden characters · Tibia Stalker</h4>
-              <div id="hiddenCharacters"></div>
-              <h4>Other characters listed on this account</h4>
-              <div id="accountCharacters"></div>
-              <h4>Recent deaths</h4>
-              <div id="characterDeaths"></div>
-            </div>
-          </article>
-          <article class="tool-card online-card">
-            <div class="card-heading"><span class="card-icon" aria-hidden="true">◉</span><span class="live-label"><i></i> Live · TibiaData</span></div>
-            <h3>Online players by world</h3>
-            <p>Check a world for online players or look up one character's online status.</p>
-            <form class="online-search" id="onlineSearchForm">
-              <label for="onlineCharacter">World</label>
-              <div class="inline-field">
-                <input id="onlineCharacter" type="search" placeholder="World name (e.g. Secura)" value="Secura" maxlength="60" autocomplete="off">
-                <button class="button button-secondary" id="onlineCheck" type="submit">Load players</button>
-              </div>
-            </form>
-            <form class="online-search" id="onlineCharacterForm">
-              <label for="onlineCharacterName">Check a character's online status</label>
-              <div class="inline-field">
-                <input id="onlineCharacterName" type="search" placeholder="Character name" maxlength="80" autocomplete="off">
-                <button class="button button-secondary" id="onlineCharacterCheck" type="submit">Check</button>
-              </div>
-            </form>
-            <div class="api-note" id="onlineStatus" aria-live="polite">Live online status loads directly from TibiaData.</div>
-            <div class="online-filters" id="onlineFilters" role="group" aria-label="Filter online players by vocation" hidden></div>
-            <ul class="online-list" id="onlineList" aria-live="polite"></ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="section-block" id="guilds">
-        <div class="section-head">
-          <div><p class="eyebrow">02 / Guild lookup</p><h2>Check a guild.</h2></div>
-          <p>Look up a guild's world, roster size, and who is currently online.</p>
-        </div>
-        <article class="tool-card guild-card">
-          <span class="card-icon" aria-hidden="true">⌂</span>
-          <h3>Guild lookup</h3>
-          <p>Fetch the latest public guild summary directly from TibiaData.</p>
-          <form id="guildSearchForm">
-            <label class="sr-only" for="guildName">Guild name</label>
-            <input id="guildName" type="search" placeholder="Enter guild name" required maxlength="80" autocomplete="off">
-            <button class="button" id="guildSearchButton" type="submit">Search guild <span aria-hidden="true">→</span></button>
+    <section class="section-block" id="characters">
+      <div class="section-head">
+        <div><p class="eyebrow">01 / Character search</p><h2>Discover a character.</h2></div>
+        <p>Search Tibia Stalker for possible hidden characters and view public profile details from TibiaData.</p>
+      </div>
+      <div class="two-card-grid">
+        <article class="tool-card character-card">
+          <span class="card-icon" aria-hidden="true">⌕</span>
+          <h3>Character search</h3>
+          <p>Possible hidden characters from Tibia Stalker, with public character details from TibiaData.</p>
+          <form id="characterSearchForm">
+            <label class="sr-only" for="characterNames">Character name</label>
+            <input id="characterNames" type="search" placeholder="Enter character name" required maxlength="80" autocomplete="off">
+            <button class="button" id="characterSearchButton" type="submit">Search character <span aria-hidden="true">→</span></button>
           </form>
-          <p class="api-note" id="guildSearchStatus" aria-live="polite">Guild details load directly from TibiaData.</p>
-          <div class="character-results" id="guildResults" hidden>
-            <h4>Guild summary</h4>
-            <p id="guildSummary"></p>
-            <div class="character-details" id="guildDetails"></div>
-            <h4>Online members</h4>
-            <div id="guildOnlineMembers"></div>
+          <p class="api-note" id="characterSearchStatus" aria-live="polite">Search live Tibia Stalker correlations and public TibiaData character details.</p>
+          <div class="character-results" id="characterResults" hidden>
+            <h4>Character information</h4>
+            <p id="characterSummary"></p>
+            <div class="character-details" id="characterDetails"></div>
+            <h4>Possible hidden characters · Tibia Stalker</h4>
+            <div id="hiddenCharacters"></div>
+            <h4>Other characters listed on this account</h4>
+            <div id="accountCharacters"></div>
+            <h4>Recent deaths</h4>
+            <div id="characterDeaths"></div>
           </div>
         </article>
-
-        <div class="two-card-grid" style="margin-top:18px">
-          <article class="tool-card">
-            <div class="card-heading"><span class="card-icon" aria-hidden="true">★</span><span>Saved watchlist players</span></div>
-            <div class="form-group">
-              <label for="savedPlayerInput">Player name (press Enter to save)</label>
-              <input id="savedPlayerInput" type="text" placeholder="Character name" />
-            </div>
-            <div class="form-group">
-              <label for="savedPlayerList">Saved players</label>
-              <select id="savedPlayerList" size="4" style="width:100%"></select>
-            </div>
-            <div class="actions">
-              <button id="addSavedPlayerBtn" class="button">Add</button>
-              <button id="useSavedPlayerBtn" class="button button-secondary">Use in Search</button>
-              <button id="removeSavedPlayerBtn" class="button">Remove</button>
-            </div>
-            <div id="savedPlayersDisplay" class="saved-display">No saved players yet.</div>
-          </article>
-
-          <article class="tool-card">
-            <div class="card-heading"><span class="card-icon" aria-hidden="true">★</span><span>Saved guilds</span></div>
-            <div class="form-group">
-              <label for="savedGuildInput">Guild name (press Enter to save)</label>
-              <input id="savedGuildInput" type="text" placeholder="Guild name" />
-            </div>
-            <div class="form-group">
-              <label for="savedGuildList">Saved guilds</label>
-              <select id="savedGuildList" size="4" style="width:100%"></select>
-            </div>
-            <div class="actions">
-              <button id="addSavedGuildBtn" class="button">Add</button>
-              <button id="refreshSavedGuildsBtn" class="button button-secondary">Refresh</button>
-              <button id="removeSavedGuildBtn" class="button">Remove</button>
-            </div>
-            <div id="savedGuildsDisplay" class="saved-display">No saved guilds yet.</div>
-          </article>
-        </div>
-      </section>
-
-      <section class="section-block" id="transfers">
-        <div class="section-head">
-          <div><p class="eyebrow">03 / World activity</p><h2>World transfers.</h2></div>
-          <p>Browse characters recently transferred to or from a world.</p>
-        </div>
-        <article class="tool-card transfer-card">
-          <form id="transferForm">
-            <div class="transfer-fields">
-              <div class="field">
-                <label for="transferWorld">World</label>
-                <div id="worldList" class="world-list">Loading worlds…</div>
-              </div>
-              <div class="field">
-                <label for="transferDays">Look back (days)</label>
-                <input id="transferDays" type="number" value="7" min="1" max="365" required>
-              </div>
-              <button class="button" type="submit" id="transferSearch">Search transfers <span aria-hidden="true">→</span></button>
+        <article class="tool-card online-card">
+          <div class="card-heading"><span class="card-icon" aria-hidden="true">◉</span><span class="live-label"><i></i> Live · TibiaData</span></div>
+          <h3>Online players by world</h3>
+          <p>Check a world for online players or look up one character's online status.</p>
+          <form class="online-search" id="onlineSearchForm">
+            <label for="onlineCharacter">World</label>
+            <div class="inline-field">
+              <input id="onlineCharacter" type="search" placeholder="World name (e.g. Secura)" value="Secura" maxlength="60" autocomplete="off">
+              <button class="button button-secondary" id="onlineCheck" type="submit">Load players</button>
             </div>
           </form>
-          <p class="api-note" id="transferStatus" aria-live="polite">Click a server below to view transfers to that world. You can change the look-back period before searching.</p>
-          <div class="transfer-results" id="transferResults" hidden>
-            <section><h3>Transfers to <span id="toWorldName"></span></h3><div id="transfersTo"></div></section>
-            <section><h3>Transfers from <span id="fromWorldName"></span></h3><div id="transfersFrom"></div></section>
-          </div>
+          <form class="online-search" id="onlineCharacterForm">
+            <label for="onlineCharacterName">Check a character's online status</label>
+            <div class="inline-field">
+              <input id="onlineCharacterName" type="search" placeholder="Character name" maxlength="80" autocomplete="off">
+              <button class="button button-secondary" id="onlineCharacterCheck" type="submit">Check</button>
+            </div>
+          </form>
+          <div class="api-note" id="onlineStatus" aria-live="polite">Live online status loads directly from TibiaData.</div>
+          <div class="online-filters" id="onlineFilters" role="group" aria-label="Filter online players by vocation" hidden></div>
+          <ul class="online-list" id="onlineList" aria-live="polite"></ul>
         </article>
-      </section>
+      </div>
+    </section>
 
-      <details class="api-settings" id="apiSettings">
-        <summary>Configure world-transfer API <span>Optional · character search uses Tibia Stalker and TibiaData</span></summary>
-        <div class="api-config">
-          <label for="apiBase">Compatible world-transfer API URL</label>
-          <div class="api-config-row">
-            <input id="apiBase" type="url" placeholder="https://your-api.example.com" autocomplete="url">
-            <button class="button button-secondary" id="saveApi" type="button">Save API URL</button>
-          </div>
-          <p>Possible hidden-character matches load from the public Tibia Stalker API; character profiles and online players load from TibiaData. World-transfer history needs a separate compatible API server.</p>
+    <section class="section-block" id="guilds">
+      <div class="section-head">
+        <div><p class="eyebrow">02 / Guild lookup</p><h2>Check a guild.</h2></div>
+        <p>Look up a guild's world, roster size, and who is currently online.</p>
+      </div>
+      <article class="tool-card guild-card">
+        <span class="card-icon" aria-hidden="true">⌂</span>
+        <h3>Guild lookup</h3>
+        <p>Fetch the latest public guild summary directly from TibiaData.</p>
+        <form id="guildSearchForm">
+          <label class="sr-only" for="guildName">Guild name</label>
+          <input id="guildName" type="search" placeholder="Enter guild name" required maxlength="80" autocomplete="off">
+          <button class="button" id="guildSearchButton" type="submit">Search guild <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="api-note" id="guildSearchStatus" aria-live="polite">Guild details load directly from TibiaData.</p>
+        <div class="character-results" id="guildResults" hidden>
+          <h4>Guild summary</h4>
+          <p id="guildSummary"></p>
+          <div class="character-details" id="guildDetails"></div>
+          <h4>Online members</h4>
+          <div id="guildOnlineMembers"></div>
         </div>
-      </details>
+      </article>
 
-      <aside class="disclaimer"><span aria-hidden="true">ⓘ</span> Possible hidden-character matches are estimates from the <a href="https://www.tibiastalker.pl/" target="_blank" rel="noopener noreferrer">Tibia Stalker</a> API.</aside>
-    </main>
+      <!-- Saved watchlist players and saved guilds -->
+      <div class="two-card-grid" style="margin-top:18px">
+        <article class="tool-card">
+          <div class="card-heading"><span class="card-icon" aria-hidden="true">★</span><span>Saved watchlist players</span></div>
+          <div class="form-group">
+            <label for="savedPlayerInput">Player name (press Enter to save)</label>
+            <input id="savedPlayerInput" type="text" placeholder="Character name" />
+          </div>
+          <div class="form-group">
+            <label for="savedPlayerList">Saved players</label>
+            <select id="savedPlayerList" size="4" style="width:100%"></select>
+          </div>
+          <div class="actions">
+            <button id="addSavedPlayerBtn" class="button">Add</button>
+            <button id="useSavedPlayerBtn" class="button button-secondary">Use in Search</button>
+            <button id="removeSavedPlayerBtn" class="button">Remove</button>
+          </div>
+          <div id="savedPlayersDisplay" class="saved-display">No saved players yet.</div>
+        </article>
 
-    <footer>
-      <a class="brand footer-brand" href="#home"><span class="brand-mark" aria-hidden="true">OT</span><span>Online Tibia <strong>Tracker</strong></span></a>
-      <span class="footer-credit">Created by Deli</span>
-      <a href="https://github.com/pkaye769/Tibia-Online-Tracker">Open-source project <span aria-hidden="true">↗</span></a>
-    </footer>
-  </body>
+        <article class="tool-card">
+          <div class="card-heading"><span class="card-icon" aria-hidden="true">★</span><span>Saved guilds</span></div>
+          <div class="form-group">
+            <label for="savedGuildInput">Guild name (press Enter to save)</label>
+            <input id="savedGuildInput" type="text" placeholder="Guild name" />
+          </div>
+          <div class="form-group">
+            <label for="savedGuildList">Saved guilds</label>
+            <select id="savedGuildList" size="4" style="width:100%"></select>
+          </div>
+          <div class="actions">
+            <button id="addSavedGuildBtn" class="button">Add</button>
+            <button id="refreshSavedGuildsBtn" class="button button-secondary">Refresh</button>
+            <button id="removeSavedGuildBtn" class="button">Remove</button>
+          </div>
+          <div id="savedGuildsDisplay" class="saved-display">No saved guilds yet.</div>
+        </article>
+      </div>
+
+    </section>
+
+    <!-- Replaced transfers section with Task delivery link -->
+    <section class="section-block" id="task-delivery">
+      <div class="section-head">
+        <div><p class="eyebrow">03 / Task delivery</p><h2>Delivery routes map.</h2></div>
+        <p>Explore delivery and courier tasks on an interactive map. Click a marker to inspect the job and open the full Task Delivery page for more details.</p>
+      </div>
+      <article class="tool-card">
+        <span class="card-icon" aria-hidden="true">↗</span>
+        <h3>Task delivery map</h3>
+        <p>View available deliveries, couriers, and collection routes on a shared map. Use filters to refine by category or status.</p>
+        <a class="button" href="./task-delivery.html">Open task delivery map <span aria-hidden="true">→</span></a>
+      </article>
+    </section>
+
+    <details class="api-settings" id="apiSettings">
+      <summary>Configure world-transfer API <span>Optional · character search uses Tibia Stalker and TibiaData</span></summary>
+      <div class="api-config">
+        <label for="apiBase">Compatible world-transfer API URL</label>
+        <div class="api-config-row">
+          <input id="apiBase" type="url" placeholder="https://your-api.example.com" autocomplete="url">
+          <button class="button button-secondary" id="saveApi" type="button">Save API URL</button>
+        </div>
+        <p>Possible hidden-character matches load from the public Tibia Stalker API; character profiles and online players load from TibiaData. World-transfer history needs a separate compatible API server.</p>
+      </div>
+    </details>
+
+    <aside class="disclaimer"><span aria-hidden="true">ⓘ</span> Possible hidden-character matches are estimates from the <a href="https://www.tibiastalker.pl/" target="_blank" rel="noopener noreferrer">Tibia Stalker</a> API.</aside>
+  </main>
+
+  <footer>
+    <a class="brand footer-brand" href="#home"><span class="brand-mark" aria-hidden="true">OT</span><span>Online Tibia <strong>Tracker</strong></span></a>
+    <span class="footer-credit">Created by Deli</span>
+    <a href="https://github.com/pkaye769/Tibia-Online-Tracker">Open-source project <span aria-hidden="true">↗</span></a>
+  </footer>
+</body>
 </html>
