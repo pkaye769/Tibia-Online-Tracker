@@ -1,176 +1,268 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Task Delivery Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Monster Best Spots</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
       :root {
-        --bg: #0f1720;
-        --panel: #111b22;
-        --panel-strong: #15242c;
-        --border: rgba(255,255,255,0.08);
-        --text: #edf6ff;
-        --muted: #a9becf;
-        --accent: #79c0ff;
-        --accent-soft: rgba(121,192,255,0.18);
+        --bg: #071b2e;
+        --bg-2: #0d2339;
+        --panel: rgba(17, 27, 39, 0.96);
+        --panel-strong: rgba(13, 22, 31, 0.95);
+        --line: rgba(255, 255, 255, 0.08);
+        --text: #ebf3ff;
+        --muted: #a9bed4;
+        --green: #19c27a;
+        --green-2: #2ae28f;
+        --purple: #8f5af4;
+        --blue: #3c8dff;
+        --blue-soft: rgba(60, 141, 255, 0.2);
+        --shadow: rgba(0, 0, 0, 0.2);
       }
 
       * { box-sizing: border-box; }
+
       html, body {
         margin: 0;
-        min-height: 100%;
-        background: var(--bg);
+        height: 100%;
+        background: linear-gradient(180deg, var(--bg) 0%, #0b1f34 100%);
         color: var(--text);
         font-family: Arial, Helvetica, sans-serif;
       }
 
       body {
-        padding: 20px;
+        min-height: 100vh;
       }
 
       .page {
-        max-width: 1200px;
-        margin: 0 auto;
-      }
-
-      .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-        padding: 12px 16px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: rgba(17, 27, 34, 0.9);
-        box-shadow: 0 10px 35px rgba(0,0,0,0.18);
-      }
-
-      .brand {
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        color: var(--text);
-        text-decoration: none;
-      }
-
-      .nav {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .nav a {
-        color: var(--muted);
-        text-decoration: none;
-        padding: 8px 12px;
-        border-radius: 8px;
-        transition: 0.2s ease;
-      }
-
-      .nav a:hover,
-      .nav a.active {
-        background: var(--accent-soft);
-        color: var(--text);
-      }
-
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 12px 30px rgba(0,0,0,0.18);
-      }
-
-      .header {
-        padding: 18px 20px 12px;
-        border-bottom: 1px solid var(--border);
-        background: var(--panel-strong);
-      }
-
-      .header h1 {
-        margin: 0 0 8px;
-        font-size: clamp(1.6rem, 2vw, 2.3rem);
-      }
-
-      .header p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.5;
-      }
-
-      .layout {
         display: grid;
         grid-template-columns: 320px 1fr;
-        min-height: 70vh;
+        height: 100vh;
+        width: 100%;
+        background: rgba(8, 18, 31, 0.7);
       }
 
       .sidebar {
-        border-right: 1px solid var(--border);
-        background: rgba(17, 27, 34, 0.95);
+        background: rgba(12, 20, 30, 0.96);
+        border-right: 1px solid var(--line);
+        padding: 18px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
       }
 
-      .sidebar-inner {
-        padding: 16px;
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 4px 4px 18px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--line);
+        font-weight: 700;
+        color: var(--text);
+        text-decoration: none;
       }
 
-      .status {
-        color: var(--muted);
+      .brand-mark {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        background: linear-gradient(135deg, #bbd7ff, #6fa6ff);
+        box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+      }
+
+      .monster-total {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: rgba(25, 194, 122, 0.18);
+        border: 1px solid rgba(25, 194, 122, 0.4);
+        border-radius: 10px 10px 12px 12px;
+        padding: 12px 14px;
         margin: 0 0 12px;
-        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text);
       }
 
-      .task-list {
+      .monster-total .count {
+        color: var(--green-2);
+      }
+
+      .monster-list {
         list-style: none;
         padding: 0;
         margin: 0;
         display: flex;
         flex-direction: column;
         gap: 10px;
+        overflow: auto;
       }
 
-      .task-item {
-        padding: 12px 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: rgba(255,255,255,0.02);
+      .monster-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+
+      .monster-item .left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .monster-icon {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #f9d870, #d49431);
+        box-shadow: inset 0 0 0 2px rgba(0,0,0,0.25);
+        flex-shrink: 0;
+      }
+
+      .monster-name {
+        font-size: 1.03rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .monster-btn {
+        border: none;
+        background: linear-gradient(180deg, #9a69ff, #7f4be8);
+        color: #fff;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-weight: 700;
         cursor: pointer;
-        transition: 0.2s ease;
+        box-shadow: 0 8px 20px rgba(143, 90, 244, 0.28);
       }
 
-      .task-item:hover,
-      .task-item.active {
-        border-color: rgba(121,192,255,0.5);
-        background: rgba(121,192,255,0.08);
+      .monster-btn:hover {
+        filter: brightness(1.08);
       }
 
-      .task-item strong {
-        display: block;
-        margin-bottom: 4px;
+      .main {
+        display: flex;
+        flex-direction: column;
+        padding: 18px 16px 14px;
+        min-width: 0;
       }
 
-      .task-meta {
-        color: var(--muted);
-        font-size: 0.8rem;
-        line-height: 1.5;
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
       }
 
-      .map-wrap {
+      .toolbar-search {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+        min-width: 260px;
+      }
+
+      .search-box {
+        flex: 1;
+        min-width: 200px;
+        background: rgba(10, 18, 30, 0.7);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        color: var(--text);
+        font-size: 1.05rem;
+      }
+
+      .toolbar button {
+        border: none;
+        background: linear-gradient(180deg, #2ace7e, #1cb56d);
+        color: #fff;
+        font-weight: 800;
+        padding: 12px 16px;
+        border-radius: 10px;
+        cursor: pointer;
+        box-shadow: 0 10px 22px rgba(25, 194, 122, 0.22);
+      }
+
+      .toolbar button.secondary {
+        background: linear-gradient(180deg, #7f4be8, #6b3de0);
+        box-shadow: 0 10px 22px rgba(143, 90, 244, 0.22);
+      }
+
+      .map-panel {
         position: relative;
+        flex: 1;
         min-height: 520px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #0d2436;
       }
 
-      #map {
+      #monsterMap {
         width: 100%;
         height: 100%;
         min-height: 520px;
-        background: #0d1a21;
+      }
+
+      .map-hud {
+        position: absolute;
+        left: 18px;
+        bottom: 18px;
+        background: rgba(16, 23, 30, 0.8);
+        border: 1px solid var(--line);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 0.9rem;
+        box-shadow: 0 12px 22px rgba(0,0,0,0.2);
+        z-index: 400;
+      }
+
+      .map-hud strong { color: var(--text); }
+
+      .map-source {
+        position: absolute;
+        left: 12px;
+        bottom: 8px;
+        font-size: 0.78rem;
+        color: var(--muted);
+        z-index: 400;
+      }
+
+      .map-zoom {
+        position: absolute;
+        right: 20px;
+        bottom: 18px;
+        z-index: 400;
+        color: var(--text);
+        font-size: 0.8rem;
+        opacity: 0.9;
+      }
+
+      .leaflet-container {
+        background: #12354d;
       }
 
       .leaflet-popup-content-wrapper,
       .leaflet-popup-tip {
-        background: #16252d;
+        background: rgba(12, 20, 30, 0.97);
         color: var(--text);
       }
 
@@ -179,51 +271,54 @@
       }
 
       @media (max-width: 900px) {
-        .layout {
+        .page {
           grid-template-columns: 1fr;
+          height: auto;
         }
 
         .sidebar {
           border-right: none;
-          border-bottom: 1px solid var(--border);
+          border-bottom: 1px solid var(--line);
         }
       }
     </style>
   </head>
   <body>
     <div class="page">
-      <div class="topbar">
-        <a class="brand" href="./index.html">Online Tibia Tracker</a>
-        <nav class="nav" aria-label="Main navigation">
-          <a href="./index.html#characters">Characters</a>
-          <a href="./index.html#guilds">Guilds</a>
-          <a href="./task-delivery.html" class="active">Task delivery</a>
-        </nav>
-      </div>
+      <aside class="sidebar">
+        <a class="brand" href="./index.html" aria-label="Go to Online Tibia Tracker home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Beginner Tasks Cheatsheet</span>
+        </a>
 
-      <div class="panel">
-        <div class="header">
-          <h1>Task delivery map</h1>
-          <p>Browse available task-delivery routes and click any marker to inspect the job details.</p>
+        <div class="monster-total">
+          <span>Very fast</span>
+          <span class="count" id="monsterCountText">0</span>
         </div>
 
-        <div class="layout">
-          <aside class="sidebar">
-            <div class="sidebar-inner">
-              <p class="status">Available deliveries</p>
-              <ul id="taskList" class="task-list" aria-live="polite"></ul>
-            </div>
-          </aside>
+        <ul id="monsterList" class="monster-list" aria-live="polite"></ul>
+      </aside>
 
-          <div class="map-wrap">
-            <div id="map" aria-label="Task delivery map"></div>
+      <main class="main">
+        <div class="toolbar">
+          <div class="toolbar-search">
+            <input id="monsterSearch" class="search-box" type="text" placeholder="Search monster name" aria-label="Search monster" />
           </div>
+          <button id="showBestSpotBtn" type="button">Show Best Spots</button>
+          <button class="secondary" id="showMonsterListBtn" type="button">Monsters</button>
+          <button class="secondary" id="showTopSpawnsBtn" type="button">Ranking</button>
         </div>
-      </div>
+
+        <div class="map-panel">
+          <div id="monsterMap" aria-label="Monster spawn map"></div>
+          <div class="map-hud" id="mapHud">No monster selected</div>
+          <div class="map-source">Map data from TibiaMaps.io</div>
+          <div class="map-zoom">Scroll to zoom</div>
+        </div>
+      </main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="./task-delivery.js"></script>
   </body>
 </html>
