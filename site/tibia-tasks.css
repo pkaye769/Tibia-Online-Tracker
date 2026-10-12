@@ -587,3 +587,44 @@
 .leaflet-popup-content strong {
   color: #ffffff;
 }
+
+.map-floor-bar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(8, 18, 25, 0.9);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.map-floor-bar select {
+  background: #0d1822;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
+.map-coords {
+  font-family: monospace;
+  color: var(--text);
+}
+
+#map.leaflet-container {
+  background: #3b6ea5;
+}
+
+.tibia-floor-image {
+  image-rendering: pixelated;
+}
+
+.tibia-map-marker.marker-off-floor {
+  opacity: 0.45;
+}

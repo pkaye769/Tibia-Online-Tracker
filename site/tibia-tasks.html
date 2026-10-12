@@ -105,6 +105,17 @@
       <!-- Right Column: Interactive Map & HUD -->
       <section class="tasks-map-container" aria-label="Interactive map">
         <div class="map-wrapper">
+          <div class="map-floor-bar">
+            <label for="floorSelect">Floor</label>
+            <select id="floorSelect" aria-label="Map floor">
+              <option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option>
+              <option value="4">04</option><option value="5">05</option><option value="6">06</option>
+              <option value="7" selected>07 (Ground)</option>
+              <option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option>
+              <option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option>
+            </select>
+            <span class="map-coords" id="mapCoords">X: — Y: — Z: 7</span>
+          </div>
           <div id="map" aria-label="Tibia Task and Spawn Map"></div>
 
           <!-- Selected Spot HUD -->
@@ -126,16 +137,16 @@
         <!-- Quick Location Jumps -->
         <div class="map-quick-zones" aria-label="Quick jump to region">
           <strong style="color:var(--text); margin-right:4px;">Quick Zones:</strong>
-          <button class="zone-chip" type="button" data-lat="51.48" data-lng="-0.18">Thais & Fibula</button>
-          <button class="zone-chip" type="button" data-lat="51.72" data-lng="-0.14">Carlin & Ghostlands</button>
-          <button class="zone-chip" type="button" data-lat="51.40" data-lng="0.05">Venore & PoH</button>
-          <button class="zone-chip" type="button" data-lat="51.56" data-lng="0.36">Edron</button>
-          <button class="zone-chip" type="button" data-lat="50.88" data-lng="0.18">Darashia & Drefia</button>
-          <button class="zone-chip" type="button" data-lat="50.62" data-lng="0.28">Ankrahmun</button>
-          <button class="zone-chip" type="button" data-lat="50.76" data-lng="-0.32">Port Hope</button>
-          <button class="zone-chip" type="button" data-lat="52.12" data-lng="0.18">Yalahar</button>
-          <button class="zone-chip" type="button" data-lat="51.08" data-lng="0.43">Kilmaresh</button>
-          <button class="zone-chip" type="button" data-lat="50.41" data-lng="-0.28">Goroma</button>
+          <button class="zone-chip" type="button" data-x="32369" data-y="32241">Thais & Fibula</button>
+          <button class="zone-chip" type="button" data-x="32360" data-y="31780">Carlin & Ghostlands</button>
+          <button class="zone-chip" type="button" data-x="32957" data-y="32076">Venore & PoH</button>
+          <button class="zone-chip" type="button" data-x="33191" data-y="31818">Edron</button>
+          <button class="zone-chip" type="button" data-x="33213" data-y="32454">Darashia & Drefia</button>
+          <button class="zone-chip" type="button" data-x="33129" data-y="32803">Ankrahmun</button>
+          <button class="zone-chip" type="button" data-x="32627" data-y="32745">Port Hope</button>
+          <button class="zone-chip" type="button" data-x="32810" data-y="31235">Yalahar</button>
+          <button class="zone-chip" type="button" data-x="33920" data-y="31715">Kilmaresh</button>
+          <button class="zone-chip" type="button" data-x="32170" data-y="32940">Goroma</button>
         </div>
       </section>
     </div>
